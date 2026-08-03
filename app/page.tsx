@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-type CityId = "tokyo" | "osaka" | "vancouver" | "toronto" | "losAngeles" | "newYork" | "london" | "paris" | "rome" | "queretaro" | "puebla" | "merida" | "mexicoCity" | "melbourne";
-type CurrencyCode = "JPY" | "CAD" | "USD" | "GBP" | "EUR" | "MXN" | "AUD";
+type CityId = "tokyo" | "osaka" | "vancouver" | "toronto" | "losAngeles" | "newYork" | "london" | "paris" | "rome" | "queretaro" | "puebla" | "merida" | "mexicoCity" | "melbourne" | "sapporo" | "fukuoka" | "seoul" | "taipei" | "singapore" | "hongKong" | "bangkok" | "kualaLumpur" | "jakarta" | "manila" | "hoChiMinh" | "beijing" | "shanghai" | "sydney" | "brisbane" | "perth" | "montreal" | "calgary" | "chicago" | "dallas" | "sanFrancisco" | "miami" | "boston" | "seattle" | "washingtonDc" | "madrid" | "berlin" | "amsterdam" | "lisbon" | "dubai" | "zurich" | "dublin" | "saoPaulo" | "buenosAires" | "santiago" | "bogota";
+type CurrencyCode = "JPY" | "CAD" | "USD" | "GBP" | "EUR" | "MXN" | "AUD" | "KRW" | "TWD" | "SGD" | "HKD" | "THB" | "MYR" | "IDR" | "PHP" | "VND" | "CNY" | "AED" | "CHF" | "BRL" | "ARS" | "CLP" | "COP";
 type AgeBand = "under40" | "40to64" | "65plus";
+type SalaryCurrency = "origin" | "JPY";
 type Language = "ja" | "en";
 
 type DataSource = {
@@ -52,7 +53,7 @@ type City = {
   climate: string;
   language: string;
   population: string;
-  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia";
+  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia" | "estimate";
   taxRegion: string;
   insurance: InsuranceConfig;
   averageAnnualIncome: number;
@@ -82,6 +83,11 @@ type City = {
   dataSources: DataSource[];
   sourceLabel: string;
   updatedAt: string;
+  englishName?: string;
+  englishCountry?: string;
+  englishRegion?: string;
+  englishClimate?: string;
+  englishLanguage?: string;
 };
 
 type CityResult = {
@@ -137,6 +143,27 @@ type OfficialData = {
   warnings: string[];
 };
 
+type HistoryRecord = {
+  id: string;
+  title: string;
+  origin_city: string;
+  destination_city: string;
+  input: Record<string, unknown>;
+  result: Record<string, unknown>;
+  created_at: string;
+};
+
+type SavedComparisonInput = {
+  originId: CityId;
+  destinationId: CityId;
+  salary: string;
+  salaryCurrency: SalaryCurrency;
+  household: keyof typeof householdMultipliers;
+  housing: keyof typeof housingMultipliers;
+  lifestyle: keyof typeof lifestyleMultipliers;
+  ageBand: AgeBand;
+};
+
 const source = (item: string, level: DataSource["level"], period: string, sourceName: string, url: string): DataSource => ({ item, level, period, source: sourceName, url });
 const japanSources = (populationSource: DataSource): DataSource[] => [populationSource, source("物価", "都市", "2026年", "総務省統計局・消費者物価指数", "https://www.stat.go.jp/data/cpi/1.html"), source("給与", "都道府県", "2025年調査", "厚生労働省・賃金構造基本統計調査", "https://www.mhlw.go.jp/toukei/list/chinginkouzou_a.html"), source("所得税", "国", "2026年分", "国税庁・令和8年分源泉徴収税額表", "https://www.nta.go.jp/publication/pamph/gensen/zeigakuhyo2026/01.htm"), source("健康保険・介護保険", "都道府県", "2026年度", "協会けんぽ・令和8年度保険料率", "https://www.kyoukaikenpo.or.jp/about/business/insurance_rate/rate_prefectures/r08/"), source("年金", "国", "2026年度", "日本年金機構・厚生年金保険料率", "https://www.nenkin.go.jp/service/kounen/hokenryo/hoshu/20150515-01.html"), source("雇用保険", "国", "2026年度", "厚生労働省・令和8年度雇用保険料率", "https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/0000108634.html")];
 const canadaSources = (populationSource: DataSource): DataSource[] => [populationSource, source("物価", "国", "2026年", "Statistics Canada・Consumer Price Index", "https://www.statcan.gc.ca/en/subjects-start/prices_and_price_indexes/consumer_price_indexes"), source("連邦・州所得税", "国・州", "2026年", "Canada Revenue Agency・Tax rates and brackets", "https://www.canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canada-income-tax-rates-individuals-current-previous-years.html"), source("CPP・EI", "国", "2026年", "Canada Revenue Agency・Payroll deductions", "https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4032-payroll-deductions-tables.html")];
@@ -158,7 +185,7 @@ const australiaInsurance: InsuranceConfig = { healthRateEmployee: 0, careRateEmp
 
 const cityBase = (id: CityId, name: string, country: string, countryCode: string, region: string, currency: CurrencyCode, currencyLabel: string, timezone: string, climate: string, language: string, population: string, taxSystem: City["taxSystem"], taxRegion: string, insurance: InsuranceConfig, averageAnnualIncome: number, costs: City["costs"], jobs: Record<string, number>, scores: City["scores"], dataSources: DataSource[], sourceLabel: string): City => ({ id, name, country, countryCode, region, currency, currencyLabel, fxToJpy: 1, timezone, climate, language, population, taxSystem, taxRegion, insurance, averageAnnualIncome, costs, jobs, scores, dataSources, sourceLabel, updatedAt: "2026年7月26日" });
 
-const cities: Record<CityId, City> = {
+const baseCities: Partial<Record<CityId, City>> = {
   tokyo: cityBase("tokyo", "東京", "日本", "JPN", "アジア", "JPY", "日本円", "UTC+9（日本標準時）", "温暖湿潤・四季がある", "日本語", "14,246,219人（東京都・2025年10月1日速報）", "japan", "tokyo", japanInsurance(0.04925), 5_700_000, { rent: 185_000, food: 65_000, utilities: 18_000, internet: 5_500, transport: 15_000, medical: 10_000, leisure: 30_000 }, { "IT職": 7_200_000, "エンジニア": 6_800_000, "営業": 5_500_000, "一般事務": 4_200_000 }, { livability: 88, business: 76, nomad: 68, family: 84, safety: 86, healthcare: 88, internet: 91, transit: 96, nature: 72, japaneseFood: 100, english: 38 }, japanSources(source("人口", "都道府県", "2025年10月1日速報", "東京都・令和7年国勢調査速報", "https://www.metro.tokyo.lg.jp/information/press/2026/05/2026052914")), "人口・物価は公的資料、給与・家賃は地域統計の目安"),
   osaka: cityBase("osaka", "大阪", "日本", "JPN", "アジア", "JPY", "日本円", "UTC+9（日本標準時）", "温暖湿潤・比較的温暖", "日本語", "2,817,627人（大阪市・2026年7月1日推計）", "japan", "osaka", japanInsurance(0.05065), 5_100_000, { rent: 135_000, food: 60_000, utilities: 17_000, internet: 5_500, transport: 12_000, medical: 10_000, leisure: 28_000 }, { "IT職": 6_500_000, "エンジニア": 6_100_000, "営業": 5_000_000, "一般事務": 3_900_000 }, { livability: 89, business: 79, nomad: 70, family: 86, safety: 82, healthcare: 88, internet: 91, transit: 91, nature: 76, japaneseFood: 100, english: 36 }, japanSources(source("人口", "都市", "2026年7月1日", "大阪市・推計人口", "https://www.city.osaka.lg.jp/toshikeikaku/page/0000541634.html")), "人口・物価は公的資料、給与・家賃は地域統計の目安"),
   vancouver: cityBase("vancouver", "バンクーバー", "カナダ", "CAN", "北米", "CAD", "カナダドル", "UTC-8（夏時間あり）", "海洋性・雨が多く冬は温和", "英語・フランス語", "約264万人（Metro Vancouver・2021年国勢調査）", "canada", "britishColumbia", canadaInsurance, 95_000, { rent: 2_800, food: 700, utilities: 150, internet: 90, transport: 110, medical: 70, leisure: 300 }, { "IT職": 120_000, "エンジニア": 115_000, "営業": 85_000, "一般事務": 58_000 }, { livability: 85, business: 80, nomad: 84, family: 86, safety: 78, healthcare: 82, internet: 89, transit: 82, nature: 98, japaneseFood: 82, english: 100 }, canadaSources(source("人口", "都市圏", "2021年国勢調査", "Statistics Canada・Census Profile", "https://www12.statcan.gc.ca/census-recensement/2021/dp-pd/prof/index.cfm?Lang=E")), "人口・物価は公的資料、給与・家賃は地域統計の目安"),
@@ -175,7 +202,104 @@ const cities: Record<CityId, City> = {
   melbourne: cityBase("melbourne", "メルボルン", "オーストラリア", "AUS", "オセアニア", "AUD", "オーストラリアドル", "UTC+10（夏時間あり）", "海洋性・一日の気温差が大きい", "英語", "5,435,590人（Greater Melbourne・2025年6月30日）", "australia", "victoria", australiaInsurance, 88_000, { rent: 2_500, food: 720, utilities: 230, internet: 90, transport: 190, medical: 110, leisure: 360 }, { "IT職": 115_000, "エンジニア": 108_000, "営業": 82_000, "一般事務": 68_000 }, { livability: 86, business: 82, nomad: 86, family: 88, safety: 80, healthcare: 86, internet: 89, transit: 85, nature: 91, japaneseFood: 78, english: 100 }, australiaSources(source("人口", "都市", "2024-25年度・2025年6月30日", "Australian Bureau of Statistics・Regional population", "https://www.abs.gov.au/statistics/people/population/regional-population/latest-release")), "人口・物価は公的資料、給与はVictoria州の地域統計の目安"),
 };
 
-const cityOrder: CityId[] = ["tokyo", "osaka", "vancouver", "toronto", "losAngeles", "newYork", "london", "paris", "rome", "queretaro", "puebla", "merida", "mexicoCity", "melbourne"];
+const estimateInsurance: InsuranceConfig = { healthRateEmployee: 0.03, careRateEmployee: 0, childSupportRateEmployee: 0, pensionRateEmployee: 0.05, employmentRateEmployee: 0.01, socialSecurityRateEmployee: 0, medicareRate: 0, employerSuperRate: 0, healthInsuranceEmployeeMonthly: 0, healthInsuranceFamilyMonthly: 0, source: "各国制度を単純化した比較用推定（公式税額ではありません）" };
+
+type EstimatedCityConfig = {
+  id: CityId;
+  name: string;
+  country: string;
+  countryCode: string;
+  region: string;
+  currency: CurrencyCode;
+  currencyLabel: string;
+  timezone: string;
+  climate: string;
+  language: string;
+  population: string;
+  taxSystem: City["taxSystem"];
+  taxRegion: string;
+  averageAnnualIncome: number;
+  rent: number;
+  costs: Omit<City["costs"], "rent">;
+  scores: City["scores"];
+  englishName: string;
+  englishCountry: string;
+  englishRegion: string;
+  englishClimate: string;
+  englishLanguage: string;
+};
+
+const estimatedCity = (config: EstimatedCityConfig): City => ({
+  ...cityBase(
+    config.id,
+    config.name,
+    config.country,
+    config.countryCode,
+    config.region,
+    config.currency,
+    config.currencyLabel,
+    config.timezone,
+    config.climate,
+    config.language,
+    config.population,
+    config.taxSystem,
+    config.taxRegion,
+    config.taxSystem === "japan" ? japanInsurance(0.05065) : config.taxSystem === "canada" ? canadaInsurance : config.taxSystem === "us" ? usInsurance : config.taxSystem === "australia" ? australiaInsurance : estimateInsurance,
+    config.averageAnnualIncome,
+    { rent: config.rent, ...config.costs },
+    { "IT職": Math.round(config.averageAnnualIncome * 1.35), "エンジニア": Math.round(config.averageAnnualIncome * 1.28), "営業": Math.round(config.averageAnnualIncome * 1.05), "一般事務": Math.round(config.averageAnnualIncome * 0.78) },
+    config.scores,
+    [source("人口・物価・給与・家賃", "国", "2026年時点の比較用推定", "各国政府統計・国際統計を基準にしたLife Atlas推定", "https://data.worldbank.org/"), source("税金・保険", "国", "2026年時点の比較用推定", "各国の税務・社会保障制度を基準にしたLife Atlas推定", "https://www.oecd.org/tax/")],
+    "人口・物価は公的統計を参照。給与・家賃・税金・保険は国際比較のための推定値です。"
+  ),
+  englishName: config.englishName,
+  englishCountry: config.englishCountry,
+  englishRegion: config.englishRegion,
+  englishClimate: config.englishClimate,
+  englishLanguage: config.englishLanguage,
+});
+
+const extendedCities: Record<CityId, City> = Object.fromEntries([
+  ["sapporo", estimatedCity({ id: "sapporo", name: "札幌", country: "日本", countryCode: "JPN", region: "アジア", currency: "JPY", currencyLabel: "日本円", timezone: "UTC+9（日本標準時）", climate: "冷涼・積雪がある", language: "日本語", population: "約197万人（札幌市・推計）", taxSystem: "japan", taxRegion: "hokkaido", averageAnnualIncome: 4_800_000, rent: 100_000, costs: { food: 58_000, utilities: 23_000, internet: 5_500, transport: 10_000, medical: 9_000, leisure: 25_000 }, scores: { livability: 86, business: 70, nomad: 66, family: 86, safety: 85, healthcare: 86, internet: 90, transit: 84, nature: 94, japaneseFood: 100, english: 32 }, englishName: "Sapporo", englishCountry: "Japan", englishRegion: "Asia", englishClimate: "Cool, snowy winters", englishLanguage: "Japanese" })],
+  ["fukuoka", estimatedCity({ id: "fukuoka", name: "福岡", country: "日本", countryCode: "JPN", region: "アジア", currency: "JPY", currencyLabel: "日本円", timezone: "UTC+9（日本標準時）", climate: "温暖湿潤・比較的温暖", language: "日本語", population: "約165万人（福岡市・推計）", taxSystem: "japan", taxRegion: "fukuoka", averageAnnualIncome: 4_700_000, rent: 105_000, costs: { food: 57_000, utilities: 16_000, internet: 5_500, transport: 10_000, medical: 9_000, leisure: 26_000 }, scores: { livability: 90, business: 82, nomad: 78, family: 87, safety: 84, healthcare: 87, internet: 91, transit: 87, nature: 84, japaneseFood: 100, english: 35 }, englishName: "Fukuoka", englishCountry: "Japan", englishRegion: "Asia", englishClimate: "Warm humid subtropical", englishLanguage: "Japanese" })],
+  ["seoul", estimatedCity({ id: "seoul", name: "ソウル", country: "韓国", countryCode: "KOR", region: "アジア", currency: "KRW", currencyLabel: "韓国ウォン", timezone: "UTC+9", climate: "湿潤大陸性・四季がある", language: "韓国語", population: "約940万人（ソウル特別市・推計）", taxSystem: "estimate", taxRegion: "southKorea", averageAnnualIncome: 55_000_000, rent: 1_100_000, costs: { food: 650_000, utilities: 180_000, internet: 45_000, transport: 80_000, medical: 80_000, leisure: 300_000 }, scores: { livability: 84, business: 88, nomad: 84, family: 78, safety: 83, healthcare: 90, internet: 99, transit: 98, nature: 68, japaneseFood: 90, english: 55 }, englishName: "Seoul", englishCountry: "South Korea", englishRegion: "Asia", englishClimate: "Humid continental, four seasons", englishLanguage: "Korean" })],
+  ["taipei", estimatedCity({ id: "taipei", name: "台北", country: "台湾", countryCode: "TWN", region: "アジア", currency: "TWD", currencyLabel: "台湾ドル", timezone: "UTC+8", climate: "亜熱帯・夏は暑く湿潤", language: "中国語", population: "約250万人（台北市・推計）", taxSystem: "estimate", taxRegion: "taiwan", averageAnnualIncome: 900_000, rent: 28_000, costs: { food: 12_000, utilities: 3_500, internet: 1_000, transport: 1_500, medical: 1_500, leisure: 6_000 }, scores: { livability: 88, business: 82, nomad: 88, family: 82, safety: 88, healthcare: 92, internet: 96, transit: 94, nature: 73, japaneseFood: 94, english: 58 }, englishName: "Taipei", englishCountry: "Taiwan", englishRegion: "Asia", englishClimate: "Subtropical, hot and humid summers", englishLanguage: "Mandarin Chinese" })],
+  ["singapore", estimatedCity({ id: "singapore", name: "シンガポール", country: "シンガポール", countryCode: "SGP", region: "アジア", currency: "SGD", currencyLabel: "シンガポールドル", timezone: "UTC+8", climate: "熱帯・高温多湿", language: "英語・中国語・マレー語・タミル語", population: "約604万人（国・推計）", taxSystem: "estimate", taxRegion: "singapore", averageAnnualIncome: 72_000, rent: 3_100, costs: { food: 700, utilities: 180, internet: 55, transport: 130, medical: 80, leisure: 300 }, scores: { livability: 86, business: 96, nomad: 92, family: 83, safety: 95, healthcare: 93, internet: 98, transit: 99, nature: 67, japaneseFood: 92, english: 100 }, englishName: "Singapore", englishCountry: "Singapore", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "English, Mandarin, Malay and Tamil" })],
+  ["hongKong", estimatedCity({ id: "hongKong", name: "香港", country: "香港", countryCode: "HKG", region: "アジア", currency: "HKD", currencyLabel: "香港ドル", timezone: "UTC+8", climate: "亜熱帯・夏は高温多湿", language: "中国語・英語", population: "約750万人（香港・推計）", taxSystem: "estimate", taxRegion: "hongKong", averageAnnualIncome: 420_000, rent: 18_000, costs: { food: 7_000, utilities: 1_600, internet: 350, transport: 1_000, medical: 700, leisure: 3_500 }, scores: { livability: 78, business: 94, nomad: 90, family: 70, safety: 88, healthcare: 91, internet: 95, transit: 99, nature: 75, japaneseFood: 94, english: 82 }, englishName: "Hong Kong", englishCountry: "Hong Kong", englishRegion: "Asia", englishClimate: "Subtropical, hot and humid summers", englishLanguage: "Chinese and English" })],
+  ["bangkok", estimatedCity({ id: "bangkok", name: "バンコク", country: "タイ", countryCode: "THA", region: "アジア", currency: "THB", currencyLabel: "タイバーツ", timezone: "UTC+7", climate: "熱帯・高温多湿", language: "タイ語", population: "約550万人（バンコク都・推計）", taxSystem: "estimate", taxRegion: "thailand", averageAnnualIncome: 720_000, rent: 22_000, costs: { food: 12_000, utilities: 3_500, internet: 700, transport: 2_500, medical: 2_000, leisure: 6_000 }, scores: { livability: 82, business: 82, nomad: 95, family: 70, safety: 69, healthcare: 82, internet: 88, transit: 80, nature: 72, japaneseFood: 88, english: 66 }, englishName: "Bangkok", englishCountry: "Thailand", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "Thai" })],
+  ["kualaLumpur", estimatedCity({ id: "kualaLumpur", name: "クアラルンプール", country: "マレーシア", countryCode: "MYS", region: "アジア", currency: "MYR", currencyLabel: "マレーシアリンギット", timezone: "UTC+8", climate: "熱帯・高温多湿", language: "マレー語・英語", population: "約200万人（市・推計）", taxSystem: "estimate", taxRegion: "malaysia", averageAnnualIncome: 84_000, rent: 2_500, costs: { food: 1_600, utilities: 260, internet: 140, transport: 180, medical: 150, leisure: 700 }, scores: { livability: 82, business: 84, nomad: 92, family: 78, safety: 76, healthcare: 82, internet: 88, transit: 76, nature: 79, japaneseFood: 84, english: 84 }, englishName: "Kuala Lumpur", englishCountry: "Malaysia", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "Malay and English" })],
+  ["jakarta", estimatedCity({ id: "jakarta", name: "ジャカルタ", country: "インドネシア", countryCode: "IDN", region: "アジア", currency: "IDR", currencyLabel: "インドネシアルピア", timezone: "UTC+7", climate: "熱帯・雨季がある", language: "インドネシア語", population: "約1,100万人（市・推計）", taxSystem: "estimate", taxRegion: "indonesia", averageAnnualIncome: 180_000_000, rent: 9_000_000, costs: { food: 5_000_000, utilities: 1_500_000, internet: 500_000, transport: 1_500_000, medical: 800_000, leisure: 2_500_000 }, scores: { livability: 70, business: 80, nomad: 82, family: 68, safety: 58, healthcare: 70, internet: 76, transit: 63, nature: 72, japaneseFood: 76, english: 58 }, englishName: "Jakarta", englishCountry: "Indonesia", englishRegion: "Asia", englishClimate: "Tropical with a rainy season", englishLanguage: "Indonesian" })],
+  ["manila", estimatedCity({ id: "manila", name: "マニラ", country: "フィリピン", countryCode: "PHL", region: "アジア", currency: "PHP", currencyLabel: "フィリピンペソ", timezone: "UTC+8", climate: "熱帯・高温多湿", language: "フィリピン語・英語", population: "約190万人（市・推計）", taxSystem: "estimate", taxRegion: "philippines", averageAnnualIncome: 600_000, rent: 32_000, costs: { food: 18_000, utilities: 4_500, internet: 2_500, transport: 5_000, medical: 2_500, leisure: 9_000 }, scores: { livability: 68, business: 78, nomad: 84, family: 65, safety: 55, healthcare: 70, internet: 78, transit: 61, nature: 65, japaneseFood: 75, english: 93 }, englishName: "Manila", englishCountry: "Philippines", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "Filipino and English" })],
+  ["hoChiMinh", estimatedCity({ id: "hoChiMinh", name: "ホーチミン", country: "ベトナム", countryCode: "VNM", region: "アジア", currency: "VND", currencyLabel: "ベトナムドン", timezone: "UTC+7", climate: "熱帯・雨季がある", language: "ベトナム語", population: "約950万人（都市圏・推計）", taxSystem: "estimate", taxRegion: "vietnam", averageAnnualIncome: 180_000_000, rent: 12_000_000, costs: { food: 6_000_000, utilities: 1_500_000, internet: 400_000, transport: 1_500_000, medical: 800_000, leisure: 2_500_000 }, scores: { livability: 74, business: 82, nomad: 90, family: 70, safety: 67, healthcare: 73, internet: 84, transit: 64, nature: 70, japaneseFood: 82, english: 62 }, englishName: "Ho Chi Minh City", englishCountry: "Vietnam", englishRegion: "Asia", englishClimate: "Tropical with a rainy season", englishLanguage: "Vietnamese" })],
+  ["beijing", estimatedCity({ id: "beijing", name: "北京", country: "中国", countryCode: "CHN", region: "アジア", currency: "CNY", currencyLabel: "中国元", timezone: "UTC+8", climate: "温帯・乾燥した冬", language: "中国語", population: "約2,200万人（都市圏・推計）", taxSystem: "estimate", taxRegion: "beijing", averageAnnualIncome: 180_000, rent: 8_500, costs: { food: 4_000, utilities: 700, internet: 250, transport: 500, medical: 500, leisure: 1_800 }, scores: { livability: 74, business: 86, nomad: 70, family: 75, safety: 82, healthcare: 78, internet: 58, transit: 94, nature: 62, japaneseFood: 82, english: 38 }, englishName: "Beijing", englishCountry: "China", englishRegion: "Asia", englishClimate: "Temperate, dry winters", englishLanguage: "Mandarin Chinese" })],
+  ["shanghai", estimatedCity({ id: "shanghai", name: "上海", country: "中国", countryCode: "CHN", region: "アジア", currency: "CNY", currencyLabel: "中国元", timezone: "UTC+8", climate: "温暖湿潤・四季がある", language: "中国語", population: "約2,500万人（都市圏・推計）", taxSystem: "estimate", taxRegion: "shanghai", averageAnnualIncome: 190_000, rent: 8_000, costs: { food: 4_500, utilities: 700, internet: 250, transport: 500, medical: 500, leisure: 2_000 }, scores: { livability: 76, business: 91, nomad: 72, family: 76, safety: 84, healthcare: 82, internet: 58, transit: 96, nature: 60, japaneseFood: 89, english: 42 }, englishName: "Shanghai", englishCountry: "China", englishRegion: "Asia", englishClimate: "Humid subtropical, four seasons", englishLanguage: "Mandarin Chinese" })],
+  ["sydney", estimatedCity({ id: "sydney", name: "シドニー", country: "オーストラリア", countryCode: "AUS", region: "オセアニア", currency: "AUD", currencyLabel: "オーストラリアドル", timezone: "UTC+10（夏時間あり）", climate: "温暖・晴天が多い", language: "英語", population: "約550万人（Greater Sydney・推計）", taxSystem: "australia", taxRegion: "newSouthWales", averageAnnualIncome: 95_000, rent: 3_200, costs: { food: 760, utilities: 240, internet: 90, transport: 220, medical: 120, leisure: 380 }, scores: { livability: 88, business: 89, nomad: 88, family: 87, safety: 82, healthcare: 88, internet: 90, transit: 84, nature: 97, japaneseFood: 88, english: 100 }, englishName: "Sydney", englishCountry: "Australia", englishRegion: "Oceania", englishClimate: "Warm, sunny and coastal", englishLanguage: "English" })],
+  ["brisbane", estimatedCity({ id: "brisbane", name: "ブリスベン", country: "オーストラリア", countryCode: "AUS", region: "オセアニア", currency: "AUD", currencyLabel: "オーストラリアドル", timezone: "UTC+10（夏時間あり）", climate: "亜熱帯・温暖", language: "英語", population: "約270万人（Greater Brisbane・推計）", taxSystem: "australia", taxRegion: "queensland", averageAnnualIncome: 85_000, rent: 2_450, costs: { food: 700, utilities: 220, internet: 90, transport: 180, medical: 110, leisure: 330 }, scores: { livability: 89, business: 82, nomad: 84, family: 91, safety: 83, healthcare: 87, internet: 88, transit: 78, nature: 95, japaneseFood: 78, english: 100 }, englishName: "Brisbane", englishCountry: "Australia", englishRegion: "Oceania", englishClimate: "Warm subtropical climate", englishLanguage: "English" })],
+  ["perth", estimatedCity({ id: "perth", name: "パース", country: "オーストラリア", countryCode: "AUS", region: "オセアニア", currency: "AUD", currencyLabel: "オーストラリアドル", timezone: "UTC+8", climate: "地中海性・晴天が多い", language: "英語", population: "約230万人（Greater Perth・推計）", taxSystem: "australia", taxRegion: "westernAustralia", averageAnnualIncome: 90_000, rent: 2_350, costs: { food: 700, utilities: 220, internet: 90, transport: 160, medical: 110, leisure: 330 }, scores: { livability: 87, business: 80, nomad: 81, family: 88, safety: 80, healthcare: 86, internet: 87, transit: 72, nature: 96, japaneseFood: 74, english: 100 }, englishName: "Perth", englishCountry: "Australia", englishRegion: "Oceania", englishClimate: "Mediterranean, sunny and dry", englishLanguage: "English" })],
+  ["montreal", estimatedCity({ id: "montreal", name: "モントリオール", country: "カナダ", countryCode: "CAN", region: "北米", currency: "CAD", currencyLabel: "カナダドル", timezone: "UTC-5（夏時間あり）", climate: "湿潤大陸性・冬は寒冷", language: "フランス語・英語", population: "約430万人（Metro Montréal・推計）", taxSystem: "canada", taxRegion: "quebec", averageAnnualIncome: 82_000, rent: 1_800, costs: { food: 620, utilities: 130, internet: 85, transport: 100, medical: 70, leisure: 260 }, scores: { livability: 86, business: 82, nomad: 82, family: 87, safety: 78, healthcare: 84, internet: 89, transit: 84, nature: 84, japaneseFood: 76, english: 86 }, englishName: "Montreal", englishCountry: "Canada", englishRegion: "North America", englishClimate: "Humid continental, cold winters", englishLanguage: "French and English" })],
+  ["calgary", estimatedCity({ id: "calgary", name: "カルガリー", country: "カナダ", countryCode: "CAN", region: "北米", currency: "CAD", currencyLabel: "カナダドル", timezone: "UTC-7（夏時間あり）", climate: "乾燥した大陸性・冬は寒冷", language: "英語", population: "約160万人（都市圏・推計）", taxSystem: "canada", taxRegion: "alberta", averageAnnualIncome: 88_000, rent: 1_750, costs: { food: 650, utilities: 190, internet: 90, transport: 115, medical: 70, leisure: 280 }, scores: { livability: 87, business: 85, nomad: 80, family: 89, safety: 82, healthcare: 84, internet: 88, transit: 76, nature: 97, japaneseFood: 70, english: 100 }, englishName: "Calgary", englishCountry: "Canada", englishRegion: "North America", englishClimate: "Dry continental, cold winters", englishLanguage: "English" })],
+  ["chicago", estimatedCity({ id: "chicago", name: "シカゴ", country: "アメリカ", countryCode: "USA", region: "北米", currency: "USD", currencyLabel: "米ドル", timezone: "UTC-6（夏時間あり）", climate: "湿潤大陸性・四季がある", language: "英語", population: "約270万人（市・推計）", taxSystem: "us", taxRegion: "illinois", averageAnnualIncome: 86_000, rent: 2_200, costs: { food: 650, utilities: 180, internet: 80, transport: 120, medical: 100, leisure: 280 }, scores: { livability: 77, business: 87, nomad: 84, family: 75, safety: 57, healthcare: 86, internet: 91, transit: 88, nature: 67, japaneseFood: 82, english: 100 }, englishName: "Chicago", englishCountry: "United States", englishRegion: "North America", englishClimate: "Humid continental, four seasons", englishLanguage: "English" })],
+  ["dallas", estimatedCity({ id: "dallas", name: "ダラス", country: "アメリカ", countryCode: "USA", region: "北米", currency: "USD", currencyLabel: "米ドル", timezone: "UTC-6（夏時間あり）", climate: "温暖・夏は暑い", language: "英語", population: "約130万人（市・推計）", taxSystem: "us", taxRegion: "texas", averageAnnualIncome: 82_000, rent: 1_850, costs: { food: 600, utilities: 200, internet: 80, transport: 230, medical: 100, leisure: 270 }, scores: { livability: 80, business: 90, nomad: 83, family: 82, safety: 64, healthcare: 83, internet: 90, transit: 54, nature: 70, japaneseFood: 78, english: 100 }, englishName: "Dallas", englishCountry: "United States", englishRegion: "North America", englishClimate: "Warm, hot summers", englishLanguage: "English" })],
+  ["sanFrancisco", estimatedCity({ id: "sanFrancisco", name: "サンフランシスコ", country: "アメリカ", countryCode: "USA", region: "北米", currency: "USD", currencyLabel: "米ドル", timezone: "UTC-8（夏時間あり）", climate: "地中海性・涼しく乾燥", language: "英語", population: "約81万人（市・推計）", taxSystem: "us", taxRegion: "california", averageAnnualIncome: 125_000, rent: 3_400, costs: { food: 800, utilities: 190, internet: 80, transport: 120, medical: 100, leisure: 350 }, scores: { livability: 80, business: 99, nomad: 95, family: 70, safety: 60, healthcare: 88, internet: 98, transit: 82, nature: 91, japaneseFood: 94, english: 100 }, englishName: "San Francisco", englishCountry: "United States", englishRegion: "North America", englishClimate: "Mediterranean, cool and dry", englishLanguage: "English" })],
+  ["miami", estimatedCity({ id: "miami", name: "マイアミ", country: "アメリカ", countryCode: "USA", region: "北米", currency: "USD", currencyLabel: "米ドル", timezone: "UTC-5（夏時間あり）", climate: "熱帯・高温多湿", language: "英語・スペイン語", population: "約46万人（市・推計）", taxSystem: "us", taxRegion: "florida", averageAnnualIncome: 78_000, rent: 2_700, costs: { food: 700, utilities: 210, internet: 80, transport: 220, medical: 100, leisure: 330 }, scores: { livability: 79, business: 84, nomad: 91, family: 75, safety: 62, healthcare: 80, internet: 91, transit: 58, nature: 88, japaneseFood: 74, english: 100 }, englishName: "Miami", englishCountry: "United States", englishRegion: "North America", englishClimate: "Tropical, hot and humid", englishLanguage: "English and Spanish" })],
+  ["boston", estimatedCity({ id: "boston", name: "ボストン", country: "アメリカ", countryCode: "USA", region: "北米", currency: "USD", currencyLabel: "米ドル", timezone: "UTC-5（夏時間あり）", climate: "湿潤大陸性・四季がある", language: "英語", population: "約69万人（市・推計）", taxSystem: "us", taxRegion: "massachusetts", averageAnnualIncome: 105_000, rent: 3_000, costs: { food: 720, utilities: 180, internet: 80, transport: 130, medical: 100, leisure: 320 }, scores: { livability: 83, business: 92, nomad: 87, family: 82, safety: 72, healthcare: 95, internet: 93, transit: 88, nature: 74, japaneseFood: 84, english: 100 }, englishName: "Boston", englishCountry: "United States", englishRegion: "North America", englishClimate: "Humid continental, four seasons", englishLanguage: "English" })],
+  ["seattle", estimatedCity({ id: "seattle", name: "シアトル", country: "アメリカ", countryCode: "USA", region: "北米", currency: "USD", currencyLabel: "米ドル", timezone: "UTC-8（夏時間あり）", climate: "海洋性・雨が多い", language: "英語", population: "約75万人（市・推計）", taxSystem: "us", taxRegion: "washington", averageAnnualIncome: 110_000, rent: 2_600, costs: { food: 680, utilities: 160, internet: 80, transport: 150, medical: 100, leisure: 300 }, scores: { livability: 86, business: 94, nomad: 91, family: 83, safety: 70, healthcare: 88, internet: 96, transit: 76, nature: 96, japaneseFood: 88, english: 100 }, englishName: "Seattle", englishCountry: "United States", englishRegion: "North America", englishClimate: "Oceanic, rainy and mild", englishLanguage: "English" })],
+  ["washingtonDc", estimatedCity({ id: "washingtonDc", name: "ワシントンD.C.", country: "アメリカ", countryCode: "USA", region: "北米", currency: "USD", currencyLabel: "米ドル", timezone: "UTC-5（夏時間あり）", climate: "湿潤亜熱帯・四季がある", language: "英語", population: "約69万人（市・推計）", taxSystem: "us", taxRegion: "districtOfColumbia", averageAnnualIncome: 105_000, rent: 2_700, costs: { food: 720, utilities: 170, internet: 80, transport: 150, medical: 100, leisure: 320 }, scores: { livability: 82, business: 93, nomad: 88, family: 78, safety: 65, healthcare: 90, internet: 94, transit: 88, nature: 76, japaneseFood: 82, english: 100 }, englishName: "Washington, D.C.", englishCountry: "United States", englishRegion: "North America", englishClimate: "Humid subtropical, four seasons", englishLanguage: "English" })],
+  ["madrid", estimatedCity({ id: "madrid", name: "マドリード", country: "スペイン", countryCode: "ESP", region: "ヨーロッパ", currency: "EUR", currencyLabel: "ユーロ", timezone: "UTC+1（夏時間あり）", climate: "地中海性・乾燥した夏", language: "スペイン語", population: "約340万人（市・推計）", taxSystem: "estimate", taxRegion: "spain", averageAnnualIncome: 34_000, rent: 1_200, costs: { food: 300, utilities: 150, internet: 35, transport: 55, medical: 40, leisure: 180 }, scores: { livability: 87, business: 78, nomad: 90, family: 88, safety: 82, healthcare: 90, internet: 91, transit: 93, nature: 78, japaneseFood: 70, english: 62 }, englishName: "Madrid", englishCountry: "Spain", englishRegion: "Europe", englishClimate: "Mediterranean, dry summers", englishLanguage: "Spanish" })],
+  ["berlin", estimatedCity({ id: "berlin", name: "ベルリン", country: "ドイツ", countryCode: "DEU", region: "ヨーロッパ", currency: "EUR", currencyLabel: "ユーロ", timezone: "UTC+1（夏時間あり）", climate: "海洋性・冬は寒冷", language: "ドイツ語", population: "約370万人（市・推計）", taxSystem: "estimate", taxRegion: "germany", averageAnnualIncome: 52_000, rent: 1_500, costs: { food: 380, utilities: 220, internet: 45, transport: 60, medical: 50, leisure: 230 }, scores: { livability: 85, business: 88, nomad: 93, family: 82, safety: 76, healthcare: 91, internet: 88, transit: 91, nature: 82, japaneseFood: 78, english: 88 }, englishName: "Berlin", englishCountry: "Germany", englishRegion: "Europe", englishClimate: "Oceanic, cool winters", englishLanguage: "German" })],
+  ["amsterdam", estimatedCity({ id: "amsterdam", name: "アムステルダム", country: "オランダ", countryCode: "NLD", region: "ヨーロッパ", currency: "EUR", currencyLabel: "ユーロ", timezone: "UTC+1（夏時間あり）", climate: "海洋性・雨が多い", language: "オランダ語・英語", population: "約93万人（市・推計）", taxSystem: "estimate", taxRegion: "netherlands", averageAnnualIncome: 58_000, rent: 1_900, costs: { food: 420, utilities: 230, internet: 50, transport: 110, medical: 140, leisure: 250 }, scores: { livability: 87, business: 91, nomad: 94, family: 83, safety: 80, healthcare: 89, internet: 95, transit: 92, nature: 83, japaneseFood: 80, english: 98 }, englishName: "Amsterdam", englishCountry: "Netherlands", englishRegion: "Europe", englishClimate: "Oceanic, rainy and mild", englishLanguage: "Dutch and English" })],
+  ["lisbon", estimatedCity({ id: "lisbon", name: "リスボン", country: "ポルトガル", countryCode: "PRT", region: "ヨーロッパ", currency: "EUR", currencyLabel: "ユーロ", timezone: "UTC+0（夏時間あり）", climate: "地中海性・温暖", language: "ポルトガル語", population: "約55万人（市・推計）", taxSystem: "estimate", taxRegion: "portugal", averageAnnualIncome: 28_000, rent: 1_300, costs: { food: 300, utilities: 150, internet: 40, transport: 50, medical: 40, leisure: 180 }, scores: { livability: 86, business: 76, nomad: 95, family: 84, safety: 82, healthcare: 86, internet: 90, transit: 83, nature: 87, japaneseFood: 65, english: 84 }, englishName: "Lisbon", englishCountry: "Portugal", englishRegion: "Europe", englishClimate: "Mediterranean, mild and sunny", englishLanguage: "Portuguese" })],
+  ["dubai", estimatedCity({ id: "dubai", name: "ドバイ", country: "アラブ首長国連邦", countryCode: "ARE", region: "中東", currency: "AED", currencyLabel: "UAEディルハム", timezone: "UTC+4", climate: "砂漠性・非常に暑い", language: "アラビア語・英語", population: "約370万人（市・推計）", taxSystem: "estimate", taxRegion: "uae", averageAnnualIncome: 240_000, rent: 8_000, costs: { food: 2_500, utilities: 900, internet: 400, transport: 1_200, medical: 600, leisure: 1_500 }, scores: { livability: 82, business: 98, nomad: 95, family: 76, safety: 92, healthcare: 87, internet: 94, transit: 76, nature: 58, japaneseFood: 85, english: 96 }, englishName: "Dubai", englishCountry: "United Arab Emirates", englishRegion: "Middle East", englishClimate: "Desert, extremely hot summers", englishLanguage: "Arabic and English" })],
+  ["zurich", estimatedCity({ id: "zurich", name: "チューリッヒ", country: "スイス", countryCode: "CHE", region: "ヨーロッパ", currency: "CHF", currencyLabel: "スイスフラン", timezone: "UTC+1（夏時間あり）", climate: "温帯・四季がある", language: "ドイツ語・英語", population: "約43万人（市・推計）", taxSystem: "estimate", taxRegion: "zurich", averageAnnualIncome: 105_000, rent: 2_600, costs: { food: 850, utilities: 220, internet: 65, transport: 100, medical: 350, leisure: 450 }, scores: { livability: 92, business: 90, nomad: 82, family: 91, safety: 93, healthcare: 97, internet: 94, transit: 94, nature: 95, japaneseFood: 72, english: 90 }, englishName: "Zurich", englishCountry: "Switzerland", englishRegion: "Europe", englishClimate: "Temperate, four seasons", englishLanguage: "German and English" })],
+  ["dublin", estimatedCity({ id: "dublin", name: "ダブリン", country: "アイルランド", countryCode: "IRL", region: "ヨーロッパ", currency: "EUR", currencyLabel: "ユーロ", timezone: "UTC+0（夏時間あり）", climate: "海洋性・雨が多い", language: "英語・アイルランド語", population: "約145万人（都市圏・推計）", taxSystem: "estimate", taxRegion: "ireland", averageAnnualIncome: 65_000, rent: 2_100, costs: { food: 500, utilities: 220, internet: 55, transport: 130, medical: 80, leisure: 280 }, scores: { livability: 83, business: 94, nomad: 91, family: 78, safety: 76, healthcare: 84, internet: 94, transit: 80, nature: 91, japaneseFood: 72, english: 100 }, englishName: "Dublin", englishCountry: "Ireland", englishRegion: "Europe", englishClimate: "Oceanic, rainy and mild", englishLanguage: "English and Irish" })],
+  ["saoPaulo", estimatedCity({ id: "saoPaulo", name: "サンパウロ", country: "ブラジル", countryCode: "BRA", region: "南米", currency: "BRL", currencyLabel: "ブラジルレアル", timezone: "UTC-3", climate: "亜熱帯・雨季がある", language: "ポルトガル語", population: "約1,140万人（市・推計）", taxSystem: "estimate", taxRegion: "brazil", averageAnnualIncome: 90_000, rent: 3_000, costs: { food: 1_800, utilities: 450, internet: 180, transport: 300, medical: 350, leisure: 800 }, scores: { livability: 68, business: 82, nomad: 78, family: 66, safety: 48, healthcare: 70, internet: 80, transit: 74, nature: 68, japaneseFood: 76, english: 42 }, englishName: "São Paulo", englishCountry: "Brazil", englishRegion: "South America", englishClimate: "Subtropical with a rainy season", englishLanguage: "Portuguese" })],
+  ["buenosAires", estimatedCity({ id: "buenosAires", name: "ブエノスアイレス", country: "アルゼンチン", countryCode: "ARG", region: "南米", currency: "ARS", currencyLabel: "アルゼンチンペソ", timezone: "UTC-3", climate: "温暖湿潤・四季がある", language: "スペイン語", population: "約310万人（市・推計）", taxSystem: "estimate", taxRegion: "argentina", averageAnnualIncome: 12_000_000, rent: 700_000, costs: { food: 500_000, utilities: 90_000, internet: 40_000, transport: 60_000, medical: 70_000, leisure: 180_000 }, scores: { livability: 76, business: 72, nomad: 87, family: 76, safety: 55, healthcare: 74, internet: 82, transit: 84, nature: 72, japaneseFood: 64, english: 48 }, englishName: "Buenos Aires", englishCountry: "Argentina", englishRegion: "South America", englishClimate: "Temperate, four seasons", englishLanguage: "Spanish" })],
+  ["santiago", estimatedCity({ id: "santiago", name: "サンティアゴ", country: "チリ", countryCode: "CHL", region: "南米", currency: "CLP", currencyLabel: "チリペソ", timezone: "UTC-4（夏時間あり）", climate: "地中海性・乾燥", language: "スペイン語", population: "約620万人（都市圏・推計）", taxSystem: "estimate", taxRegion: "chile", averageAnnualIncome: 18_000_000, rent: 650_000, costs: { food: 450_000, utilities: 100_000, internet: 35_000, transport: 50_000, medical: 80_000, leisure: 160_000 }, scores: { livability: 78, business: 80, nomad: 82, family: 79, safety: 64, healthcare: 78, internet: 86, transit: 84, nature: 93, japaneseFood: 68, english: 50 }, englishName: "Santiago", englishCountry: "Chile", englishRegion: "South America", englishClimate: "Mediterranean, dry summers", englishLanguage: "Spanish" })],
+  ["bogota", estimatedCity({ id: "bogota", name: "ボゴタ", country: "コロンビア", countryCode: "COL", region: "南米", currency: "COP", currencyLabel: "コロンビアペソ", timezone: "UTC-5", climate: "高地・温和", language: "スペイン語", population: "約800万人（市・推計）", taxSystem: "estimate", taxRegion: "colombia", averageAnnualIncome: 60_000_000, rent: 2_500_000, costs: { food: 1_500_000, utilities: 350_000, internet: 140_000, transport: 250_000, medical: 300_000, leisure: 700_000 }, scores: { livability: 70, business: 76, nomad: 80, family: 66, safety: 52, healthcare: 70, internet: 82, transit: 73, nature: 78, japaneseFood: 60, english: 42 }, englishName: "Bogotá", englishCountry: "Colombia", englishRegion: "South America", englishClimate: "Highland, mild year-round", englishLanguage: "Spanish" })],
+] as Array<[CityId, City]>) as Record<CityId, City>;
+
+const cities: Record<CityId, City> = { ...(baseCities as Record<CityId, City>), ...extendedCities };
+const cityOrder: CityId[] = ["tokyo", "osaka", "vancouver", "toronto", "losAngeles", "newYork", "london", "paris", "rome", "queretaro", "puebla", "merida", "mexicoCity", "melbourne", "sapporo", "fukuoka", "seoul", "taipei", "singapore", "hongKong", "bangkok", "kualaLumpur", "jakarta", "manila", "hoChiMinh", "beijing", "shanghai", "sydney", "brisbane", "perth", "montreal", "calgary", "chicago", "dallas", "sanFrancisco", "miami", "boston", "seattle", "washingtonDc", "madrid", "berlin", "amsterdam", "lisbon", "dubai", "zurich", "dublin", "saoPaulo", "buenosAires", "santiago", "bogota"];
 const householdMultipliers = {
   single: 1,
   couple: 1.55,
@@ -184,10 +308,17 @@ const householdMultipliers = {
   family: 2.05,
   familyThreeChildren: 2.45,
 } as const;
-const housingMultipliers = { shared: 0.58, onebed: 1, twobed: 1.55 };
+const housingMultipliers = {
+  shared: 0.58,
+  studio: 0.8,
+  onebed: 1,
+  condo: 1.15,
+  twobed: 1.55,
+  house: 2.05,
+} as const;
 const lifestyleMultipliers = { lean: 0.8, balanced: 1, comfortable: 1.25 };
 
-const cityEnglishLabels: Record<CityId, { name: string; country: string; region: string; climate: string; language: string }> = {
+const cityEnglishLabels: Partial<Record<CityId, { name: string; country: string; region: string; climate: string; language: string }>> = {
   tokyo: { name: "Tokyo", country: "Japan", region: "Asia", climate: "Humid subtropical, four seasons", language: "Japanese" },
   osaka: { name: "Osaka", country: "Japan", region: "Asia", climate: "Humid subtropical, mild winters", language: "Japanese" },
   vancouver: { name: "Vancouver", country: "Canada", region: "North America", climate: "Oceanic, mild and rainy winters", language: "English and French" },
@@ -203,7 +334,7 @@ const cityEnglishLabels: Record<CityId, { name: string; country: string; region:
   mexicoCity: { name: "Mexico City", country: "Mexico", region: "North America", climate: "Highland, mild", language: "Spanish" },
   melbourne: { name: "Melbourne", country: "Australia", region: "Oceania", climate: "Oceanic, changeable temperatures", language: "English" },
 };
-const cityPopulationEnglish: Record<CityId, string> = {
+const cityPopulationEnglish: Partial<Record<CityId, string>> = {
   tokyo: "14.2M people (Tokyo Metropolis · preliminary 2025)",
   osaka: "2.8M people (Osaka City · July 2026 estimate)",
   vancouver: "Approx. 2.6M people (Metro Vancouver · 2021 Census)",
@@ -219,7 +350,7 @@ const cityPopulationEnglish: Record<CityId, string> = {
   mexicoCity: "9.2M people (city · 2020 Census)",
   melbourne: "5.4M people (Greater Melbourne · June 2025)",
 };
-const cityTimezoneEnglish: Record<CityId, string> = {
+const cityTimezoneEnglish: Partial<Record<CityId, string>> = {
   tokyo: "UTC+9 (Japan Standard Time)",
   osaka: "UTC+9 (Japan Standard Time)",
   vancouver: "UTC−8 (daylight saving time applies)",
@@ -251,17 +382,45 @@ const translations = {
     heroTitleEmphasis: "どの都市",
     heroTitleAfter: "でより強くなるか。",
     heroText: "給与だけでは見えない、税金・家賃・生活費・購買力をひとつの地図に。今の条件で、毎月いくら残るかを比べます。",
-    pillCities: "14都市対応",
+    pillCities: "50都市対応",
     pillCurrencies: "現地通貨 + 日本円",
     pillDeductions: "税金・保険料込み",
     compareEyebrow: "01 / 条件をセット",
     compareTitle: "あなたの比較シナリオ",
     salaryNotSaved: "入力した給与は保存されません",
+    accountTitle: "登録と比較履歴",
+    accountDescription: "登録すると比較条件をオンラインに保存し、あとから呼び出せます。",
+    email: "メールアドレス",
+    password: "パスワード（8文字以上）",
+    register: "新規登録",
+    login: "ログイン",
+    logout: "ログアウト",
+    loggedInAs: "ログイン中：",
+    saveComparison: "この比較を保存",
+    historyTitle: "比較履歴を見る",
+    historyEmpty: "まだ保存された比較はありません。",
+    historyLocalNote: "Supabase未設定時の確認用として、この端末にのみ保存します。",
+    historyCloudNote: "登録後はSupabase（オンライン保存サービス）に保存されます。",
+    restore: "呼び出す",
+    delete: "削除",
+    authSuccess: "処理が完了しました。",
+    authRequired: "保存するにはログインしてください。",
+    supabaseNotConfigured: "オンライン保存は未設定です。管理者がSupabaseを設定すると利用できます。",
+    authError: "認証処理に失敗しました。",
+    savedAt: "保存日時",
+    localHistoryTitle: "端末内の確認用履歴",
+    signupMode: "新規登録はこちら",
+    loginMode: "ログインはこちら",
+    switchToSignup: "新規登録に切り替える",
+    switchToLogin: "ログインに切り替える",
     origin: "出発地",
     destination: "目的地",
     swapAria: "出発地と目的地を入れ替える",
     salary: "年間総支給給与",
     salaryHint: "出発地の現地通貨で入力",
+    salaryCurrency: "入力通貨",
+    originCurrency: "出発地の現地通貨",
+    jpyCurrency: "日本円",
     household: "世帯",
     housing: "住居",
     lifestyle: "生活スタイル",
@@ -314,7 +473,7 @@ const translations = {
     calloutNote: "住居・生活スタイル・世帯人数を変えると結果も変わります。数字は判断の出発点としてご利用ください。",
     costEyebrow: "03 / 月間コスト",
     costTitle: "生活費の内訳",
-    localCurrency: "現地通貨",
+    localCurrency: "現地通貨 / 日本円",
     rent: "家賃",
     food: "食費",
     utilities: "光熱費",
@@ -372,7 +531,7 @@ const translations = {
     autoSources: "自動取得元",
     citySources: "都市別に参照している公式資料",
     footerText: "収入と都市の距離を、もっと分かりやすく。",
-    footerCities: "14都市対応",
+    footerCities: "50都市対応",
     footerDeductions: "税金・保険料込み",
     householdSingle: "単身成人",
     householdCouple: "大人2人",
@@ -381,8 +540,11 @@ const translations = {
     householdTwoChildren: "大人2人 + 子ども2人",
     householdThreeChildren: "大人2人 + 子ども3人",
     housingShared: "シェア・個室",
-    housingOnebed: "1ベッドルーム",
+    housingStudio: "ワンルーム・スタジオ",
+    housingOnebed: "アパート・1ベッドルーム",
+    housingCondo: "マンション・分譲タイプ",
     housingTwobed: "2ベッドルーム",
+    housingHouse: "一戸建て",
     lifestyleLean: "節約型",
     lifestyleBalanced: "標準型",
     lifestyleComfortable: "ゆとり型",
@@ -404,17 +566,45 @@ const translations = {
     heroTitleEmphasis: "go further",
     heroTitleAfter: "?",
     heroText: "Put taxes, rent, living costs and purchasing power on one map. Compare how much money remains each month under your conditions.",
-    pillCities: "14 cities",
+    pillCities: "50 cities",
     pillCurrencies: "Local currency + JPY",
     pillDeductions: "Taxes and insurance included",
     compareEyebrow: "01 / SET YOUR CONDITIONS",
     compareTitle: "Your comparison scenario",
     salaryNotSaved: "Your salary input is not saved",
+    accountTitle: "Account and comparison history",
+    accountDescription: "Create an account to save your comparison conditions online and restore them later.",
+    email: "Email address",
+    password: "Password (8+ characters)",
+    register: "Create account",
+    login: "Log in",
+    logout: "Log out",
+    loggedInAs: "Logged in as: ",
+    saveComparison: "Save this comparison",
+    historyTitle: "View comparison history",
+    historyEmpty: "No saved comparisons yet.",
+    historyLocalNote: "For preview only, this saves on this device when Supabase is not configured.",
+    historyCloudNote: "After registration, history is saved in Supabase (online storage).",
+    restore: "Restore",
+    delete: "Delete",
+    authSuccess: "Done.",
+    authRequired: "Please log in to save a comparison.",
+    supabaseNotConfigured: "Online saving is not configured yet. An administrator must connect Supabase.",
+    authError: "Authentication failed.",
+    savedAt: "Saved",
+    localHistoryTitle: "Preview history on this device",
+    signupMode: "Create an account",
+    loginMode: "Log in here",
+    switchToSignup: "Switch to account creation",
+    switchToLogin: "Switch to login",
     origin: "Origin",
     destination: "Destination",
     swapAria: "Swap origin and destination",
     salary: "Annual gross salary",
     salaryHint: "Enter it in the origin city's currency",
+    salaryCurrency: "Input currency",
+    originCurrency: "Origin city currency",
+    jpyCurrency: "Japanese yen",
     household: "Household",
     housing: "Housing",
     lifestyle: "Lifestyle",
@@ -467,7 +657,7 @@ const translations = {
     calloutNote: "Results change with housing, lifestyle and household size. Use these numbers as a starting point for decisions.",
     costEyebrow: "03 / MONTHLY COSTS",
     costTitle: "Living-cost breakdown",
-    localCurrency: "Local currency",
+    localCurrency: "Local currency / JPY",
     rent: "Rent",
     food: "Food",
     utilities: "Utilities",
@@ -525,7 +715,7 @@ const translations = {
     autoSources: "Automatic sources",
     citySources: "Official sources referenced by city",
     footerText: "Make the distance between income and cities easier to understand.",
-    footerCities: "14 cities",
+    footerCities: "50 cities",
     footerDeductions: "Taxes and insurance included",
     householdSingle: "Single adult",
     householdCouple: "Two adults",
@@ -534,8 +724,11 @@ const translations = {
     householdTwoChildren: "Two adults + 2 children",
     householdThreeChildren: "Two adults + 3 children",
     housingShared: "Shared / private room",
-    housingOnebed: "1-bedroom",
+    housingStudio: "Studio",
+    housingOnebed: "Apartment / 1-bedroom",
+    housingCondo: "Condominium",
     housingTwobed: "2-bedroom",
+    housingHouse: "Detached house",
     lifestyleLean: "Lean",
     lifestyleBalanced: "Balanced",
     lifestyleComfortable: "Comfortable",
@@ -545,11 +738,12 @@ const translations = {
   },
 } as const;
 
-const cityName = (city: City, language: Language) => language === "ja" ? city.name : cityEnglishLabels[city.id].name;
-const cityCountry = (city: City, language: Language) => language === "ja" ? city.country : cityEnglishLabels[city.id].country;
-const cityRegion = (city: City, language: Language) => language === "ja" ? city.region : cityEnglishLabels[city.id].region;
-const cityClimate = (city: City, language: Language) => language === "ja" ? city.climate : cityEnglishLabels[city.id].climate;
-const cityLanguage = (city: City, language: Language) => language === "ja" ? city.language : cityEnglishLabels[city.id].language;
+const englishCityLabel = (city: City) => cityEnglishLabels[city.id] ?? { name: city.englishName ?? city.name, country: city.englishCountry ?? city.country, region: city.englishRegion ?? city.region, climate: city.englishClimate ?? city.climate, language: city.englishLanguage ?? city.language };
+const cityName = (city: City, language: Language) => language === "ja" ? city.name : englishCityLabel(city).name;
+const cityCountry = (city: City, language: Language) => language === "ja" ? city.country : englishCityLabel(city).country;
+const cityRegion = (city: City, language: Language) => language === "ja" ? city.region : englishCityLabel(city).region;
+const cityClimate = (city: City, language: Language) => language === "ja" ? city.climate : englishCityLabel(city).climate;
+const cityLanguage = (city: City, language: Language) => language === "ja" ? city.language : englishCityLabel(city).language;
 const sourceItem = (item: string, language: Language) => {
   if (language === "ja") return item;
   const labels: Record<string, string> = { "人口": "Population", "物価": "Prices", "物価・家賃": "Prices and rent", "給与": "Salary", "所得税": "Income tax", "連邦・州所得税": "Federal and provincial tax", "連邦所得税": "Federal income tax", "州税・市税": "State and city tax", "社会保障・Medicare": "Social Security and Medicare", "医療保険": "Health insurance", "健康保険・介護保険": "Health and long-term care insurance", "CPP・EI": "CPP and EI", "国民保険": "National Insurance", "社会保険": "Social insurance", "年金": "Pension", "退職積立": "Superannuation", "所得税・Medicare levy": "Income tax and Medicare levy" };
@@ -785,6 +979,14 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     const totalInsurance = health + pension;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (incomeTax + totalInsurance) / 12 };
   }
+  if (city.taxSystem === "estimate") {
+    const incomeTax = grossAnnual * 0.2;
+    const health = grossAnnual * city.insurance.healthRateEmployee;
+    const pension = grossAnnual * city.insurance.pensionRateEmployee;
+    const employment = grossAnnual * city.insurance.employmentRateEmployee;
+    const totalInsurance = health + pension + employment;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: employment / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (incomeTax + totalInsurance) / 12 };
+  }
   const incomeTax = taxFromAnnualBrackets(grossAnnual, [{ limit: 18_200, rate: 0 }, { limit: 45_000, rate: 0.15 }, { limit: 135_000, rate: 0.3 }, { limit: 190_000, rate: 0.37 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 }]);
   const medicareLevy = grossAnnual * city.insurance.medicareRate;
   return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, medicareLevyMonthly: medicareLevy / 12, totalTaxMonthly: (incomeTax + medicareLevy) / 12, totalDeductionsMonthly: (incomeTax + medicareLevy) / 12, employerSuperMonthly: grossAnnual * city.insurance.employerSuperRate / 12 };
@@ -851,6 +1053,7 @@ export default function Home() {
   const [originId, setOriginId] = useState<CityId>("tokyo");
   const [destinationId, setDestinationId] = useState<CityId>("melbourne");
   const [salary, setSalary] = useState("8500000");
+  const [salaryCurrency, setSalaryCurrency] = useState<SalaryCurrency>("origin");
   const [household, setHousehold] = useState<keyof typeof householdMultipliers>("single");
   const [housing, setHousing] = useState<keyof typeof housingMultipliers>("onebed");
   const [lifestyle, setLifestyle] = useState<keyof typeof lifestyleMultipliers>("balanced");
@@ -860,8 +1063,18 @@ export default function Home() {
   const [officialData, setOfficialData] = useState<OfficialData | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [authUser, setAuthUser] = useState<{ id: string; email?: string } | null>(null);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [history, setHistory] = useState<HistoryRecord[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
   const t = translations[language];
+  const supabaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const localHistoryKey = "life-atlas-comparison-history";
   const displayCityName = (city: City) => cityName(city, language);
   const displayCityCountry = (city: City) => cityCountry(city, language);
   const displayCityRegion = (city: City) => cityRegion(city, language);
@@ -869,10 +1082,48 @@ export default function Home() {
   const displayCityLanguage = (city: City) => cityLanguage(city, language);
   const money = (value: number, currency: CurrencyCode) => formatMoney(value, currency, language);
   const yen = (value: number) => formatYen(value, language);
+  const dualMoney = (value: number, currency: CurrencyCode, rateToJpy: number) => `${money(value, currency)} / ${yen(value * rateToJpy)}`;
 
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);
+
+  const loadCloudHistory = async () => {
+    if (!supabaseConfigured) return;
+    setHistoryLoading(true);
+    try {
+      const response = await fetch("/api/history", { cache: "no-store" });
+      const data = await response.json();
+      if (response.ok) setHistory(Array.isArray(data.history) ? data.history : []);
+      else if (response.status !== 401) setAuthMessage(data.error ?? t.authError);
+    } catch {
+      setAuthMessage(t.authError);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!supabaseConfigured) {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem(localHistoryKey) ?? "[]");
+        if (Array.isArray(saved)) setHistory(saved as HistoryRecord[]);
+      } catch {
+        setHistory([]);
+      }
+      return;
+    }
+
+    void fetch("/api/auth/me", { cache: "no-store" })
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (data?.user) {
+          setAuthUser(data.user);
+          void loadCloudHistory();
+        }
+      })
+      .catch(() => undefined);
+  }, [supabaseConfigured]);
 
   const refreshOfficialData = async () => {
     setDataLoading(true);
@@ -892,13 +1143,14 @@ export default function Home() {
     void refreshOfficialData();
   }, []);
 
-  const fallbackFxToJpy: Record<CurrencyCode, number> = { JPY: 1, CAD: 108, USD: 145, GBP: 190, EUR: 170, MXN: 8.5, AUD: 98 };
+  const fallbackFxToJpy: Record<CurrencyCode, number> = { JPY: 1, CAD: 108, USD: 145, GBP: 190, EUR: 170, MXN: 8.5, AUD: 98, KRW: 0.108, TWD: 4.55, SGD: 108, HKD: 18.6, THB: 4.15, MYR: 34, IDR: 0.009, PHP: 2.55, VND: 0.0058, CNY: 20.1, AED: 39.5, CHF: 181, BRL: 27, ARS: 0.13, CLP: 0.15, COP: 0.035 };
   const originBase = cities[originId];
   const destinationBase = cities[destinationId];
   const fxToJpy = (currency: CurrencyCode) => currency === "JPY" ? 1 : (officialData?.exchangeRates[currency] ?? fallbackFxToJpy[currency]);
   const origin = useMemo(() => ({ ...originBase, fxToJpy: fxToJpy(originBase.currency) }), [originBase, officialData]);
   const destination = useMemo(() => ({ ...destinationBase, fxToJpy: fxToJpy(destinationBase.currency) }), [destinationBase, officialData]);
-  const grossOrigin = Number(salary) || 0;
+  const grossOriginInput = Number(salary) || 0;
+  const grossOrigin = salaryCurrency === "JPY" ? grossOriginInput / origin.fxToJpy : grossOriginInput;
   const destinationGross = origin.fxToJpy === destination.fxToJpy ? grossOrigin : (grossOrigin * origin.fxToJpy) / destination.fxToJpy;
 
   const results = useMemo(() => ({
@@ -910,6 +1162,125 @@ export default function Home() {
     requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
+  const authSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAuthMessage(null);
+    if (!supabaseConfigured) {
+      setAuthMessage(t.supabaseNotConfigured);
+      return;
+    }
+    setHistoryLoading(true);
+    try {
+      const response = await fetch(`/api/auth/${authMode}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: authEmail, password: authPassword }) });
+      const data = await response.json();
+      if (!response.ok) {
+        setAuthMessage(data.error ?? t.authError);
+        return;
+      }
+      if (data.user && !data.needsEmailConfirmation) {
+        setAuthUser(data.user);
+        setAuthMessage(t.authSuccess);
+        await loadCloudHistory();
+      } else {
+        setAuthMessage(language === "ja" ? "登録しました。確認メールが届いた場合は、メールのリンクを押してからログインしてください。" : "Your account was created. If confirmation is required, follow the email link and then log in.");
+        setAuthMode("login");
+      }
+      setAuthPassword("");
+    } catch {
+      setAuthMessage(t.authError);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    setAuthUser(null);
+    setHistory([]);
+    setAuthMessage(t.authSuccess);
+  };
+
+  const saveCurrentComparison = async () => {
+    setAuthMessage(null);
+    const input: SavedComparisonInput = { originId, destinationId, salary, salaryCurrency, household, housing, lifestyle, ageBand };
+    const result = {
+      originMonthlyRemaining: results.origin.monthlyRemaining,
+      destinationMonthlyRemaining: results.destination.monthlyRemaining,
+      originMonthlyRemainingYen: results.origin.monthlyRemaining * origin.fxToJpy,
+      destinationMonthlyRemainingYen: results.destination.monthlyRemaining * destination.fxToJpy,
+    };
+    const recordBase = { title: `${displayCityName(origin)} → ${displayCityName(destination)}`, origin_city: originId, destination_city: destinationId, input, result, created_at: new Date().toISOString() };
+
+    if (supabaseConfigured && authUser) {
+      setHistoryLoading(true);
+      try {
+        const response = await fetch("/api/history", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(recordBase) });
+        const data = await response.json();
+        if (!response.ok) {
+          setAuthMessage(data.error ?? t.authError);
+          return;
+        }
+        if (data.record) setHistory((current) => [data.record as HistoryRecord, ...current].slice(0, 50));
+        setAuthMessage(t.authSuccess);
+      } catch {
+        setAuthMessage(t.authError);
+      } finally {
+        setHistoryLoading(false);
+      }
+      return;
+    }
+
+    if (supabaseConfigured) {
+      setAuthMessage(t.authRequired);
+      return;
+    }
+
+    const localRecord: HistoryRecord = {
+      id: `local-${Date.now()}`,
+      title: recordBase.title,
+      origin_city: recordBase.origin_city,
+      destination_city: recordBase.destination_city,
+      input: recordBase.input as unknown as Record<string, unknown>,
+      result: recordBase.result as Record<string, unknown>,
+      created_at: recordBase.created_at,
+    };
+    const next = [localRecord, ...history].slice(0, 50);
+    setHistory(next);
+    window.localStorage.setItem(localHistoryKey, JSON.stringify(next));
+    setAuthMessage(t.historyLocalNote);
+  };
+
+  const restoreHistory = (record: HistoryRecord) => {
+    const input = record.input as Partial<SavedComparisonInput>;
+    if (typeof input.originId !== "string" || !(input.originId in cities) || typeof input.destinationId !== "string" || !(input.destinationId in cities)) {
+      setAuthMessage(language === "ja" ? "この履歴は現在の都市データと合わないため呼び出せません。" : "This history entry no longer matches the current city data.");
+      return;
+    }
+    setOriginId(input.originId as CityId);
+    setDestinationId(input.destinationId as CityId);
+    if (typeof input.salary === "string") setSalary(input.salary);
+    if (input.salaryCurrency === "origin" || input.salaryCurrency === "JPY") setSalaryCurrency(input.salaryCurrency);
+    if (input.household && input.household in householdMultipliers) setHousehold(input.household);
+    if (input.housing && input.housing in housingMultipliers) setHousing(input.housing);
+    if (input.lifestyle && input.lifestyle in lifestyleMultipliers) setLifestyle(input.lifestyle);
+    if (input.ageBand === "under40" || input.ageBand === "40to64" || input.ageBand === "65plus") setAgeBand(input.ageBand);
+    setHistoryOpen(false);
+    requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
+  const deleteHistory = async (record: HistoryRecord) => {
+    if (supabaseConfigured && authUser && !record.id.startsWith("local-")) {
+      const response = await fetch(`/api/history?id=${encodeURIComponent(record.id)}`, { method: "DELETE" });
+      if (!response.ok) {
+        setAuthMessage(t.authError);
+        return;
+      }
+    }
+    const next = history.filter((item) => item.id !== record.id);
+    setHistory(next);
+    if (!supabaseConfigured) window.localStorage.setItem(localHistoryKey, JSON.stringify(next));
+  };
+
   const swapCities = () => {
     setOriginId(destinationId);
     setDestinationId(originId);
@@ -919,6 +1290,7 @@ export default function Home() {
     setOriginId("tokyo");
     setDestinationId("melbourne");
     setSalary("8500000");
+    setSalaryCurrency("origin");
     setHousehold("single");
     setHousing("onebed");
     setLifestyle("balanced");
@@ -976,6 +1348,65 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="account-card" aria-labelledby="account-title">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Life Atlas</p>
+              <h2 id="account-title">{t.accountTitle}</h2>
+            </div>
+            <p className="section-note">{t.accountDescription}</p>
+          </div>
+
+          {!authUser ? (
+            <form className="account-grid" onSubmit={authSubmit}>
+              <label>{t.email}
+                <input type="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} autoComplete="email" required />
+              </label>
+              <label>{t.password}
+                <input type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} minLength={8} autoComplete={authMode === "login" ? "current-password" : "new-password"} required />
+              </label>
+              <div className="account-actions">
+                <button className="primary-button" type="submit" disabled={historyLoading}>{authMode === "login" ? t.login : t.register}</button>
+                <button className="text-button" type="button" onClick={() => { setAuthMode((mode) => mode === "login" ? "signup" : "login"); setAuthMessage(null); }}>
+                  {authMode === "login" ? t.switchToSignup : t.switchToLogin}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="account-status">
+              <span>{t.loggedInAs} <strong>{authUser.email}</strong></span>
+              <button className="text-button" type="button" onClick={() => void logout()}>{t.logout}</button>
+            </div>
+          )}
+
+          <p className="account-note">{supabaseConfigured ? t.historyCloudNote : t.historyLocalNote}</p>
+          <div className="account-actions">
+            <button className="primary-button" type="button" onClick={() => void saveCurrentComparison()} disabled={historyLoading}>{t.saveComparison}</button>
+            <button className="secondary-button" type="button" onClick={() => { setHistoryOpen((open) => !open); if (supabaseConfigured && authUser) void loadCloudHistory(); }}>{t.historyTitle}</button>
+          </div>
+          {authMessage && <p className="account-message" role="status">{authMessage}</p>}
+
+          {historyOpen && (
+            <div className="history-list">
+              <h3>{supabaseConfigured ? t.historyTitle : t.localHistoryTitle}</h3>
+              {history.length === 0 ? (
+                <p className="account-note">{t.historyEmpty}</p>
+              ) : history.map((record) => (
+                <article className="history-item" key={record.id}>
+                  <div>
+                    <strong>{record.title}</strong>
+                    <small>{t.savedAt}: {new Date(record.created_at).toLocaleString(language === "ja" ? "ja-JP" : "en-US")}</small>
+                  </div>
+                  <div className="history-item-actions">
+                    <button className="secondary-button" type="button" onClick={() => restoreHistory(record)}>{t.restore}</button>
+                    <button className="text-button" type="button" onClick={() => void deleteHistory(record)}>{t.delete}</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section id="compare" className="comparison-card section-anchor">
           <div className="section-heading">
             <div>
@@ -999,8 +1430,8 @@ export default function Home() {
           </div>
           <div className="form-grid five-columns">
             <label className="salary-field">{t.salary}
-              <div className="input-with-unit"><input inputMode="numeric" value={salary} onChange={(event) => setSalary(event.target.value.replace(/[^0-9]/g, ""))} aria-label={t.salary} /><span>{origin.currency}</span></div>
-              <small>{t.salaryHint}</small>
+              <div className="input-with-unit"><input inputMode="numeric" value={salary} onChange={(event) => setSalary(event.target.value.replace(/[^0-9]/g, ""))} aria-label={t.salary} /><select className="currency-input-select" value={salaryCurrency} onChange={(event) => setSalaryCurrency(event.target.value as SalaryCurrency)} aria-label={t.salaryCurrency}><option value="origin">{origin.currency}</option><option value="JPY">JPY</option></select></div>
+              <small>{salaryCurrency === "JPY" ? `${t.jpyCurrency} → ${t.originCurrency}` : t.salaryHint}</small>
             </label>
             <label>{t.household}
               <select value={household} onChange={(event) => setHousehold(event.target.value as keyof typeof householdMultipliers)}>
@@ -1015,8 +1446,14 @@ export default function Home() {
             </label>
             <label>{t.housing}
               <select value={housing} onChange={(event) => setHousing(event.target.value as keyof typeof housingMultipliers)}>
-                <option value="shared">{t.housingShared}</option><option value="onebed">{t.housingOnebed}</option><option value="twobed">{t.housingTwobed}</option>
+                <option value="shared">{t.housingShared}</option>
+                <option value="studio">{t.housingStudio}</option>
+                <option value="onebed">{t.housingOnebed}</option>
+                <option value="condo">{t.housingCondo}</option>
+                <option value="twobed">{t.housingTwobed}</option>
+                <option value="house">{t.housingHouse}</option>
               </select>
+              <small>{language === "ja" ? "住居タイプごとの家賃差を概算" : "Rent is adjusted approximately by housing type"}</small>
             </label>
             <label>{t.lifestyle}
               <select value={lifestyle} onChange={(event) => setLifestyle(event.target.value as keyof typeof lifestyleMultipliers)}>
@@ -1059,31 +1496,31 @@ export default function Home() {
                 <div className="big-number">{money(result.monthlyRemaining, result.city.currency)}<small>{t.monthly}</small></div>
                 <div className="yen-caption">{t.yenValue} {yen(result.monthlyRemaining * result.city.fxToJpy)}</div>
                 <div className="metric-list">
-                  <div><span>{t.takeHome}</span><strong>{money(result.netMonthly, result.city.currency)}</strong></div>
-                  <div><span>{t.taxesInsurance}</span><strong>{money(result.taxBreakdown.totalDeductionsMonthly, result.city.currency)}</strong></div>
-                  <div><span>{t.monthlySpend}</span><strong>{money(result.totalMonthlyCosts, result.city.currency)}</strong></div>
+                  <div><span>{t.takeHome}</span><strong>{dualMoney(result.netMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                  <div><span>{t.taxesInsurance}</span><strong>{dualMoney(result.taxBreakdown.totalDeductionsMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                  <div><span>{t.monthlySpend}</span><strong>{dualMoney(result.totalMonthlyCosts, result.city.currency, result.city.fxToJpy)}</strong></div>
                   <div><span>{t.rentBurden}</span><strong>{result.rentBurden.toFixed(1)}%</strong></div>
                 </div>
                 <div className="deduction-list">
                   <div className="deduction-heading">{t.deductionHeading}</div>
-                  <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? t.federalProvincialTax : result.city.taxSystem === "us" ? t.federalStateCityTax : t.incomeTax}</span><strong>{money(result.taxBreakdown.incomeTaxMonthly, result.city.currency)}</strong></div>
+                  <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? t.federalProvincialTax : result.city.taxSystem === "us" ? t.federalStateCityTax : t.incomeTax}</span><strong>{dualMoney(result.taxBreakdown.incomeTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
                   {result.city.taxSystem === "japan" ? <>
-                    <div className="deduction-row"><span>{t.reconstructionTax}</span><strong>{money(result.taxBreakdown.reconstructionSurtaxMonthly, result.city.currency)}</strong></div>
-                    <div className="deduction-row"><span>{t.residentTax}</span><strong>{money(result.taxBreakdown.residentTaxMonthly, result.city.currency)}</strong></div>
-                    <div className="deduction-row"><span>{t.healthInsurance}</span><strong>{money(result.taxBreakdown.healthInsuranceMonthly, result.city.currency)}</strong></div>
-                    <div className="deduction-row"><span>{t.pension}</span><strong>{money(result.taxBreakdown.pensionMonthly, result.city.currency)}</strong></div>
-                    <div className="deduction-row"><span>{t.employmentInsurance}</span><strong>{money(result.taxBreakdown.employmentInsuranceMonthly, result.city.currency)}</strong></div>
-                    {ageBand === "40to64" && <div className="deduction-row"><span>{t.careInsurance}</span><strong>{money(result.taxBreakdown.careInsuranceMonthly, result.city.currency)}</strong></div>}
-                    <div className="deduction-row"><span>{t.childSupport}</span><strong>{money(result.taxBreakdown.childSupportMonthly, result.city.currency)}</strong></div>
+                    <div className="deduction-row"><span>{t.reconstructionTax}</span><strong>{dualMoney(result.taxBreakdown.reconstructionSurtaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                    <div className="deduction-row"><span>{t.residentTax}</span><strong>{dualMoney(result.taxBreakdown.residentTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                    <div className="deduction-row"><span>{t.healthInsurance}</span><strong>{dualMoney(result.taxBreakdown.healthInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                    <div className="deduction-row"><span>{t.pension}</span><strong>{dualMoney(result.taxBreakdown.pensionMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                    <div className="deduction-row"><span>{t.employmentInsurance}</span><strong>{dualMoney(result.taxBreakdown.employmentInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                    {ageBand === "40to64" && <div className="deduction-row"><span>{t.careInsurance}</span><strong>{dualMoney(result.taxBreakdown.careInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    <div className="deduction-row"><span>{t.childSupport}</span><strong>{dualMoney(result.taxBreakdown.childSupportMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
                   </> : <>
-                    {result.taxBreakdown.residentTaxMonthly > 0 && <div className="deduction-row"><span>{t.localTax}</span><strong>{money(result.taxBreakdown.residentTaxMonthly, result.city.currency)}</strong></div>}
-                    {result.taxBreakdown.healthInsuranceMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "us" ? t.employerHealth : result.city.taxSystem === "france" ? t.medicalSocial : result.city.taxSystem === "mexico" ? t.imssHealth : t.healthInsurance}</span><strong>{money(result.taxBreakdown.healthInsuranceMonthly, result.city.currency)}</strong></div>}
-                    {result.taxBreakdown.pensionMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? t.cppPension : result.city.taxSystem === "us" ? t.socialSecurity : result.city.taxSystem === "italy" ? t.inpsPension : result.city.taxSystem === "mexico" ? t.retirementFund : result.city.taxSystem === "france" ? t.pensionInsurance : t.retirement}</span><strong>{money(result.taxBreakdown.pensionMonthly, result.city.currency)}</strong></div>}
-                    {result.taxBreakdown.employmentInsuranceMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? "EI employment insurance" : result.city.taxSystem === "uk" ? "National Insurance" : result.city.taxSystem === "france" ? t.unemployment : t.employmentInsurance}</span><strong>{money(result.taxBreakdown.employmentInsuranceMonthly, result.city.currency)}</strong></div>}
-                    {result.taxBreakdown.medicareLevyMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "australia" ? "Medicare levy" : t.medicare}</span><strong>{money(result.taxBreakdown.medicareLevyMonthly, result.city.currency)}</strong></div>}
-                    {result.taxBreakdown.employerSuperMonthly > 0 && <div className="deduction-row is-employer"><span>{t.employerSuper}</span><strong>{money(result.taxBreakdown.employerSuperMonthly, result.city.currency)}</strong></div>}
+                    {result.taxBreakdown.residentTaxMonthly > 0 && <div className="deduction-row"><span>{t.localTax}</span><strong>{dualMoney(result.taxBreakdown.residentTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {result.taxBreakdown.healthInsuranceMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "us" ? t.employerHealth : result.city.taxSystem === "france" ? t.medicalSocial : result.city.taxSystem === "mexico" ? t.imssHealth : t.healthInsurance}</span><strong>{dualMoney(result.taxBreakdown.healthInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {result.taxBreakdown.pensionMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? t.cppPension : result.city.taxSystem === "us" ? t.socialSecurity : result.city.taxSystem === "italy" ? t.inpsPension : result.city.taxSystem === "mexico" ? t.retirementFund : result.city.taxSystem === "france" ? t.pensionInsurance : t.retirement}</span><strong>{dualMoney(result.taxBreakdown.pensionMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {result.taxBreakdown.employmentInsuranceMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? "EI employment insurance" : result.city.taxSystem === "uk" ? "National Insurance" : result.city.taxSystem === "france" ? t.unemployment : t.employmentInsurance}</span><strong>{dualMoney(result.taxBreakdown.employmentInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {result.taxBreakdown.medicareLevyMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "australia" ? "Medicare levy" : t.medicare}</span><strong>{dualMoney(result.taxBreakdown.medicareLevyMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {result.taxBreakdown.employerSuperMonthly > 0 && <div className="deduction-row is-employer"><span>{t.employerSuper}</span><strong>{dualMoney(result.taxBreakdown.employerSuperMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
                   </>}
-                  <div className="deduction-total"><span>{t.deductionTotal}</span><strong>{money(result.taxBreakdown.totalDeductionsMonthly, result.city.currency)}</strong></div>
+                  <div className="deduction-total"><span>{t.deductionTotal}</span><strong>{dualMoney(result.taxBreakdown.totalDeductionsMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
                 </div>
                 <div className="card-footer"><span className="status-dot" /> {index === 0 ? t.currentScenario : t.sameYenScenario}</div>
               </article>
@@ -1098,15 +1535,17 @@ export default function Home() {
             <div className="legend"><span><i className="legend-origin" /> {displayCityName(origin)}</span><span><i className="legend-destination" /> {displayCityName(destination)}</span></div>
             <div className="cost-rows">
               {categoryRows.map(([label, originValue, destinationValue]) => {
-                const max = Math.max(Number(originValue), Number(destinationValue));
-                return <div className="cost-row" key={label as string}><div className="cost-label"><span>{label}</span><small>{money(Number(originValue), origin.currency)} / {money(Number(destinationValue), destination.currency)}</small></div><div className="bars"><span className="bar bar-origin" style={{ width: `${Math.max(8, (Number(originValue) / max) * 100)}%` }} /><span className="bar bar-destination" style={{ width: `${Math.max(8, (Number(destinationValue) / max) * 100)}%` }} /></div></div>;
+                const originValueYen = Number(originValue) * origin.fxToJpy;
+                const destinationValueYen = Number(destinationValue) * destination.fxToJpy;
+                const max = Math.max(originValueYen, destinationValueYen);
+                return <div className="cost-row" key={label as string}><div className="cost-label"><span>{label}</span><small>{dualMoney(Number(originValue), origin.currency, origin.fxToJpy)} / {dualMoney(Number(destinationValue), destination.currency, destination.fxToJpy)}</small></div><div className="bars"><span className="bar bar-origin" style={{ width: `${Math.max(8, (originValueYen / max) * 100)}%` }} /><span className="bar bar-destination" style={{ width: `${Math.max(8, (destinationValueYen / max) * 100)}%` }} /></div></div>;
               })}
             </div>
             <p className="panel-footnote">{t.yenFootnote}</p>
           </div>
           <div className="panel asset-panel">
             <div className="panel-heading"><div><p className="eyebrow">{t.assetEyebrow}</p><h2>{t.assetTitle}</h2></div><span className="sparkle">✦</span></div>
-            <div className="asset-compare"><div><span>{displayCityName(origin)}</span><strong>{yen(results.origin.annualSavings * origin.fxToJpy)}</strong><small>{t.annualSavings}</small></div><div className="asset-divider">vs</div><div><span>{displayCityName(destination)}</span><strong>{yen(results.destination.annualSavings * destination.fxToJpy)}</strong><small>{t.annualSavings}</small></div></div>
+            <div className="asset-compare"><div><span>{displayCityName(origin)}</span><strong>{dualMoney(results.origin.annualSavings, origin.currency, origin.fxToJpy)}</strong><small>{t.annualSavings}</small></div><div className="asset-divider">vs</div><div><span>{displayCityName(destination)}</span><strong>{dualMoney(results.destination.annualSavings, destination.currency, destination.fxToJpy)}</strong><small>{t.annualSavings}</small></div></div>
             <div className="index-grid"><div><span>{t.costIndex}</span><strong>{results.origin.costIndex}</strong><small>{displayCityName(origin)}</small></div><div><span>{t.purchasingPower}</span><strong>{results.origin.purchasingPower}</strong><small>{displayCityName(origin)}</small></div><div><span>{t.costIndex}</span><strong>{results.destination.costIndex}</strong><small>{displayCityName(destination)}</small></div><div><span>{t.purchasingPower}</span><strong>{results.destination.purchasingPower}</strong><small>{displayCityName(destination)}</small></div></div>
             <div className="fire-note"><span>{t.fireNote}</span><strong>{t.fireTitle}</strong><small>{t.fireDescription}</small></div>
           </div>
@@ -1117,7 +1556,7 @@ export default function Home() {
           <div className="profile-grid">
             {[origin, destination].map((city) => {
               const cityPopulation = officialData?.cityFacts?.[city.id]?.population;
-              return <article className="profile-card" key={city.id}><div className="profile-header"><div><span className="city-region">{displayCityRegion(city)} / {displayCityCountry(city)}</span><h3>{displayCityName(city)}</h3></div><span className="currency-chip">{city.currency}</span></div><div className="profile-facts"><div><span>{t.population}</span><strong>{cityPopulation ? formatPopulation(cityPopulation.value, cityPopulation.period, language === "ja" ? displayCityName(city) : cityEnglishLabels[city.id].name, language) : language === "ja" ? city.population : cityPopulationEnglish[city.id]}</strong></div><div><span>{t.timezone}</span><strong>{language === "ja" ? city.timezone : cityTimezoneEnglish[city.id]}</strong></div><div><span>{t.climate}</span><strong>{displayCityClimate(city)}</strong></div><div><span>{t.officialLanguage}</span><strong>{displayCityLanguage(city)}</strong></div></div><div className="profile-tags"><span>{t.japaneseFood} {city.scores.japaneseFood}/100</span><span>{t.englishLiving} {city.scores.english}/100</span><span>{t.internetScore} {city.scores.internet}/100</span><span>{t.transitScore} {city.scores.transit}/100</span></div><p className="source-quality">{t.dataCoverage}{language === "ja" ? city.sourceLabel : "Population and price data use public sources; salary and rent are regional reference estimates."}</p></article>;
+              return <article className="profile-card" key={city.id}><div className="profile-header"><div><span className="city-region">{displayCityRegion(city)} / {displayCityCountry(city)}</span><h3>{displayCityName(city)}</h3></div><span className="currency-chip">{city.currency}</span></div><div className="profile-facts"><div><span>{t.population}</span><strong>{cityPopulation ? formatPopulation(cityPopulation.value, cityPopulation.period, language === "ja" ? displayCityName(city) : englishCityLabel(city).name, language) : language === "ja" ? city.population : cityPopulationEnglish[city.id] ?? city.population}</strong></div><div><span>{t.timezone}</span><strong>{language === "ja" ? city.timezone : cityTimezoneEnglish[city.id] ?? city.timezone}</strong></div><div><span>{t.climate}</span><strong>{displayCityClimate(city)}</strong></div><div><span>{t.officialLanguage}</span><strong>{displayCityLanguage(city)}</strong></div></div><div className="profile-tags"><span>{t.japaneseFood} {city.scores.japaneseFood}/100</span><span>{t.englishLiving} {city.scores.english}/100</span><span>{t.internetScore} {city.scores.internet}/100</span><span>{t.transitScore} {city.scores.transit}/100</span></div><p className="source-quality">{t.dataCoverage}{language === "ja" ? city.sourceLabel : "Population and price data use public sources; salary and rent are regional reference estimates."}</p></article>;
             })}
           </div>
         </section>
