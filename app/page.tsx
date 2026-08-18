@@ -377,12 +377,12 @@ const translations = {
     themeToLight: "明るくする",
     themeToDark: "暗くする",
     themeAria: "表示テーマを切り替える",
-    heroEyebrow: "収入と都市の比較ノート",
+    heroEyebrow: "世界の都市で、暮らしと仕事を設計する",
     heroTitleBefore: "あなたの収入は、",
     heroTitleEmphasis: "どの都市",
     heroTitleAfter: "でより強くなるか。",
-    heroText: "給与だけでは見えない、税金・家賃・生活費・購買力をひとつの地図に。今の条件で、毎月いくら残るかを比べます。",
-    pillCities: "50都市対応",
+    heroText: "海の近く、美しい街で、仕事も人生も育てる。税金・家賃・生活費とビジネス環境を、同じ物差しで比べます。",
+    pillCities: "世界50都市 + ビジネス注目10都市",
     pillCurrencies: "現地通貨 + 日本円",
     pillDeductions: "税金・保険料込み",
     compareEyebrow: "01 / 条件をセット",
@@ -531,7 +531,7 @@ const translations = {
     autoSources: "自動取得元",
     citySources: "都市別に参照している公式資料",
     footerText: "収入と都市の距離を、もっと分かりやすく。",
-    footerCities: "50都市対応",
+    footerCities: "世界50都市対応",
     footerDeductions: "税金・保険料込み",
     householdSingle: "単身成人",
     householdCouple: "大人2人",
@@ -561,12 +561,12 @@ const translations = {
     themeToLight: "Light mode",
     themeToDark: "Dark mode",
     themeAria: "Switch color theme",
-    heroEyebrow: "An income and city comparison note",
+    heroEyebrow: "Design your life and work across world cities",
     heroTitleBefore: "Where does your income",
     heroTitleEmphasis: "go further",
     heroTitleAfter: "?",
-    heroText: "Put taxes, rent, living costs and purchasing power on one map. Compare how much money remains each month under your conditions.",
-    pillCities: "50 cities",
+    heroText: "Build a life and a business near the sea, in a city you love. Compare taxes, rent, living costs and founder readiness on one clear map.",
+    pillCities: "50 cities + 10 business spotlights",
     pillCurrencies: "Local currency + JPY",
     pillDeductions: "Taxes and insurance included",
     compareEyebrow: "01 / SET YOUR CONDITIONS",
@@ -715,7 +715,7 @@ const translations = {
     autoSources: "Automatic sources",
     citySources: "Official sources referenced by city",
     footerText: "Make the distance between income and cities easier to understand.",
-    footerCities: "50 cities",
+    footerCities: "50 cities worldwide",
     footerDeductions: "Taxes and insurance included",
     householdSingle: "Single adult",
     householdCouple: "Two adults",
@@ -1048,10 +1048,38 @@ const scoreRows = [
   ["総合評価", "Overall", "overall"],
 ] as const;
 
+type LocalizedText = { ja: string; en: string };
+
+type GlobalBusinessProfile = {
+  city: LocalizedText;
+  country: LocalizedText;
+  score: number;
+  digital: number;
+  tax: LocalizedText;
+  setup: LocalizedText;
+  fit: LocalizedText;
+  watch: LocalizedText;
+  source: string;
+  url: string;
+};
+
+const globalBusinessProfiles: GlobalBusinessProfile[] = [
+  { city: { ja: "シンガポール", en: "Singapore" }, country: { ja: "シンガポール", en: "Singapore" }, score: 95, digital: 98, tax: { ja: "法人税 17%", en: "17% corporate tax" }, setup: { ja: "Bizfileで電子手続き。外国法人は現地代表者が必要", en: "Digital filing via Bizfile; foreign branches need a local representative" }, fit: { ja: "アジア統括、SaaS、金融、貿易", en: "Asia HQ, SaaS, finance and trade" }, watch: { ja: "現地役員・会社秘書、人件費と不動産コスト", en: "Local officers, company secretary and high operating costs" }, source: "ACRA / IRAS", url: "https://www.acra.gov.sg/register/foreign-business/" },
+  { city: { ja: "香港", en: "Hong Kong" }, country: { ja: "香港", en: "Hong Kong" }, score: 93, digital: 96, tax: { ja: "利得税 8.25% / 16.5%", en: "8.25% / 16.5% profits tax" }, setup: { ja: "電子申請の現地法人は通常1時間以内に証明書発行", en: "Electronic certificates for local companies are normally issued within one hour" }, fit: { ja: "貿易、金融、中国市場へのゲートウェイ", en: "Trade, finance and access to Greater China" }, watch: { ja: "会社登録と事業登録は別制度。銀行口座は別審査", en: "Company and business registration differ; banking is a separate review" }, source: "Companies Registry / GovHK", url: "https://www.cr.gov.hk/en/services/register-company.htm" },
+  { city: { ja: "ドバイ", en: "Dubai" }, country: { ja: "UAE", en: "UAE" }, score: 91, digital: 94, tax: { ja: "法人税の標準税率 9%", en: "9% standard corporate tax" }, setup: { ja: "MainlandとFree Zoneから選択。多くの業種で100%外資所有", en: "Choose mainland or a free zone; 100% foreign ownership in many activities" }, fit: { ja: "MENA拠点、貿易、コンサル、デジタル事業", en: "MENA hub, trade, consulting and digital businesses" }, watch: { ja: "ライセンス種類と営業地域、オフィス・ビザ費用", en: "Licence scope, trading territory, office and visa costs" }, source: "Invest in Dubai / OECD", url: "https://www.investindubai.gov.ae/en/business-setup" },
+  { city: { ja: "ロンドン", en: "London" }, country: { ja: "イギリス", en: "United Kingdom" }, score: 90, digital: 93, tax: { ja: "法人税 19%〜25%", en: "19% to 25% corporation tax" }, setup: { ja: "Companies Houseでオンライン設立。通常24時間以内", en: "Online incorporation through Companies House, normally within 24 hours" }, fit: { ja: "金融、クリエイティブ、SaaS、プロフェッショナル", en: "Finance, creative industries, SaaS and professional services" }, watch: { ja: "本人確認、銀行・移民手続き、高い固定費", en: "Identity checks, banking, immigration and high fixed costs" }, source: "Companies House / HMRC", url: "https://www.gov.uk/limited-company-formation" },
+  { city: { ja: "ダブリン", en: "Dublin" }, country: { ja: "アイルランド", en: "Ireland" }, score: 88, digital: 91, tax: { ja: "事業所得の法人税 12.5%", en: "12.5% corporation tax on trading income" }, setup: { ja: "CROのCOREから電子申請。EU市場と英語環境", en: "Electronic filing through CRO CORE with EU market access" }, fit: { ja: "SaaS、フィンテック、EU本部、コンテンツ", en: "SaaS, fintech, EU headquarters and content" }, watch: { ja: "EEA居住取締役の要件または代替措置、住居費", en: "EEA-resident director rule or alternatives, plus housing costs" }, source: "CRO / Revenue", url: "https://cro.ie/Registration/Company/Registration-Methods/" },
+  { city: { ja: "ソウル", en: "Seoul" }, country: { ja: "韓国", en: "South Korea" }, score: 87, digital: 94, tax: { ja: "税率は所得階層・地方税で変動", en: "Rates vary by profit band and local surtax" }, setup: { ja: "外国投資届出から登録まで公式目安は約2週間", en: "Official guidance estimates about two weeks for the foreign-invested company process" }, fit: { ja: "AI、ゲーム、コンテンツ、消費者テック", en: "AI, gaming, content and consumer technology" }, watch: { ja: "FDI認定の投資要件、韓国語契約、銀行手続き", en: "FDI thresholds, Korean contracts and banking procedures" }, source: "Invest KOREA", url: "https://www.investkorea.org/ik-en/cntnts/i-351/web.do" },
+  { city: { ja: "バンクーバー", en: "Vancouver" }, country: { ja: "カナダ", en: "Canada" }, score: 86, digital: 90, tax: { ja: "一般法人税 連邦15% + BC州12%", en: "15% federal + 12% BC general corporate tax" }, setup: { ja: "連邦法人はオンライン設立。BC州登録と税番号も確認", en: "Federal online incorporation, plus BC registration and tax accounts" }, fit: { ja: "クリーンテック、ゲーム、映像、北米・アジア貿易", en: "Cleantech, gaming, film and Pacific trade" }, watch: { ja: "連邦・州・市の三層手続き、住居費、就労資格", en: "Federal, provincial and city rules, housing and work status" }, source: "Corporations Canada / CRA", url: "https://ised-isde.canada.ca/site/corporations-canada/en/business-corporations/how-incorporate-business" },
+  { city: { ja: "メルボルン", en: "Melbourne" }, country: { ja: "オーストラリア", en: "Australia" }, score: 85, digital: 91, tax: { ja: "法人税 25%または30%", en: "25% or 30% company tax" }, setup: { ja: "外国会社はASIC登録、現地代理人、ARBNが必要", en: "Foreign companies need ASIC registration, a local agent and an ARBN" }, fit: { ja: "医療、教育、デザイン、気候テック", en: "Health, education, design and climate technology" }, watch: { ja: "現地代理人、取締役ID、州別の雇用・許認可", en: "Local agent, director ID and state employment or licensing rules" }, source: "ASIC / business.gov.au", url: "https://www.asic.gov.au/for-business-and-companies/foreign-companies/register-a-foreign-company-in-australia/" },
+  { city: { ja: "リスボン", en: "Lisbon" }, country: { ja: "ポルトガル", en: "Portugal" }, score: 84, digital: 89, tax: { ja: "2026年のIRC標準税率 19%", en: "19% standard IRC rate in 2026" }, setup: { ja: "Empresa Online 2.0で電子設立。外国人はNIFと対応電子IDが鍵", en: "Digital incorporation via Empresa Online 2.0; foreigners need a NIF and supported e-ID" }, fit: { ja: "SaaS、リモートチーム、観光テック、EU展開", en: "SaaS, remote teams, travel tech and EU expansion" }, watch: { ja: "NIF、電子署名、社会保障、自治体手続き", en: "NIF, digital signature, social security and municipal steps" }, source: "gov.pt / Justiça", url: "https://registo.justica.gov.pt/empresa" },
+  { city: { ja: "台北", en: "Taipei" }, country: { ja: "台湾", en: "Taiwan" }, score: 83, digital: 90, tax: { ja: "法人所得税は原則20%", en: "Corporate income tax is generally 20%" }, setup: { ja: "名称予査、外国投資審査、登録、税籍の順", en: "Name reservation, foreign-investment review, registration and tax registration" }, fit: { ja: "半導体、ハードウェア、越境EC、デザイン", en: "Semiconductors, hardware, cross-border commerce and design" }, watch: { ja: "中文社名、投資審査、業種別許可、居留資格", en: "Chinese company name, investment review, sector permits and residency" }, source: "Invest Taiwan", url: "https://investtaiwan.nat.gov.tw/showPage?lang=eng&menuNum=7&search=InvestmentStatus" },
+];
+
 export default function Home() {
   const [language, setLanguage] = useState<Language>("ja");
   const [originId, setOriginId] = useState<CityId>("tokyo");
-  const [destinationId, setDestinationId] = useState<CityId>("melbourne");
+  const [destinationId, setDestinationId] = useState<CityId>("singapore");
   const [salary, setSalary] = useState("8500000");
   const [salaryCurrency, setSalaryCurrency] = useState<SalaryCurrency>("origin");
   const [household, setHousehold] = useState<keyof typeof householdMultipliers>("single");
@@ -1288,7 +1316,7 @@ export default function Home() {
 
   const resetForm = () => {
     setOriginId("tokyo");
-    setDestinationId("melbourne");
+    setDestinationId("singapore");
     setSalary("8500000");
     setSalaryCurrency("origin");
     setHousehold("single");
@@ -1318,6 +1346,7 @@ export default function Home() {
         <nav className="desktop-nav" aria-label={language === "ja" ? "主要メニュー" : "Main menu"}>
           <a href="#compare">{t.navCompare}</a>
           <a href="#profile">{t.navProfile}</a>
+          <a href="#global-business">{language === "ja" ? "世界のビジネス" : "Global business"}</a>
           <a href="#method">{t.navMethod}</a>
         </nav>
         <div className="header-actions">
@@ -1329,22 +1358,19 @@ export default function Home() {
       </header>
 
       <div id="top" className="page-wrap">
-        <section className="hero-section">
+        <section className="hero-section" aria-labelledby="hero-title">
           <div className="hero-copy">
             <p className="eyebrow"><span className="eyebrow-dot" /> {t.heroEyebrow}</p>
-            <h1>{t.heroTitleBefore}<em>{t.heroTitleEmphasis}</em>{t.heroTitleAfter}</h1>
+            <h1 id="hero-title">{t.heroTitleBefore}<em>{t.heroTitleEmphasis}</em>{t.heroTitleAfter}</h1>
             <p className="hero-text">{t.heroText}</p>
             <div className="hero-pills">
               <span>{t.pillCities}</span><span>{t.pillCurrencies}</span><span>{t.pillDeductions}</span>
             </div>
+            <a className="hero-cta" href="#compare">{language === "ja" ? "都市を比較する" : "Compare cities"}<span>↘</span></a>
           </div>
-          <div className="hero-orbit" aria-hidden="true">
-            <div className="orbit orbit-one" />
-            <div className="orbit orbit-two" />
-            <div className="orbit-core"><strong>¥</strong><small>income<br />atlas</small></div>
-            <span className="orbit-label orbit-label-one">{displayCityName(cities.tokyo)}</span>
-            <span className="orbit-label orbit-label-two">{displayCityName(cities.newYork)}</span>
-            <span className="orbit-label orbit-label-three">{displayCityName(cities.melbourne)}</span>
+          <div className="hero-visual" aria-label={language === "ja" ? "海と海外の街並み" : "Coastal international city"}>
+            <div className="hero-visual-caption"><span>48°51′N · COASTAL EDITION</span><strong>{language === "ja" ? "暮らす場所を、意思で選ぶ。" : "Choose where life can expand."}</strong></div>
+            <div className="hero-visual-score"><small>{language === "ja" ? "注目都市" : "Spotlight"}</small><strong>10</strong><span>{language === "ja" ? "公式情報源で比較" : "official-source profiles"}</span></div>
           </div>
         </section>
 
@@ -1565,6 +1591,27 @@ export default function Home() {
           <div className="section-heading"><div><p className="eyebrow">{t.scoreEyebrow}</p><h2>{t.scoreTitle}</h2></div><span className="score-note">{t.scoreNote}</span></div>
           <div className="score-board"><div className="score-city-labels"><span /><strong>{displayCityName(origin)}</strong><strong>{displayCityName(destination)}</strong></div>{scoreRows.map(([labelJa, labelEn, key]) => <div className="score-row" key={key}><span className="score-name">{language === "ja" ? labelJa : labelEn}</span><div className="score-value"><div className="score-track"><span className="score-fill origin-fill" style={{ width: `${results.origin.scores[key]}%` }} /></div><strong>{results.origin.scores[key]}</strong></div><div className="score-value"><div className="score-track"><span className="score-fill destination-fill" style={{ width: `${results.destination.scores[key]}%` }} /></div><strong>{results.destination.scores[key]}</strong></div></div>)}</div>
           <p className="panel-footnote">{t.scoreFootnote}</p>
+        </section>
+
+        <section id="global-business" className="global-business-section section-anchor">
+          <div className="business-intro">
+            <div><p className="eyebrow">07 / GLOBAL BUSINESS ATLAS</p><h2>{language === "ja" ? "事業の始めやすさを、空気感だけで選ばない。" : "Choose a business city with evidence, not atmosphere alone."}</h2></div>
+            <p>{language === "ja" ? "法人設立、外国人要件、デジタル手続き、税率、業種適性を公式情報源から整理。スコアは比較の入り口であり、最終判断ではありません。" : "Official sources are organized around incorporation, foreign-founder rules, digital access, tax and sector fit. Scores are a starting point, never a final legal or tax decision."}</p>
+          </div>
+          <div className="business-method-strip" aria-label={language === "ja" ? "ビジネススコアの構成" : "Business score components"}>
+            <span>30% {language === "ja" ? "設立・運営" : "Setup"}</span><span>20% {language === "ja" ? "電子政府" : "Digital"}</span><span>20% {language === "ja" ? "外国人適性" : "Foreign fit"}</span><span>15% {language === "ja" ? "税・予見性" : "Tax"}</span><span>15% {language === "ja" ? "市場接続" : "Market"}</span>
+          </div>
+          <div className="global-business-grid">
+            {globalBusinessProfiles.map((profile, index) => <article className="global-business-card" key={profile.city.en}>
+              <div className="business-card-index">{String(index + 1).padStart(2, "0")}</div>
+              <div className="business-card-top"><div><span>{profile.country[language]}</span><h3>{profile.city[language]}</h3></div><div className="business-score"><strong>{profile.score}</strong><small>/ 100</small></div></div>
+              <div className="business-meter"><span style={{ width: `${profile.score}%` }} /></div>
+              <div className="business-stat-row"><div><small>{language === "ja" ? "デジタル" : "Digital"}</small><strong>{profile.digital}</strong></div><div><small>{language === "ja" ? "税の目安" : "Tax guide"}</small><strong>{profile.tax[language]}</strong></div></div>
+              <div className="business-copy"><div><small>{language === "ja" ? "設立・外国人要件" : "Setup and foreign-founder rules"}</small><p>{profile.setup[language]}</p></div><div><small>{language === "ja" ? "向いている事業" : "Strong fit"}</small><p>{profile.fit[language]}</p></div><div className="business-watch"><small>{language === "ja" ? "先に確認" : "Check first"}</small><p>{profile.watch[language]}</p></div></div>
+              <a className="business-source" href={profile.url} target="_blank" rel="noreferrer"><span>{profile.source}</span><strong>{language === "ja" ? "公式情報" : "Official source"} ↗</strong></a>
+            </article>)}
+          </div>
+          <p className="business-disclaimer">{language === "ja" ? "調査基準日: 2026年8月18日。法人税は標準税率または代表的な区分で、控除・地方税・業種別制度を反映しない場合があります。移民、就労、外資、許認可は案件ごとに専門家へ確認してください。" : "Research date: 18 August 2026. Tax figures are headline or representative rates and may exclude reliefs, local taxes and sector regimes. Immigration, work, ownership and licensing rules require case-specific professional advice."} <a href="https://www.worldbank.org/en/businessready/publications" target="_blank" rel="noreferrer">World Bank B-READY 2025 ↗</a> · <a href="https://desapublications.un.org/publications/un-e-government-survey-2024" target="_blank" rel="noreferrer">UN E-Government Survey 2024 ↗</a> · <a href="https://www.oecd.org/en/publications/corporate-tax-statistics-2025_6a915941-en.html" target="_blank" rel="noreferrer">OECD Corporate Tax Statistics 2025 ↗</a></p>
         </section>
 
         <section className="details-grid">

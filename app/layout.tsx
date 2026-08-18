@@ -1,9 +1,22 @@
 import "./globals.css";
+import type { Metadata } from "next";
+import { headers } from "next/headers";
 
-export const metadata = {
-  title: "Life Atlas | 収入と都市の比較 / Income & city comparison",
-  description: "税金、家賃、生活費、購買力をもとに、世界の都市での暮らしを比較します。 Compare income, taxes, rent, living costs and purchasing power across cities.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const imageUrl = new URL("/og.png", `${protocol}://${host}`).toString();
+  const title = "Life Atlas | 暮らしとビジネスで、世界の都市を選ぶ";
+  const description = "税金、家賃、生活費、購買力とビジネス環境を世界の都市で比較。注目10都市は公式情報源から法人設立・外国人要件・税制を整理します。";
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "website", images: [{ url: imageUrl, width: 1200, height: 630, alt: "Life Atlas — 暮らしとビジネスで、世界の都市を選ぶ" }] },
+    twitter: { card: "summary_large_image", title, description, images: [imageUrl] },
+  };
+}
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
