@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type CityId = "tokyo" | "osaka" | "vancouver" | "toronto" | "losAngeles" | "newYork" | "london" | "paris" | "rome" | "queretaro" | "puebla" | "merida" | "mexicoCity" | "melbourne" | "sapporo" | "fukuoka" | "seoul" | "taipei" | "singapore" | "hongKong" | "bangkok" | "kualaLumpur" | "jakarta" | "manila" | "hoChiMinh" | "beijing" | "shanghai" | "sydney" | "brisbane" | "perth" | "montreal" | "calgary" | "chicago" | "dallas" | "sanFrancisco" | "miami" | "boston" | "seattle" | "washingtonDc" | "madrid" | "berlin" | "amsterdam" | "lisbon" | "dubai" | "zurich" | "dublin" | "saoPaulo" | "buenosAires" | "santiago" | "bogota";
 type CurrencyCode = "JPY" | "CAD" | "USD" | "GBP" | "EUR" | "MXN" | "AUD" | "KRW" | "TWD" | "SGD" | "HKD" | "THB" | "MYR" | "IDR" | "PHP" | "VND" | "CNY" | "AED" | "CHF" | "BRL" | "ARS" | "CLP" | "COP";
@@ -163,6 +163,51 @@ type SavedComparisonInput = {
   lifestyle: keyof typeof lifestyleMultipliers;
   ageBand: AgeBand;
 };
+
+const LOCAL_HISTORY_KEY = "life-atlas-comparison-history";
+const LOCAL_HISTORY_LIMIT = 50;
+const FALLBACK_FX_TO_JPY: Record<CurrencyCode, number> = { JPY: 1, CAD: 108, USD: 145, GBP: 190, EUR: 170, MXN: 8.5, AUD: 98, KRW: 0.108, TWD: 4.55, SGD: 108, HKD: 18.6, THB: 4.15, MYR: 34, IDR: 0.009, PHP: 2.55, VND: 0.0058, CNY: 20.1, AED: 39.5, CHF: 181, BRL: 27, ARS: 0.13, CLP: 0.15, COP: 0.035 };
+
+function isHistoryRecord(value: unknown): value is HistoryRecord {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const record = value as Partial<HistoryRecord>;
+  return typeof record.id === "string"
+    && typeof record.title === "string"
+    && typeof record.origin_city === "string"
+    && typeof record.destination_city === "string"
+    && typeof record.created_at === "string"
+    && typeof record.input === "object"
+    && record.input !== null
+    && !Array.isArray(record.input)
+    && typeof record.result === "object"
+    && record.result !== null
+    && !Array.isArray(record.result);
+}
+
+function readLocalHistory(): HistoryRecord[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const saved: unknown = JSON.parse(window.localStorage.getItem(LOCAL_HISTORY_KEY) ?? "[]");
+    return Array.isArray(saved) ? saved.filter(isHistoryRecord).slice(0, LOCAL_HISTORY_LIMIT) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalHistory(history: HistoryRecord[]) {
+  try {
+    window.localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history.slice(0, LOCAL_HISTORY_LIMIT)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function localHistoryId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? `local-${crypto.randomUUID()}`
+    : `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 const source = (item: string, level: DataSource["level"], period: string, sourceName: string, url: string): DataSource => ({ item, level, period, source: sourceName, url });
 const japanSources = (populationSource: DataSource): DataSource[] => [populationSource, source("物価", "都市", "2026年", "総務省統計局・消費者物価指数", "https://www.stat.go.jp/data/cpi/1.html"), source("給与", "都道府県", "2025年調査", "厚生労働省・賃金構造基本統計調査", "https://www.mhlw.go.jp/toukei/list/chinginkouzou_a.html"), source("所得税", "国", "2026年分", "国税庁・令和8年分源泉徴収税額表", "https://www.nta.go.jp/publication/pamph/gensen/zeigakuhyo2026/01.htm"), source("健康保険・介護保険", "都道府県", "2026年度", "協会けんぽ・令和8年度保険料率", "https://www.kyoukaikenpo.or.jp/about/business/insurance_rate/rate_prefectures/r08/"), source("年金", "国", "2026年度", "日本年金機構・厚生年金保険料率", "https://www.nenkin.go.jp/service/kounen/hokenryo/hoshu/20150515-01.html"), source("雇用保険", "国", "2026年度", "厚生労働省・令和8年度雇用保険料率", "https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/0000108634.html")];
@@ -1099,10 +1144,9 @@ export default function Home() {
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [supabaseConfigured, setSupabaseConfigured] = useState(() => Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY));
   const resultRef = useRef<HTMLDivElement>(null);
   const t = translations[language];
-  const supabaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  const localHistoryKey = "life-atlas-comparison-history";
   const displayCityName = (city: City) => cityName(city, language);
   const displayCityCountry = (city: City) => cityCountry(city, language);
   const displayCityRegion = (city: City) => cityRegion(city, language);
@@ -1116,44 +1160,57 @@ export default function Home() {
     document.documentElement.lang = language;
   }, [language]);
 
-  const loadCloudHistory = async () => {
+  const loadCloudHistory = useCallback(async () => {
     if (!supabaseConfigured) return;
     setHistoryLoading(true);
     try {
       const response = await fetch("/api/history", { cache: "no-store" });
       const data = await response.json();
-      if (response.ok) setHistory(Array.isArray(data.history) ? data.history : []);
+      if (response.ok) setHistory(Array.isArray(data.history) ? data.history.filter(isHistoryRecord).slice(0, LOCAL_HISTORY_LIMIT) : []);
+      else if (response.status === 503 && data.configured === false) {
+        setAuthUser(null);
+        setSupabaseConfigured(false);
+        setAuthMessage(t.historyLocalNote);
+      }
       else if (response.status !== 401) setAuthMessage(data.error ?? t.authError);
     } catch {
       setAuthMessage(t.authError);
     } finally {
       setHistoryLoading(false);
     }
-  };
+  }, [supabaseConfigured, t.authError, t.historyLocalNote]);
 
   useEffect(() => {
     if (!supabaseConfigured) {
-      try {
-        const saved = JSON.parse(window.localStorage.getItem(localHistoryKey) ?? "[]");
-        if (Array.isArray(saved)) setHistory(saved as HistoryRecord[]);
-      } catch {
-        setHistory([]);
-      }
-      return;
+      let active = true;
+      const syncLocalHistory = () => setHistory(readLocalHistory());
+      void Promise.resolve(readLocalHistory()).then((saved) => {
+        if (active) setHistory(saved);
+      });
+      window.addEventListener("storage", syncLocalHistory);
+      return () => {
+        active = false;
+        window.removeEventListener("storage", syncLocalHistory);
+      };
     }
 
     void fetch("/api/auth/me", { cache: "no-store" })
-      .then(async (response) => (response.ok ? response.json() : null))
-      .then((data) => {
+      .then(async (response) => ({ response, data: await response.json().catch(() => null) }))
+      .then(({ response, data }) => {
+        if (response.status === 503 && data?.configured === false) {
+          setAuthUser(null);
+          setSupabaseConfigured(false);
+          return;
+        }
         if (data?.user) {
           setAuthUser(data.user);
           void loadCloudHistory();
         }
       })
       .catch(() => undefined);
-  }, [supabaseConfigured]);
+  }, [loadCloudHistory, supabaseConfigured]);
 
-  const refreshOfficialData = async () => {
+  const refreshOfficialData = useCallback(async () => {
     setDataLoading(true);
     setDataError(null);
     try {
@@ -1165,18 +1222,17 @@ export default function Home() {
     } finally {
       setDataLoading(false);
     }
-  };
+  }, [language]);
 
   useEffect(() => {
-    void refreshOfficialData();
-  }, []);
+    void Promise.resolve().then(() => refreshOfficialData());
+  }, [refreshOfficialData]);
 
-  const fallbackFxToJpy: Record<CurrencyCode, number> = { JPY: 1, CAD: 108, USD: 145, GBP: 190, EUR: 170, MXN: 8.5, AUD: 98, KRW: 0.108, TWD: 4.55, SGD: 108, HKD: 18.6, THB: 4.15, MYR: 34, IDR: 0.009, PHP: 2.55, VND: 0.0058, CNY: 20.1, AED: 39.5, CHF: 181, BRL: 27, ARS: 0.13, CLP: 0.15, COP: 0.035 };
   const originBase = cities[originId];
   const destinationBase = cities[destinationId];
-  const fxToJpy = (currency: CurrencyCode) => currency === "JPY" ? 1 : (officialData?.exchangeRates[currency] ?? fallbackFxToJpy[currency]);
-  const origin = useMemo(() => ({ ...originBase, fxToJpy: fxToJpy(originBase.currency) }), [originBase, officialData]);
-  const destination = useMemo(() => ({ ...destinationBase, fxToJpy: fxToJpy(destinationBase.currency) }), [destinationBase, officialData]);
+  const fxToJpy = useCallback((currency: CurrencyCode) => currency === "JPY" ? 1 : (officialData?.exchangeRates[currency] ?? FALLBACK_FX_TO_JPY[currency]), [officialData]);
+  const origin = useMemo(() => ({ ...originBase, fxToJpy: fxToJpy(originBase.currency) }), [fxToJpy, originBase]);
+  const destination = useMemo(() => ({ ...destinationBase, fxToJpy: fxToJpy(destinationBase.currency) }), [destinationBase, fxToJpy]);
   const grossOriginInput = Number(salary) || 0;
   const grossOrigin = salaryCurrency === "JPY" ? grossOriginInput / origin.fxToJpy : grossOriginInput;
   const destinationGross = origin.fxToJpy === destination.fxToJpy ? grossOrigin : (grossOrigin * origin.fxToJpy) / destination.fxToJpy;
@@ -1202,6 +1258,7 @@ export default function Home() {
       const response = await fetch(`/api/auth/${authMode}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: authEmail, password: authPassword }) });
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 503 && data.configured === false) setSupabaseConfigured(false);
         setAuthMessage(data.error ?? t.authError);
         return;
       }
@@ -1222,13 +1279,16 @@ export default function Home() {
   };
 
   const logout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    const response = await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    const data = await response?.json().catch(() => null);
+    if (data?.configured === false) setSupabaseConfigured(false);
     setAuthUser(null);
-    setHistory([]);
+    setHistory(data?.configured === false ? readLocalHistory() : []);
     setAuthMessage(t.authSuccess);
   };
 
   const saveCurrentComparison = async () => {
+    if (historyLoading) return;
     setAuthMessage(null);
     const input: SavedComparisonInput = { originId, destinationId, salary, salaryCurrency, household, housing, lifestyle, ageBand };
     const result = {
@@ -1238,6 +1298,24 @@ export default function Home() {
       destinationMonthlyRemainingYen: results.destination.monthlyRemaining * destination.fxToJpy,
     };
     const recordBase = { title: `${displayCityName(origin)} → ${displayCityName(destination)}`, origin_city: originId, destination_city: destinationId, input, result, created_at: new Date().toISOString() };
+    const saveLocally = () => {
+      const localRecord: HistoryRecord = {
+        id: localHistoryId(),
+        title: recordBase.title,
+        origin_city: recordBase.origin_city,
+        destination_city: recordBase.destination_city,
+        input: recordBase.input as unknown as Record<string, unknown>,
+        result: recordBase.result as Record<string, unknown>,
+        created_at: recordBase.created_at,
+      };
+      const next = [localRecord, ...readLocalHistory()].slice(0, LOCAL_HISTORY_LIMIT);
+      if (!writeLocalHistory(next)) {
+        setAuthMessage(t.authError);
+        return;
+      }
+      setHistory(next);
+      setAuthMessage(t.historyLocalNote);
+    };
 
     if (supabaseConfigured && authUser) {
       setHistoryLoading(true);
@@ -1245,6 +1323,12 @@ export default function Home() {
         const response = await fetch("/api/history", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(recordBase) });
         const data = await response.json();
         if (!response.ok) {
+          if (response.status === 503 && data.configured === false) {
+            setAuthUser(null);
+            setSupabaseConfigured(false);
+            saveLocally();
+            return;
+          }
           setAuthMessage(data.error ?? t.authError);
           return;
         }
@@ -1263,19 +1347,7 @@ export default function Home() {
       return;
     }
 
-    const localRecord: HistoryRecord = {
-      id: `local-${Date.now()}`,
-      title: recordBase.title,
-      origin_city: recordBase.origin_city,
-      destination_city: recordBase.destination_city,
-      input: recordBase.input as unknown as Record<string, unknown>,
-      result: recordBase.result as Record<string, unknown>,
-      created_at: recordBase.created_at,
-    };
-    const next = [localRecord, ...history].slice(0, 50);
-    setHistory(next);
-    window.localStorage.setItem(localHistoryKey, JSON.stringify(next));
-    setAuthMessage(t.historyLocalNote);
+    saveLocally();
   };
 
   const restoreHistory = (record: HistoryRecord) => {
@@ -1300,13 +1372,23 @@ export default function Home() {
     if (supabaseConfigured && authUser && !record.id.startsWith("local-")) {
       const response = await fetch(`/api/history?id=${encodeURIComponent(record.id)}`, { method: "DELETE" });
       if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        if (response.status === 503 && data?.configured === false) {
+          setAuthUser(null);
+          setSupabaseConfigured(false);
+          setAuthMessage(t.historyLocalNote);
+          return;
+        }
         setAuthMessage(t.authError);
         return;
       }
     }
     const next = history.filter((item) => item.id !== record.id);
+    if (!supabaseConfigured && !writeLocalHistory(next)) {
+      setAuthMessage(t.authError);
+      return;
+    }
     setHistory(next);
-    if (!supabaseConfigured) window.localStorage.setItem(localHistoryKey, JSON.stringify(next));
   };
 
   const swapCities = () => {
