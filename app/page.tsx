@@ -1697,7 +1697,7 @@ export default function Home() {
         </section>
 
         <section className="details-grid">
-          <div className="mini-panel"><span className="mini-icon">◎</span><div><h3>{t.businessTitle}</h3><p>{t.businessText}</p><button className="inline-link" onClick={() => setDetailsOpen((value) => !value)}>{t.moreDetails} <span>→</span></button></div></div>
+          <div className="mini-panel"><span className="mini-icon">◎</span><div><h3>{t.businessTitle}</h3><p>{t.businessText}</p><a className="inline-link" href="#global-business">{t.moreDetails} <span>→</span></a></div></div>
           <div className="mini-panel"><span className="mini-icon">⌁</span><div><h3>{t.transparencyTitle}</h3><p>{t.transparencyText}</p><button className="inline-link" onClick={() => setDetailsOpen((value) => !value)}>{t.sourcesNotes} <span>→</span></button></div></div>
         </section>
 
