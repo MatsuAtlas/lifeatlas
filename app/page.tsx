@@ -1246,6 +1246,11 @@ export default function Home() {
     requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
+  const openMethodDetails = () => {
+    setDetailsOpen(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById("method")?.scrollIntoView({ behavior: "smooth", block: "start" })));
+  };
+
   const authSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAuthMessage(null);
@@ -1429,7 +1434,7 @@ export default function Home() {
           <a href="#compare">{t.navCompare}</a>
           <a href="#profile">{t.navProfile}</a>
           <a href="#global-business">{language === "ja" ? "世界のビジネス" : "Global business"}</a>
-          <a href="#method">{t.navMethod}</a>
+          <a href="#method" onClick={(event) => { event.preventDefault(); openMethodDetails(); }}>{t.navMethod}</a>
         </nav>
         <div className="header-actions">
           <button className="language-button" onClick={() => setLanguage((value) => value === "ja" ? "en" : "ja")} aria-label={t.languageAria}>{t.languageSwitch}</button>
@@ -1698,7 +1703,7 @@ export default function Home() {
 
         <section className="details-grid">
           <div className="mini-panel"><span className="mini-icon">◎</span><div><h3>{t.businessTitle}</h3><p>{t.businessText}</p><a className="inline-link" href="#global-business">{t.moreDetails} <span>→</span></a></div></div>
-          <div className="mini-panel"><span className="mini-icon">⌁</span><div><h3>{t.transparencyTitle}</h3><p>{t.transparencyText}</p><button className="inline-link" onClick={() => setDetailsOpen((value) => !value)}>{t.sourcesNotes} <span>→</span></button></div></div>
+          <div className="mini-panel"><span className="mini-icon">⌁</span><div><h3>{t.transparencyTitle}</h3><p>{t.transparencyText}</p><button className="inline-link" onClick={openMethodDetails}>{t.sourcesNotes} <span>→</span></button></div></div>
         </section>
 
         {detailsOpen && <section id="method" className="method-panel section-anchor"><div className="section-heading"><div><p className="eyebrow">{t.methodEyebrow}</p><h2>{t.methodTitle}</h2></div><button className="close-button" onClick={() => setDetailsOpen(false)}>{t.close}</button></div><div className="method-grid"><div><span>{t.dataStatus}</span><strong>{dataLoading ? t.dataLoading : officialData?.sourceStatus === "live" ? t.dataLiveMethod : t.dataFallbackMethod}</strong><p>{language === "ja" ? "人口は国・都市の公的統計、為替はECBから自動取得します。" : "Population uses public country or city statistics, while FX is retrieved automatically from the ECB."}{t.retrievedAt}{officialData ? new Date(officialData.retrievedAt).toLocaleString(language === "ja" ? "ja-JP" : "en-US") : language === "ja" ? "未取得" : "Not available"}</p></div><div><span>{t.cityCosts}</span><strong>{t.cityCostsStrong}</strong><p>{t.cityCostsText}</p></div><div><span>{t.taxes}</span><strong>{t.taxesStrong}</strong><p>{t.taxesText}</p></div><div><span>{t.formula}</span><strong>{t.formulaStrong}</strong><p>{t.formulaText}</p></div></div>{officialData && <div className="source-list"><span>{t.autoSources}</span>{officialData.sources.map((source) => <a key={source.name} href={source.url} target="_blank" rel="noreferrer">{source.name} <small>（{sourceScope(source.scope, language)}）</small> ↗</a>)}</div>}<div className="source-list"><span>{t.citySources}</span>{citySourceLinks.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.source} <small>（{sourceItem(source.item, language)} / {sourceLevel(source.level, language)} / {source.period}）</small> ↗</a>)}</div></section>}
