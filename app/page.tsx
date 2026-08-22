@@ -7,6 +7,7 @@ type CurrencyCode = "JPY" | "CAD" | "USD" | "GBP" | "EUR" | "MXN" | "AUD" | "KRW
 type AgeBand = "under40" | "40to64" | "65plus";
 type SalaryCurrency = "origin" | "JPY";
 type Language = "ja" | "en";
+type RecommendationPriority = "balance" | "money" | "business";
 
 type DataSource = {
   item: string;
@@ -1122,6 +1123,12 @@ const globalBusinessProfiles: GlobalBusinessProfile[] = [
   { cityId: "taipei", city: { ja: "台北", en: "Taipei" }, country: { ja: "台湾", en: "Taiwan" }, score: 83, digital: 90, tax: { ja: "法人所得税は原則20%", en: "Corporate income tax is generally 20%" }, setup: { ja: "名称予査、外国投資審査、登録、税籍の順", en: "Name reservation, foreign-investment review, registration and tax registration" }, fit: { ja: "半導体、ハードウェア、越境EC、デザイン", en: "Semiconductors, hardware, cross-border commerce and design" }, watch: { ja: "中文社名、投資審査、業種別許可、居留資格", en: "Chinese company name, investment review, sector permits and residency" }, source: "Invest Taiwan", url: "https://investtaiwan.nat.gov.tw/showPage?lang=eng&menuNum=7&search=InvestmentStatus" },
 ];
 
+const recommendationWeights: Record<RecommendationPriority, { money: number; business: number; livability: number }> = {
+  balance: { money: 0.4, business: 0.35, livability: 0.25 },
+  money: { money: 0.6, business: 0.2, livability: 0.2 },
+  business: { money: 0.2, business: 0.6, livability: 0.2 },
+};
+
 export default function Home() {
   const [language, setLanguage] = useState<Language>("ja");
   const [originId, setOriginId] = useState<CityId>("tokyo");
@@ -1132,6 +1139,7 @@ export default function Home() {
   const [housing, setHousing] = useState<keyof typeof housingMultipliers>("onebed");
   const [lifestyle, setLifestyle] = useState<keyof typeof lifestyleMultipliers>("balanced");
   const [ageBand, setAgeBand] = useState<AgeBand>("under40");
+  const [recommendationPriority, setRecommendationPriority] = useState<RecommendationPriority>("balance");
   const [darkMode, setDarkMode] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [officialData, setOfficialData] = useState<OfficialData | null>(null);
@@ -1242,6 +1250,36 @@ export default function Home() {
     origin: calculateCity(origin, grossOrigin, household, housing, lifestyle, ageBand),
     destination: calculateCity(destination, destinationGross, household, housing, lifestyle, ageBand),
   }), [origin, destination, grossOrigin, destinationGross, household, housing, lifestyle, ageBand]);
+
+  const recommendations = useMemo(() => {
+    const candidates = globalBusinessProfiles.map((profile) => {
+      const candidateBase = cities[profile.cityId];
+      const city = { ...candidateBase, fxToJpy: fxToJpy(candidateBase.currency) };
+      const candidateGross = origin.fxToJpy === city.fxToJpy ? grossOrigin : (grossOrigin * origin.fxToJpy) / city.fxToJpy;
+      const result = calculateCity(city, candidateGross, household, housing, lifestyle, ageBand);
+      return { profile, result, remainingJpy: result.monthlyRemaining * city.fxToJpy };
+    });
+    const remainingValues = candidates.map((candidate) => candidate.remainingJpy);
+    const minRemaining = Math.min(...remainingValues);
+    const maxRemaining = Math.max(...remainingValues);
+    const businessValues = candidates.map((candidate) => candidate.profile.score);
+    const livabilityValues = candidates.map((candidate) => candidate.result.scores.livability);
+    const normalize = (value: number, min: number, max: number) => clamp(((value - min) / Math.max(max - min, 1)) * 100);
+    const weights = recommendationWeights[recommendationPriority];
+
+    return candidates.map((candidate) => {
+      const moneyScore = normalize(candidate.remainingJpy, minRemaining, maxRemaining);
+      const businessScore = normalize(candidate.profile.score, Math.min(...businessValues), Math.max(...businessValues));
+      const livabilityScore = normalize(candidate.result.scores.livability, Math.min(...livabilityValues), Math.max(...livabilityValues));
+      const factors = {
+        money: moneyScore * weights.money,
+        business: businessScore * weights.business,
+        livability: livabilityScore * weights.livability,
+      };
+      const strongestFactor = Object.entries(factors).sort(([, left], [, right]) => right - left)[0][0] as keyof typeof factors;
+      return { ...candidate, strongestFactor, fitScore: Math.round(factors.money + factors.business + factors.livability) };
+    }).sort((left, right) => right.fitScore - left.fitScore || right.profile.score - left.profile.score).slice(0, 3);
+  }, [ageBand, fxToJpy, grossOrigin, household, housing, lifestyle, origin.fxToJpy, recommendationPriority]);
 
   const handleCalculate = () => {
     requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -1438,6 +1476,7 @@ export default function Home() {
         </a>
         <nav className="desktop-nav" aria-label={language === "ja" ? "主要メニュー" : "Main menu"}>
           <a href="#compare">{t.navCompare}</a>
+          <a href="#recommendations">{language === "ja" ? "おすすめ" : "Matches"}</a>
           <a href="#profile">{t.navProfile}</a>
           <a href="#global-business">{language === "ja" ? "世界のビジネス" : "Global business"}</a>
           <a href="#method" onClick={(event) => { event.preventDefault(); openMethodDetails(); }}>{t.navMethod}</a>
@@ -1686,9 +1725,33 @@ export default function Home() {
           <p className="panel-footnote">{t.scoreFootnote}</p>
         </section>
 
+        <section id="recommendations" className="recommendation-section section-anchor">
+          <div className="recommendation-heading">
+            <div><p className="eyebrow">07 / YOUR CITY MATCHES</p><h2>{language === "ja" ? "今の条件から、次に見るべき3都市。" : "Three cities worth exploring next."}</h2></div>
+            <p>{language === "ja" ? "入力済みの給与・世帯・住居条件に、ビジネス環境と暮らしやすさを重ねて候補を更新します。" : "Your salary, household and housing inputs are combined with business conditions and livability to refresh these matches."}</p>
+          </div>
+          <div className="recommendation-priority" role="group" aria-label={language === "ja" ? "候補都市の優先軸" : "City match priority"}>
+            {(["balance", "money", "business"] as RecommendationPriority[]).map((priority) => <button key={priority} type="button" className={recommendationPriority === priority ? "is-active" : ""} aria-pressed={recommendationPriority === priority} onClick={() => setRecommendationPriority(priority)}>{priority === "balance" ? (language === "ja" ? "バランス重視" : "Balanced") : priority === "money" ? (language === "ja" ? "手元資金重視" : "Money left") : (language === "ja" ? "ビジネス重視" : "Business first")}</button>)}
+          </div>
+          <div className="recommendation-grid">
+            {recommendations.map((recommendation, index) => {
+              const reason = recommendation.strongestFactor === "money" ? (language === "ja" ? "現在の条件で手元資金を残しやすい" : "Stronger money-left outlook for your inputs") : recommendation.strongestFactor === "business" ? (language === "ja" ? "事業環境の総合力が高い" : "Strong overall business conditions") : (language === "ja" ? "暮らしやすさとのバランスが良い" : "Good balance with livability");
+              return <article className="recommendation-card" key={recommendation.profile.cityId}>
+                <div className="recommendation-rank"><span>0{index + 1}</span><small>{language === "ja" ? "候補" : "MATCH"}</small></div>
+                <div className="recommendation-city"><span>{recommendation.profile.country[language]}</span><h3>{recommendation.profile.city[language]}</h3><p>{reason}</p></div>
+                <div className="recommendation-fit"><strong>{recommendation.fitScore}</strong><small>/ 100 {language === "ja" ? "適合度" : "fit"}</small></div>
+                <div className="recommendation-metrics"><div><span>{language === "ja" ? "月に残る試算" : "Money left / month"}</span><strong>{yen(recommendation.remainingJpy)}</strong></div><div><span>{language === "ja" ? "ビジネス" : "Business"}</span><strong>{recommendation.profile.score}</strong></div><div><span>{language === "ja" ? "暮らしやすさ" : "Livability"}</span><strong>{recommendation.result.scores.livability}</strong></div></div>
+                <p className="recommendation-fit-copy"><span>{language === "ja" ? "向いている事業" : "Strong fit"}</span>{recommendation.profile.fit[language]}</p>
+                <button className="business-compare-button" type="button" onClick={() => compareBusinessCity(recommendation.profile.cityId)} aria-label={language === "ja" ? `${recommendation.profile.city.ja}を目的地に設定して詳しく比較する` : `Compare ${recommendation.profile.city.en} in detail`}><span>{language === "ja" ? "この都市を詳しく比較する" : "Compare this city in detail"}</span><strong>→</strong></button>
+              </article>;
+            })}
+          </div>
+          <div className="recommendation-method"><span>{language === "ja" ? "現在の配点" : "Current weighting"}</span><strong>{recommendationPriority === "balance" ? (language === "ja" ? "手元資金40%・ビジネス35%・暮らし25%" : "Money 40% · Business 35% · Livability 25%") : recommendationPriority === "money" ? (language === "ja" ? "手元資金60%・ビジネス20%・暮らし20%" : "Money 60% · Business 20% · Livability 20%") : (language === "ja" ? "手元資金20%・ビジネス60%・暮らし20%" : "Money 20% · Business 60% · Livability 20%")}</strong><p>{language === "ja" ? "注目10都市内での比較用試算です。移住・投資・税務判断を代替するものではありません。" : "This is a comparison estimate across the ten featured cities and does not replace relocation, investment or tax advice."}</p></div>
+        </section>
+
         <section id="global-business" className="global-business-section section-anchor">
           <div className="business-intro">
-            <div><p className="eyebrow">07 / GLOBAL BUSINESS ATLAS</p><h2>{language === "ja" ? "事業の始めやすさを、空気感だけで選ばない。" : "Choose a business city with evidence, not atmosphere alone."}</h2></div>
+            <div><p className="eyebrow">08 / GLOBAL BUSINESS ATLAS</p><h2>{language === "ja" ? "事業の始めやすさを、空気感だけで選ばない。" : "Choose a business city with evidence, not atmosphere alone."}</h2></div>
             <p>{language === "ja" ? "法人設立、外国人要件、デジタル手続き、税率、業種適性を公式情報源から整理。スコアは比較の入り口であり、最終判断ではありません。" : "Official sources are organized around incorporation, foreign-founder rules, digital access, tax and sector fit. Scores are a starting point, never a final legal or tax decision."}</p>
           </div>
           <div className="business-method-strip" aria-label={language === "ja" ? "ビジネススコアの構成" : "Business score components"}>
