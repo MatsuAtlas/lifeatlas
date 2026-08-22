@@ -608,7 +608,7 @@ const translations = {
     themeToDark: "Dark mode",
     themeAria: "Switch color theme",
     heroEyebrow: "Design your life and work across world cities",
-    heroTitleBefore: "Where does your income",
+    heroTitleBefore: "Where does your income ",
     heroTitleEmphasis: "go further",
     heroTitleAfter: "?",
     heroText: "Build a life and a business near the sea, in a city you love. Compare taxes, rent, living costs and founder readiness on one clear map.",
