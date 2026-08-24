@@ -6,7 +6,7 @@ type CityId = "tokyo" | "osaka" | "vancouver" | "toronto" | "losAngeles" | "newY
 type CurrencyCode = "JPY" | "CAD" | "USD" | "GBP" | "EUR" | "MXN" | "AUD" | "KRW" | "TWD" | "SGD" | "HKD" | "THB" | "MYR" | "IDR" | "PHP" | "VND" | "CNY" | "AED" | "CHF" | "BRL" | "ARS" | "CLP" | "COP";
 type AgeBand = "under40" | "40to64" | "65plus";
 type SalaryCurrency = "origin" | "JPY";
-type DestinationSalaryMode = "sameYen" | "actualOffer";
+type DestinationSalaryMode = "localBenchmark" | "sameYen" | "actualOffer";
 type Language = "ja" | "en";
 type RecommendationPriority = "balance" | "money" | "business";
 type TaxCalculationStatus = "official-scenario" | "official-rate-estimate" | "unavailable";
@@ -95,8 +95,8 @@ type City = {
 
 type CityResult = {
   city: City;
-  grossAnnual: number;
-  grossMonthly: number;
+  grossAnnual: number | null;
+  grossMonthly: number | null;
   taxMonthly: number | null;
   netMonthly: number | null;
   rent: number;
@@ -108,6 +108,7 @@ type CityResult = {
   costIndex: number;
   purchasingPower: number | null;
   taxCalculationStatus: TaxCalculationStatus;
+  calculationUnavailableReason: "tax" | "salary" | null;
   taxBreakdown: {
     incomeTaxMonthly: number;
     reconstructionSurtaxMonthly: number;
@@ -232,7 +233,7 @@ const mexicoSources = (populationSource: DataSource): DataSource[] => [populatio
 const australiaSources = (populationSource: DataSource): DataSource[] => [populationSource, source("物価・家賃", "国", "2026年", "Australian Bureau of Statistics・CPI", "https://www.abs.gov.au/statistics/economy/price-indexes-and-inflation/consumer-price-index-australia/latest-release"), source("所得税・Medicare levy", "国", "2026-27年度", "Australian Taxation Office・Tax rates", "https://www.ato.gov.au/tax-rates-and-codes/tax-rates-australian-residents"), source("退職積立", "国", "2026-27年度", "Australian Taxation Office・Super guarantee", "https://www.ato.gov.au/tax-rates-and-codes/key-superannuation-rates-and-thresholds/super-guarantee")];
 const singaporeSources = (): DataSource[] => [
   source("人口", "国", "2025年6月末", "Singapore Department of Statistics・Population Trends 2025", "https://www.singstat.gov.sg/publications/population/population-trends"),
-  source("給与", "国", "2025年", "Ministry of Manpower・Labour Force in Singapore 2025", "https://stats.mom.gov.sg/iMAS_PdfLibrary/mrsd_2025Labourforce.pdf"),
+  source("給与中央値", "国", "2025年", "Ministry of Manpower・Full-time employed residents, excluding employer CPF", "https://stats.mom.gov.sg/iMAS_PdfLibrary/mrsd-labour-force-in-singapore-advance-release-2025.pdf"),
   source("物価", "国", "2023年調査", "Singapore Department of Statistics・Household Expenditure Survey", "https://www.singstat.gov.sg/modules/infographics/hes/household-expenditure"),
   source("物価・家賃", "国", "2026年第1四半期", "Housing & Development Board・Median rents by town and flat type", "https://www.hdb.gov.sg/business-partners/estate-agents-and-salespersons/guide-for-estate-agents-renting-out-a-flat-or-bedrooms/rental-statistics"),
   source("所得税", "国", "YA 2024以降", "Inland Revenue Authority of Singapore・Individual Income Tax rates", "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates"),
@@ -339,7 +340,7 @@ const extendedCities: Record<CityId, City> = Object.fromEntries([
   ["fukuoka", estimatedCity({ id: "fukuoka", name: "福岡", country: "日本", countryCode: "JPN", region: "アジア", currency: "JPY", currencyLabel: "日本円", timezone: "UTC+9（日本標準時）", climate: "温暖湿潤・比較的温暖", language: "日本語", population: "約165万人（福岡市・推計）", taxSystem: "japan", taxRegion: "fukuoka", averageAnnualIncome: 4_700_000, rent: 105_000, costs: { food: 57_000, utilities: 16_000, internet: 5_500, transport: 10_000, medical: 9_000, leisure: 26_000 }, scores: { livability: 90, business: 82, nomad: 78, family: 87, safety: 84, healthcare: 87, internet: 91, transit: 87, nature: 84, japaneseFood: 100, english: 35 }, englishName: "Fukuoka", englishCountry: "Japan", englishRegion: "Asia", englishClimate: "Warm humid subtropical", englishLanguage: "Japanese" })],
   ["seoul", estimatedCity({ id: "seoul", name: "ソウル", country: "韓国", countryCode: "KOR", region: "アジア", currency: "KRW", currencyLabel: "韓国ウォン", timezone: "UTC+9", climate: "湿潤大陸性・四季がある", language: "韓国語", population: "約940万人（ソウル特別市・推計）", taxSystem: "estimate", taxRegion: "southKorea", averageAnnualIncome: 55_000_000, rent: 1_100_000, costs: { food: 650_000, utilities: 180_000, internet: 45_000, transport: 80_000, medical: 80_000, leisure: 300_000 }, scores: { livability: 84, business: 88, nomad: 84, family: 78, safety: 83, healthcare: 90, internet: 99, transit: 98, nature: 68, japaneseFood: 90, english: 55 }, englishName: "Seoul", englishCountry: "South Korea", englishRegion: "Asia", englishClimate: "Humid continental, four seasons", englishLanguage: "Korean" })],
   ["taipei", estimatedCity({ id: "taipei", name: "台北", country: "台湾", countryCode: "TWN", region: "アジア", currency: "TWD", currencyLabel: "台湾ドル", timezone: "UTC+8", climate: "亜熱帯・夏は暑く湿潤", language: "中国語", population: "約250万人（台北市・推計）", taxSystem: "estimate", taxRegion: "taiwan", averageAnnualIncome: 900_000, rent: 28_000, costs: { food: 12_000, utilities: 3_500, internet: 1_000, transport: 1_500, medical: 1_500, leisure: 6_000 }, scores: { livability: 88, business: 82, nomad: 88, family: 82, safety: 88, healthcare: 92, internet: 96, transit: 94, nature: 73, japaneseFood: 94, english: 58 }, englishName: "Taipei", englishCountry: "Taiwan", englishRegion: "Asia", englishClimate: "Subtropical, hot and humid summers", englishLanguage: "Mandarin Chinese" })],
-  ["singapore", estimatedCity({ id: "singapore", name: "シンガポール", country: "シンガポール", countryCode: "SGP", region: "アジア", currency: "SGD", currencyLabel: "シンガポールドル", timezone: "UTC+8", climate: "熱帯・高温多湿", language: "英語・中国語・マレー語・タミル語", population: "6,111,175人（国・2025年6月末）", taxSystem: "singapore", taxRegion: "singapore", averageAnnualIncome: 69_300, rent: 3_100, costs: { food: 700, utilities: 180, internet: 55, transport: 130, medical: 80, leisure: 300 }, scores: { livability: 86, business: 96, nomad: 92, family: 83, safety: 95, healthcare: 93, internet: 98, transit: 99, nature: 67, japaneseFood: 92, english: 100 }, englishName: "Singapore", englishCountry: "Singapore", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "English, Mandarin, Malay and Tamil", dataSources: singaporeSources(), sourceLabel: "人口・税率・外国人CPF対象外は公式資料です。給与は居住者中央値、家賃・生活費は対象範囲の異なる公的統計を参考にした保存シナリオで、自動更新値ではありません。" })],
+  ["singapore", estimatedCity({ id: "singapore", name: "シンガポール", country: "シンガポール", countryCode: "SGP", region: "アジア", currency: "SGD", currencyLabel: "シンガポールドル", timezone: "UTC+8", climate: "熱帯・高温多湿", language: "英語・中国語・マレー語・タミル語", population: "6,111,175人（国・2025年6月末）", taxSystem: "singapore", taxRegion: "singapore", averageAnnualIncome: 60_000, rent: 3_100, costs: { food: 700, utilities: 180, internet: 55, transport: 130, medical: 80, leisure: 300 }, scores: { livability: 86, business: 96, nomad: 92, family: 83, safety: 95, healthcare: 93, internet: 98, transit: 99, nature: 67, japaneseFood: 92, english: 100 }, englishName: "Singapore", englishCountry: "Singapore", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "English, Mandarin, Malay and Tamil", dataSources: singaporeSources(), sourceLabel: "人口・税率・外国人CPF対象外は公式資料です。給与は2025年のフルタイム就業居住者中央値（月SGD 5,000、雇用主CPFを除外）です。家賃・生活費は公的統計を参考にした保存シナリオで、自動更新値ではありません。" })],
   ["hongKong", estimatedCity({ id: "hongKong", name: "香港", country: "香港", countryCode: "HKG", region: "アジア", currency: "HKD", currencyLabel: "香港ドル", timezone: "UTC+8", climate: "亜熱帯・夏は高温多湿", language: "中国語・英語", population: "約750万人（香港・推計）", taxSystem: "estimate", taxRegion: "hongKong", averageAnnualIncome: 420_000, rent: 18_000, costs: { food: 7_000, utilities: 1_600, internet: 350, transport: 1_000, medical: 700, leisure: 3_500 }, scores: { livability: 78, business: 94, nomad: 90, family: 70, safety: 88, healthcare: 91, internet: 95, transit: 99, nature: 75, japaneseFood: 94, english: 82 }, englishName: "Hong Kong", englishCountry: "Hong Kong", englishRegion: "Asia", englishClimate: "Subtropical, hot and humid summers", englishLanguage: "Chinese and English" })],
   ["bangkok", estimatedCity({ id: "bangkok", name: "バンコク", country: "タイ", countryCode: "THA", region: "アジア", currency: "THB", currencyLabel: "タイバーツ", timezone: "UTC+7", climate: "熱帯・高温多湿", language: "タイ語", population: "約550万人（バンコク都・推計）", taxSystem: "estimate", taxRegion: "thailand", averageAnnualIncome: 720_000, rent: 22_000, costs: { food: 12_000, utilities: 3_500, internet: 700, transport: 2_500, medical: 2_000, leisure: 6_000 }, scores: { livability: 82, business: 82, nomad: 95, family: 70, safety: 69, healthcare: 82, internet: 88, transit: 80, nature: 72, japaneseFood: 88, english: 66 }, englishName: "Bangkok", englishCountry: "Thailand", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "Thai" })],
   ["kualaLumpur", estimatedCity({ id: "kualaLumpur", name: "クアラルンプール", country: "マレーシア", countryCode: "MYS", region: "アジア", currency: "MYR", currencyLabel: "マレーシアリンギット", timezone: "UTC+8", climate: "熱帯・高温多湿", language: "マレー語・英語", population: "約200万人（市・推計）", taxSystem: "estimate", taxRegion: "malaysia", averageAnnualIncome: 84_000, rent: 2_500, costs: { food: 1_600, utilities: 260, internet: 140, transport: 180, medical: 150, leisure: 700 }, scores: { livability: 82, business: 84, nomad: 92, family: 78, safety: 76, healthcare: 82, internet: 88, transit: 76, nature: 79, japaneseFood: 84, english: 84 }, englishName: "Kuala Lumpur", englishCountry: "Malaysia", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "Malay and English" })],
@@ -507,8 +508,14 @@ const translations = {
     salaryCurrency: "入力通貨",
     originCurrency: "出発地の現地通貨",
     jpyCurrency: "日本円",
-    destinationSalaryMode: "目的地の給与条件",
-    sameYenSalary: "出発地と同じ円価値（比較用）",
+    destinationSalaryMode: "目的地での働き方・給与条件",
+    localBenchmarkSalary: "現地就職：公式給与ベンチマーク",
+    localBenchmarkHint: "公的統計の給与中央値・平均値がある都市だけ計算します",
+    salaryBenchmark: "現地給与ベンチマーク",
+    salaryBenchmarkUnavailable: "公式給与ベンチマークなし",
+    salaryBenchmarkUnavailableDetail: "公式の給与中央値・平均値を確認できないため、現地就職モードでは手取りと残額を表示しません。",
+    sameYenSalary: "リモート勤務：日本の収入を維持",
+    sameYenSalaryHint: "現在の給与を円価値のまま為替換算します。現地相場の給与ではありません",
     actualOfferSalary: "実際のオファー年収を入力",
     destinationSalary: "目的地の年間総支給給与",
     destinationSalaryHint: "実際の雇用契約・内定条件を現地通貨で入力",
@@ -519,7 +526,7 @@ const translations = {
     ageHint: "日本の介護保険料に反映",
     compare: "比較結果を見る",
     reset: "条件を初期化",
-    assumption: "既定は、現地で長期就労する日本人会社員・税務上の居住者・給与所得のみのシナリオです。シンガポールは外国人のためCPFなしで計算します。公式制度を確認できない都市は税額・手取り・残額を表示しません。",
+    assumption: "既定は現地就職で、公的統計の給与ベンチマークを使います。リモート勤務は日本の収入を維持、内定後は実際のオファー年収へ切り替えてください。給与または税制度を公式資料で確認できない都市は手取り・残額を表示しません。",
     resultEyebrow: "02 / 結果のサマリー",
     resultTitle: "毎月、どれくらい残る？",
     dataLoading: "公的データを確認中…",
@@ -580,7 +587,8 @@ const translations = {
     calculationUnavailable: "公式計算未対応",
     calculationUnavailableDetail: "税金・社会保険を公式制度で確認できていないため、手取りと残額を表示していません。家賃・生活費は保存した参考シナリオです。",
     currentScenario: "現在地の試算",
-    sameYenScenario: "同じ円価値の給与で試算",
+    localBenchmarkScenario: "現地の公式給与ベンチマークで試算",
+    sameYenScenario: "日本の収入を維持するリモート勤務で試算",
     actualOfferScenario: "入力した現地オファー給与で試算",
     calloutNote: "住居・生活スタイル・世帯人数を変えると結果も変わります。数字は判断の出発点としてご利用ください。",
     costEyebrow: "03 / 月間コスト",
@@ -717,8 +725,14 @@ const translations = {
     salaryCurrency: "Input currency",
     originCurrency: "Origin city currency",
     jpyCurrency: "Japanese yen",
-    destinationSalaryMode: "Destination salary scenario",
-    sameYenSalary: "Same JPY value (comparison only)",
+    destinationSalaryMode: "Work and salary scenario at destination",
+    localBenchmarkSalary: "Local employment: official salary benchmark",
+    localBenchmarkHint: "Calculated only where a public median or mean salary benchmark is available",
+    salaryBenchmark: "Local salary benchmark",
+    salaryBenchmarkUnavailable: "No official salary benchmark",
+    salaryBenchmarkUnavailableDetail: "Take-home and money left are hidden in local-employment mode because no official median or mean salary benchmark has been verified.",
+    sameYenSalary: "Remote work: keep Japanese income",
+    sameYenSalaryHint: "Converts the current income by FX only; this is not a local-market salary",
     actualOfferSalary: "Enter an actual salary offer",
     destinationSalary: "Destination annual gross salary",
     destinationSalaryHint: "Enter the employment offer in the destination currency",
@@ -729,7 +743,7 @@ const translations = {
     ageHint: "Applied to Japan's long-term care insurance",
     compare: "See comparison",
     reset: "Reset conditions",
-    assumption: "The default scenario is a Japanese salaried employee working long term and treated as a tax resident. Singapore is calculated without CPF because the worker is a foreign employee. Where an official calculation is not implemented, take-home and money-left figures are not shown.",
+    assumption: "The default is local employment using a public salary benchmark. Choose remote work to keep Japanese income, or enter the actual offer after receiving one. Take-home and money-left figures are hidden when salary or tax rules cannot be verified from public sources.",
     resultEyebrow: "02 / SUMMARY",
     resultTitle: "How much remains each month?",
     dataLoading: "Checking public data…",
@@ -790,7 +804,8 @@ const translations = {
     calculationUnavailable: "Official calculation unavailable",
     calculationUnavailableDetail: "Take-home and money left are hidden because tax and social-insurance rules have not been verified for this worker scenario. Rent and living costs remain saved reference scenarios.",
     currentScenario: "Origin scenario",
-    sameYenScenario: "Same yen-value salary",
+    localBenchmarkScenario: "Official local salary benchmark",
+    sameYenScenario: "Remote work retaining Japanese income",
     actualOfferScenario: "Actual destination salary entered",
     calloutNote: "Results change with housing, lifestyle and household size. Use these numbers as a starting point for decisions.",
     costEyebrow: "03 / MONTHLY COSTS",
@@ -884,7 +899,7 @@ const cityClimate = (city: City, language: Language) => language === "ja" ? city
 const cityLanguage = (city: City, language: Language) => language === "ja" ? city.language : englishCityLabel(city).language;
 const sourceItem = (item: string, language: Language) => {
   if (language === "ja") return item;
-  const labels: Record<string, string> = { "人口": "Population", "人口・物価・給与・家賃": "Population, prices, salary and rent", "物価": "Prices", "物価・家賃": "Prices and rent", "給与": "Salary", "所得税": "Income tax", "連邦・州所得税": "Federal and provincial tax", "連邦所得税": "Federal income tax", "州税・市税": "State and city tax", "社会保障・Medicare": "Social Security and Medicare", "医療保険": "Health insurance", "健康保険・介護保険": "Health and long-term care insurance", "CPP・EI": "CPP and EI", "国民保険": "National Insurance", "社会保険": "Social insurance", "年金": "Pension", "退職積立": "Superannuation", "所得税・Medicare levy": "Income tax and Medicare levy" };
+  const labels: Record<string, string> = { "人口": "Population", "人口・物価・給与・家賃": "Population, prices, salary and rent", "物価": "Prices", "物価・家賃": "Prices and rent", "給与": "Salary", "給与中央値": "Median salary", "所得税": "Income tax", "連邦・州所得税": "Federal and provincial tax", "連邦所得税": "Federal income tax", "州税・市税": "State and city tax", "社会保障・Medicare": "Social Security and Medicare", "医療保険": "Health insurance", "健康保険・介護保険": "Health and long-term care insurance", "CPP・EI": "CPP and EI", "国民保険": "National Insurance", "社会保険": "Social insurance", "年金": "Pension", "退職積立": "Superannuation", "所得税・Medicare levy": "Income tax and Medicare levy" };
   return labels[item] ?? item;
 };
 const sourceLevel = (level: DataSource["level"], language: Language) => {
@@ -1056,6 +1071,12 @@ function taxCalculationStatus(city: City): TaxCalculationStatus {
   return "official-rate-estimate";
 }
 
+function officialSalaryBenchmarkSource(city: City) {
+  const salarySource = city.dataSources.find((item) => item.item.startsWith("給与"));
+  if (!salarySource || /Life Atlas|推定|保存参考値/.test(salarySource.source)) return null;
+  return salarySource;
+}
+
 function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand, household: keyof typeof householdMultipliers) {
   if (taxCalculationStatus(city) === "unavailable") return null;
   if (city.taxSystem === "singapore") {
@@ -1158,19 +1179,20 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, medicareLevyMonthly: medicareLevy / 12, totalTaxMonthly: (incomeTax + medicareLevy) / 12, totalDeductionsMonthly: (incomeTax + medicareLevy) / 12, employerSuperMonthly: grossAnnual * city.insurance.employerSuperRate / 12 };
 }
 
-function calculateCity(city: City, grossAnnual: number, household: keyof typeof householdMultipliers, housing: keyof typeof housingMultipliers, lifestyle: keyof typeof lifestyleMultipliers, ageBand: AgeBand): CityResult {
+function calculateCity(city: City, grossAnnual: number | null, household: keyof typeof householdMultipliers, housing: keyof typeof housingMultipliers, lifestyle: keyof typeof lifestyleMultipliers, ageBand: AgeBand): CityResult {
   const householdMultiplier = householdMultipliers[household];
   const housingMultiplier = housingMultipliers[housing];
   const lifestyleMultiplier = lifestyleMultipliers[lifestyle];
-  const grossMonthly = grossAnnual / 12;
+  const grossMonthly = grossAnnual === null ? null : grossAnnual / 12;
   const calculationStatus = taxCalculationStatus(city);
-  const taxBreakdown = estimateTaxBreakdown(city, grossAnnual, ageBand, household);
+  const calculationUnavailableReason = grossAnnual === null ? "salary" : calculationStatus === "unavailable" ? "tax" : null;
+  const taxBreakdown = grossAnnual === null ? null : estimateTaxBreakdown(city, grossAnnual, ageBand, household);
   const rent = city.costs.rent * housingMultiplier;
   const livingCosts = (city.costs.food + city.costs.utilities + city.costs.internet + city.costs.transport + city.costs.medical + city.costs.leisure) * householdMultiplier * lifestyleMultiplier;
   const totalMonthlyCosts = rent + livingCosts;
   const costIndex = Math.round((totalMonthlyCosts / (city.averageAnnualIncome / 12)) * 1000) / 10;
   const taxMonthly = taxBreakdown?.totalDeductionsMonthly ?? null;
-  const netMonthly = taxMonthly === null ? null : grossMonthly - taxMonthly;
+  const netMonthly = taxMonthly === null || grossMonthly === null ? null : grossMonthly - taxMonthly;
   const monthlyRemaining = netMonthly === null ? null : netMonthly - totalMonthlyCosts;
   const annualSavings = monthlyRemaining === null ? null : Math.max(monthlyRemaining, 0) * 12;
   const rentBurden = netMonthly === null ? null : netMonthly > 0 ? (rent / netMonthly) * 100 : 100;
@@ -1193,6 +1215,7 @@ function calculateCity(city: City, grossAnnual: number, household: keyof typeof 
     costIndex,
     purchasingPower,
     taxCalculationStatus: calculationStatus,
+    calculationUnavailableReason,
     taxBreakdown,
     scores: {
       livability: city.scores.livability,
@@ -1257,7 +1280,7 @@ export default function Home() {
   const [destinationId, setDestinationId] = useState<CityId>("singapore");
   const [salary, setSalary] = useState("8500000");
   const [salaryCurrency, setSalaryCurrency] = useState<SalaryCurrency>("origin");
-  const [destinationSalaryMode, setDestinationSalaryMode] = useState<DestinationSalaryMode>("sameYen");
+  const [destinationSalaryMode, setDestinationSalaryMode] = useState<DestinationSalaryMode>("localBenchmark");
   const [destinationSalary, setDestinationSalary] = useState("");
   const [household, setHousehold] = useState<keyof typeof householdMultipliers>("single");
   const [housing, setHousing] = useState<keyof typeof housingMultipliers>("onebed");
@@ -1292,6 +1315,8 @@ export default function Home() {
   const optionalYen = (value: number | null) => value === null ? "—" : yen(value);
   const optionalDualMoney = (value: number | null, currency: CurrencyCode, rateToJpy: number) => value === null ? "—" : dualMoney(value, currency, rateToJpy);
   const calculationLabel = (status: TaxCalculationStatus) => status === "official-scenario" ? t.calculationOfficial : status === "official-rate-estimate" ? t.calculationEstimate : t.calculationUnavailable;
+  const unavailableTitle = (result: CityResult) => result.calculationUnavailableReason === "salary" ? t.salaryBenchmarkUnavailable : t.calculationUnavailable;
+  const unavailableDetail = (result: CityResult) => result.calculationUnavailableReason === "salary" ? t.salaryBenchmarkUnavailableDetail : t.calculationUnavailableDetail;
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -1373,7 +1398,13 @@ export default function Home() {
   const grossOriginInput = Number(salary) || 0;
   const grossOrigin = salaryCurrency === "JPY" ? grossOriginInput / origin.fxToJpy : grossOriginInput;
   const destinationSameYenGross = origin.fxToJpy === destination.fxToJpy ? grossOrigin : (grossOrigin * origin.fxToJpy) / destination.fxToJpy;
-  const destinationGross = destinationSalaryMode === "actualOffer" ? Number(destinationSalary) || 0 : destinationSameYenGross;
+  const destinationBenchmarkSource = officialSalaryBenchmarkSource(destination);
+  const enteredDestinationSalary = Number(destinationSalary);
+  const destinationGross = destinationSalaryMode === "localBenchmark"
+    ? destinationBenchmarkSource ? destination.averageAnnualIncome : null
+    : destinationSalaryMode === "actualOffer"
+      ? Number.isFinite(enteredDestinationSalary) && enteredDestinationSalary > 0 ? enteredDestinationSalary : null
+      : destinationSameYenGross;
 
   const results = useMemo(() => ({
     origin: calculateCity(origin, grossOrigin, household, housing, lifestyle, ageBand),
@@ -1386,7 +1417,12 @@ export default function Home() {
     const candidates = globalBusinessProfiles.map((profile) => {
       const candidateBase = cities[profile.cityId];
       const city = { ...candidateBase, fxToJpy: fxToJpy(candidateBase.currency) };
-      const candidateGross = origin.fxToJpy === city.fxToJpy ? grossOrigin : (grossOrigin * origin.fxToJpy) / city.fxToJpy;
+      const actualOfferJpy = Number.isFinite(enteredDestinationSalary) && enteredDestinationSalary > 0 ? enteredDestinationSalary * destination.fxToJpy : null;
+      const candidateGross = destinationSalaryMode === "localBenchmark"
+        ? officialSalaryBenchmarkSource(city) ? city.averageAnnualIncome : null
+        : destinationSalaryMode === "actualOffer"
+          ? actualOfferJpy === null ? null : actualOfferJpy / city.fxToJpy
+          : origin.fxToJpy === city.fxToJpy ? grossOrigin : (grossOrigin * origin.fxToJpy) / city.fxToJpy;
       const result = calculateCity(city, candidateGross, household, housing, lifestyle, ageBand);
       return { profile, result, remainingJpy: result.monthlyRemaining === null ? null : result.monthlyRemaining * city.fxToJpy };
     }).filter((candidate): candidate is typeof candidate & { remainingJpy: number } => candidate.remainingJpy !== null);
@@ -1395,7 +1431,7 @@ export default function Home() {
     const maxRemaining = Math.max(...remainingValues);
     const businessValues = candidates.map((candidate) => candidate.profile.score);
     const livabilityValues = candidates.map((candidate) => candidate.result.scores.livability);
-    const normalize = (value: number, min: number, max: number) => clamp(((value - min) / Math.max(max - min, 1)) * 100);
+    const normalize = (value: number, min: number, max: number) => max === min ? 100 : clamp(((value - min) / (max - min)) * 100);
     const weights = recommendationWeights[recommendationPriority];
 
     return candidates.map((candidate) => {
@@ -1410,7 +1446,7 @@ export default function Home() {
       const strongestFactor = Object.entries(factors).sort(([, left], [, right]) => right - left)[0][0] as keyof typeof factors;
       return { ...candidate, strongestFactor, fitScore: Math.round(factors.money + factors.business + factors.livability) };
     }).sort((left, right) => right.fitScore - left.fitScore || right.profile.score - left.profile.score).slice(0, 3);
-  }, [ageBand, fxToJpy, grossOrigin, household, housing, lifestyle, origin.fxToJpy, recommendationPriority]);
+  }, [ageBand, destination.fxToJpy, destinationSalaryMode, enteredDestinationSalary, fxToJpy, grossOrigin, household, housing, lifestyle, origin.fxToJpy, recommendationPriority]);
 
   const handleCalculate = () => {
     requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -1540,7 +1576,8 @@ export default function Home() {
     setDestinationId(input.destinationId as CityId);
     if (typeof input.salary === "string") setSalary(input.salary);
     if (input.salaryCurrency === "origin" || input.salaryCurrency === "JPY") setSalaryCurrency(input.salaryCurrency);
-    if (input.destinationSalaryMode === "sameYen" || input.destinationSalaryMode === "actualOffer") setDestinationSalaryMode(input.destinationSalaryMode);
+    if (input.destinationSalaryMode === "localBenchmark" || input.destinationSalaryMode === "sameYen" || input.destinationSalaryMode === "actualOffer") setDestinationSalaryMode(input.destinationSalaryMode);
+    else setDestinationSalaryMode("sameYen");
     if (typeof input.destinationSalary === "string") setDestinationSalary(input.destinationSalary);
     if (input.household && input.household in householdMultipliers) setHousehold(input.household);
     if (input.housing && input.housing in housingMultipliers) setHousing(input.housing);
@@ -1583,7 +1620,7 @@ export default function Home() {
     setDestinationId("singapore");
     setSalary("8500000");
     setSalaryCurrency("origin");
-    setDestinationSalaryMode("sameYen");
+    setDestinationSalaryMode("localBenchmark");
     setDestinationSalary("");
     setHousehold("single");
     setHousing("onebed");
@@ -1765,12 +1802,16 @@ export default function Home() {
               <select value={destinationSalaryMode} onChange={(event) => {
                 const mode = event.target.value as DestinationSalaryMode;
                 setDestinationSalaryMode(mode);
-                if (mode === "actualOffer" && !destinationSalary) setDestinationSalary(String(Math.round(destinationSameYenGross)));
               }}>
+                <option value="localBenchmark">{t.localBenchmarkSalary}</option>
                 <option value="sameYen">{t.sameYenSalary}</option>
                 <option value="actualOffer">{t.actualOfferSalary}</option>
               </select>
-              <small>{destinationSalaryMode === "sameYen" ? (language === "ja" ? "為替換算しただけの給与で、現地相場ではありません" : "FX conversion only; this is not a local-market salary") : t.destinationSalaryHint}</small>
+              <small>{destinationSalaryMode === "localBenchmark"
+                ? destinationBenchmarkSource
+                  ? `${money(destination.averageAnnualIncome, destination.currency)} / ${language === "ja" ? "年" : "year"} · ${sourceLevel(destinationBenchmarkSource.level, language)} · ${sourcePeriod(destinationBenchmarkSource.period, language)} · ${destinationBenchmarkSource.source}`
+                  : t.salaryBenchmarkUnavailableDetail
+                : destinationSalaryMode === "sameYen" ? t.sameYenSalaryHint : t.destinationSalaryHint}</small>
             </label>
             {destinationSalaryMode === "actualOffer" && <label>{t.destinationSalary}
               <div className="input-with-unit"><input inputMode="numeric" value={destinationSalary} onChange={(event) => setDestinationSalary(event.target.value.replace(/[^0-9]/g, ""))} aria-label={t.destinationSalary} /><span>{destination.currency}</span></div>
@@ -1807,7 +1848,8 @@ export default function Home() {
             <div className="data-coverage-grid">
               {selectedCities.map((city) => {
                 const populationSource = city.dataSources.find((item) => item.item.includes("人口"));
-                const populationIsEstimate = !populationSource || populationSource.source.includes("Life Atlas推定");
+                const populationIsEstimate = !populationSource || /Life Atlas|推定|保存参考値/.test(populationSource.source);
+                const salaryBenchmarkSource = officialSalaryBenchmarkSource(city);
                 const countryPopulation = officialData?.populations[city.countryCode] ?? null;
                 const fxIsBase = city.currency === "JPY";
                 const fxIsAutomatic = !fxIsBase && typeof officialData?.exchangeRates[city.currency] === "number";
@@ -1830,6 +1872,11 @@ export default function Home() {
                     <p><span>{fxIsAutomatic && officialData?.exchangeObservedOn ? `${t.scopeLabelText}: ${city.currency} / ${officialData.exchangeObservedOn}` : fxIsBase ? `${t.scopeLabelText}: JPY` : `${t.scopeLabelText}: ${city.currency} / ${t.baselineDateUnknown}`}</span>{fxIsAutomatic && fxSource && <a href={fxSource.url} target="_blank" rel="noreferrer">{t.sourceLabelText}: ECB ↗</a>}</p>
                   </div>
                   <div className="coverage-item">
+                    <div className="coverage-label"><span>{t.salaryBenchmark}</span><small className={`coverage-badge ${salaryBenchmarkSource ? "is-snapshot" : "is-reference"}`}>{salaryBenchmarkSource ? t.officialSnapshot : t.salaryBenchmarkUnavailable}</small></div>
+                    <strong>{salaryBenchmarkSource ? `${formatMoney(city.averageAnnualIncome, city.currency, language)} / ${language === "ja" ? "年" : "year"}` : "—"}</strong>
+                    <p>{salaryBenchmarkSource ? <><span>{t.scopeLabelText}: {sourceLevel(salaryBenchmarkSource.level, language)} / {sourcePeriod(salaryBenchmarkSource.period, language)}</span><a href={salaryBenchmarkSource.url} target="_blank" rel="noreferrer">{t.sourceLabelText}: {salaryBenchmarkSource.source} ↗</a></> : <span>{t.salaryBenchmarkUnavailableDetail}</span>}</p>
+                  </div>
+                  <div className="coverage-item">
                     <div className="coverage-label"><span>{t.taxesInsurance}</span><small className={`coverage-badge ${taxCalculationStatus(city) === "official-scenario" ? "is-live" : taxCalculationStatus(city) === "official-rate-estimate" ? "is-estimate" : "is-reference"}`}>{calculationLabel(taxCalculationStatus(city))}</small></div>
                     <strong>{taxCalculationStatus(city) === "unavailable" ? t.calculationUnavailable : language === "ja" ? "長期就労する日本人会社員・税務上の居住者" : "Long-term Japanese employee treated as a tax resident"}</strong>
                     <p><span>{language === "ja" ? "扶養・個別控除・任意保険などは含みません" : "Excludes individual reliefs, dependants and optional insurance"}</span>{city.dataSources.find((item) => item.item === "所得税") && <a href={city.dataSources.find((item) => item.item === "所得税")?.url} target="_blank" rel="noreferrer">{t.sourceLabelText}: {city.dataSources.find((item) => item.item === "所得税")?.source} ↗</a>}</p>
@@ -1844,9 +1891,9 @@ export default function Home() {
               const breakdown = result.taxBreakdown;
               return <article className={`city-result-card ${index === 1 ? "featured-result" : ""} ${breakdown ? "" : "calculation-unavailable"}`} data-city-id={result.city.id} data-tax-status={result.taxCalculationStatus} key={result.city.id}>
                 <div className="city-card-top"><div><span className="city-region">{displayCityRegion(result.city)} / {displayCityCountry(result.city)}</span><h3>{displayCityName(result.city)}</h3></div><span className="city-initial">{displayCityName(result.city).slice(0, 1)}</span></div>
-                <div className={`calculation-badge is-${result.taxCalculationStatus}`}>{calculationLabel(result.taxCalculationStatus)}</div>
+                <div className={`calculation-badge is-${result.calculationUnavailableReason === "salary" ? "unavailable" : result.taxCalculationStatus}`}>{result.calculationUnavailableReason === "salary" ? t.salaryBenchmarkUnavailable : calculationLabel(result.taxCalculationStatus)}</div>
                 <div className="big-number">{optionalMoney(result.monthlyRemaining, result.city.currency)}{result.monthlyRemaining !== null && <small>{t.monthly}</small>}</div>
-                <div className="yen-caption">{result.monthlyRemaining === null ? t.calculationUnavailableDetail : <>{t.yenValue} {optionalYen(result.monthlyRemaining * result.city.fxToJpy)}</>}</div>
+                <div className="yen-caption">{result.monthlyRemaining === null ? unavailableDetail(result) : <>{t.yenValue} {optionalYen(result.monthlyRemaining * result.city.fxToJpy)}</>}</div>
                 <div className="metric-list">
                   <div><span>{t.takeHome}</span><strong>{optionalDualMoney(result.netMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
                   <div><span>{t.taxesInsurance}</span><strong>{optionalDualMoney(breakdown?.totalDeductionsMonthly ?? null, result.city.currency, result.city.fxToJpy)}</strong></div>
@@ -1873,12 +1920,12 @@ export default function Home() {
                     {breakdown.employerSuperMonthly > 0 && <div className="deduction-row is-employer"><span>{t.employerSuper}</span><strong>{dualMoney(breakdown.employerSuperMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
                   </>}
                   <div className="deduction-total"><span>{t.deductionTotal}</span><strong>{dualMoney(breakdown.totalDeductionsMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
-                </div> : <div className="deduction-list unavailable-note"><strong>{t.calculationUnavailable}</strong><span>{t.calculationUnavailableDetail}</span></div>}
-                <div className="card-footer"><span className="status-dot" /> {index === 0 ? t.currentScenario : destinationSalaryMode === "actualOffer" ? t.actualOfferScenario : t.sameYenScenario}</div>
+                </div> : <div className="deduction-list unavailable-note"><strong>{unavailableTitle(result)}</strong><span>{unavailableDetail(result)}</span></div>}
+                <div className="card-footer"><span className="status-dot" /> {index === 0 ? t.currentScenario : destinationSalaryMode === "localBenchmark" ? t.localBenchmarkScenario : destinationSalaryMode === "actualOffer" ? t.actualOfferScenario : t.sameYenScenario}</div>
               </article>;
             })}
           </div>
-          <div className="headline-callout"><span className="callout-icon">↗</span><div><strong>{results.origin.monthlyRemaining === null || results.destination.monthlyRemaining === null ? t.calculationUnavailableDetail : results.destination.monthlyRemaining > results.origin.monthlyRemaining ? (language === "ja" ? `${displayCityName(destination)}の方が、月間の余裕が大きい試算です。` : `${displayCityName(destination)} has more monthly room in this estimate.`) : (language === "ja" ? `${displayCityName(origin)}の方が、月間の余裕が大きい試算です。` : `${displayCityName(origin)} has more monthly room in this estimate.`)}</strong><p>{t.calloutNote}</p></div></div>
+          <div className="headline-callout"><span className="callout-icon">↗</span><div><strong>{results.origin.monthlyRemaining === null || results.destination.monthlyRemaining === null ? unavailableDetail(results.destination.monthlyRemaining === null ? results.destination : results.origin) : results.destination.monthlyRemaining > results.origin.monthlyRemaining ? (language === "ja" ? `${displayCityName(destination)}の方が、月間の余裕が大きい試算です。` : `${displayCityName(destination)} has more monthly room in this estimate.`) : (language === "ja" ? `${displayCityName(origin)}の方が、月間の余裕が大きい試算です。` : `${displayCityName(origin)} has more monthly room in this estimate.`)}</strong><p>{t.calloutNote}</p></div></div>
         </section>
 
         <section className="split-section">
@@ -1943,7 +1990,7 @@ export default function Home() {
               </article>;
             })}
           </div>
-          <div className="recommendation-method"><span>{language === "ja" ? "現在の配点" : "Current weighting"}</span><strong>{recommendationPriority === "balance" ? (language === "ja" ? "手元資金40%・ビジネス35%・暮らし25%" : "Money 40% · Business 35% · Livability 25%") : recommendationPriority === "money" ? (language === "ja" ? "手元資金60%・ビジネス20%・暮らし20%" : "Money 60% · Business 20% · Livability 20%") : (language === "ja" ? "手元資金20%・ビジネス60%・暮らし20%" : "Money 20% · Business 60% · Livability 20%")}</strong><p>{language === "ja" ? "注目10都市のうち、税金・社会保険の計算対象が確認できた都市だけを金額順位に含めます。移住・投資・税務判断を代替するものではありません。" : "Money rankings include only featured cities whose tax and social-insurance calculation scope is verified. This does not replace relocation, investment or tax advice."}</p></div>
+          <div className="recommendation-method"><span>{language === "ja" ? "現在の配点" : "Current weighting"}</span><strong>{recommendationPriority === "balance" ? (language === "ja" ? "手元資金40%・ビジネス35%・暮らし25%" : "Money 40% · Business 35% · Livability 25%") : recommendationPriority === "money" ? (language === "ja" ? "手元資金60%・ビジネス20%・暮らし20%" : "Money 60% · Business 20% · Livability 20%") : (language === "ja" ? "手元資金20%・ビジネス60%・暮らし20%" : "Money 20% · Business 60% · Livability 20%")}</strong><p>{language === "ja" ? "注目10都市のうち、選択した働き方で給与と税金・社会保険を計算できる都市だけを金額順位に含めます。移住・投資・税務判断を代替するものではありません。" : "Money rankings include only featured cities whose salary, tax and social-insurance inputs are available for the selected work scenario. This does not replace relocation, investment or tax advice."}</p></div>
         </section>
 
         <section id="global-business" className="global-business-section section-anchor">
