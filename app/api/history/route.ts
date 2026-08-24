@@ -81,6 +81,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const origin = request.headers.get("origin");
+    if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "許可されていない送信元です。" }, { status: 403 });
+    if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return NextResponse.json({ error: "保存内容の形式が正しくありません。" }, { status: 415 });
     const current = await requireUser();
     if (!current) return NextResponse.json({ error: "ログインしてください。" }, { status: 401 });
     if (!UUID_PATTERN.test(current.user.id)) return NextResponse.json({ error: "ユーザー情報を確認できませんでした。" }, { status: 401 });
@@ -127,6 +130,8 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const origin = request.headers.get("origin");
+    if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "許可されていない送信元です。" }, { status: 403 });
     const current = await requireUser();
     if (!current) return NextResponse.json({ error: "ログインしてください。" }, { status: 401 });
     if (!UUID_PATTERN.test(current.user.id)) return NextResponse.json({ error: "ユーザー情報を確認できませんでした。" }, { status: 401 });

@@ -69,6 +69,25 @@ test("renders the account and comparison history interface", async () => {
   const html = await response.text();
   assert.match(html, /Life Atlas/);
   assert.match(html, /登録と比較履歴/);
+  assert.match(html, /現在のデータ範囲/);
+  assert.match(html, /都市人口の基準値/);
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
+});
+
+test("reports transparent official-data coverage for all comparison cities", async () => {
+  const response = await fetch(`${baseUrl}/api/data-refresh`);
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+
+  assert.equal(payload.coverage.cityCount, 50);
+  assert.equal(payload.coverage.currencyCount, 23);
+  assert.equal(Object.keys(payload.exchangeRates).length, 23);
+  assert.equal(Object.keys(payload.populations).length, payload.coverage.countryCount);
+  assert.ok(["live", "partial", "fallback"].includes(payload.sourceStatus));
+  assert.match(payload.sources[0].scope, /都市人口ではありません/);
+  assert.match(payload.sources[1].name, /European Central Bank/);
 });
 
 test("reports an unconfigured Supabase server consistently", async () => {
@@ -92,4 +111,20 @@ test("clears the local session even when Supabase is unconfigured", async () => 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true, configured: false });
   assert.match(response.headers.get("set-cookie") ?? "", /life_atlas_access_token=/);
+});
+
+test("rejects oversized and cross-origin authentication requests", async () => {
+  const oversized = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: "test@example.com", password: "x".repeat(5_000) }),
+  });
+  assert.equal(oversized.status, 413);
+
+  const crossOrigin = await fetch(`${baseUrl}/api/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "https://attacker.invalid" },
+    body: JSON.stringify({ email: "test@example.com", password: "valid-password" }),
+  });
+  assert.equal(crossOrigin.status, 403);
 });

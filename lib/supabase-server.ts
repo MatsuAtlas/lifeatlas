@@ -70,6 +70,7 @@ export async function supabaseAuthRequest(path: string, init: RequestInit = {}) 
     ...init,
     headers,
     cache: "no-store",
+    signal: init.signal ?? AbortSignal.timeout(10_000),
   });
 }
 
@@ -84,6 +85,7 @@ export async function supabaseRestRequest(path: string, init: RequestInit = {}, 
     ...init,
     headers,
     cache: "no-store",
+    signal: init.signal ?? AbortSignal.timeout(10_000),
   });
 }
 
