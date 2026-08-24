@@ -6,8 +6,10 @@ type CityId = "tokyo" | "osaka" | "vancouver" | "toronto" | "losAngeles" | "newY
 type CurrencyCode = "JPY" | "CAD" | "USD" | "GBP" | "EUR" | "MXN" | "AUD" | "KRW" | "TWD" | "SGD" | "HKD" | "THB" | "MYR" | "IDR" | "PHP" | "VND" | "CNY" | "AED" | "CHF" | "BRL" | "ARS" | "CLP" | "COP";
 type AgeBand = "under40" | "40to64" | "65plus";
 type SalaryCurrency = "origin" | "JPY";
+type DestinationSalaryMode = "sameYen" | "actualOffer";
 type Language = "ja" | "en";
 type RecommendationPriority = "balance" | "money" | "business";
+type TaxCalculationStatus = "official-scenario" | "official-rate-estimate" | "unavailable";
 
 type DataSource = {
   item: string;
@@ -54,7 +56,7 @@ type City = {
   climate: string;
   language: string;
   population: string;
-  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia" | "estimate";
+  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia" | "singapore" | "uae" | "estimate";
   taxRegion: string;
   insurance: InsuranceConfig;
   averageAnnualIncome: number;
@@ -95,16 +97,17 @@ type CityResult = {
   city: City;
   grossAnnual: number;
   grossMonthly: number;
-  taxMonthly: number;
-  netMonthly: number;
+  taxMonthly: number | null;
+  netMonthly: number | null;
   rent: number;
   livingCosts: number;
   totalMonthlyCosts: number;
-  monthlyRemaining: number;
-  annualSavings: number;
-  rentBurden: number;
+  monthlyRemaining: number | null;
+  annualSavings: number | null;
+  rentBurden: number | null;
   costIndex: number;
-  purchasingPower: number;
+  purchasingPower: number | null;
+  taxCalculationStatus: TaxCalculationStatus;
   taxBreakdown: {
     incomeTaxMonthly: number;
     reconstructionSurtaxMonthly: number;
@@ -119,15 +122,15 @@ type CityResult = {
     totalInsuranceMonthly: number;
     totalDeductionsMonthly: number;
     employerSuperMonthly: number;
-  };
+  } | null;
   scores: {
     livability: number;
-    savings: number;
+    savings: number | null;
     business: number;
-    fire: number;
+    fire: number | null;
     nomad: number;
     family: number;
-    overall: number;
+    overall: number | null;
   };
 };
 
@@ -165,6 +168,8 @@ type SavedComparisonInput = {
   destinationId: CityId;
   salary: string;
   salaryCurrency: SalaryCurrency;
+  destinationSalaryMode?: DestinationSalaryMode;
+  destinationSalary?: string;
   household: keyof typeof householdMultipliers;
   housing: keyof typeof housingMultipliers;
   lifestyle: keyof typeof lifestyleMultipliers;
@@ -225,6 +230,19 @@ const franceSources = (populationSource: DataSource): DataSource[] => [populatio
 const italySources = (populationSource: DataSource): DataSource[] => [populationSource, source("物価", "国", "2026年", "ISTAT・Consumer prices", "https://www.istat.it/en/consumer-prices/"), source("所得税", "国", "2026年", "Agenzia delle Entrate・IRPEF", "https://www.agenziaentrate.gov.it/portale/irpef"), source("社会保険", "国", "2026年", "INPS・2026年保険料資料", "https://www.inps.it/it/it/inps-comunica/notizie/dettaglio-news-page.news.2026.02.lavoratori-dipendenti-limite-minimo-di-retribuzione-giornaliera-2026.html")];
 const mexicoSources = (populationSource: DataSource): DataSource[] => [populationSource, source("物価", "国", "2026年", "INEGI・Índice Nacional de Precios", "https://www.inegi.org.mx/temas/inpc/"), source("所得税", "国", "2026年", "SAT・Anexo 8 RMF 2026", "https://www.sat.gob.mx/minisitio/NormatividadRMFyRGCE/documentos2026/rmf/anexos/Anexo-8-RMF-2026_DOF-28122025.pdf"), source("社会保険", "国", "2026年", "IMSS・SUA／社会保険料", "https://www.imss.gob.mx/patrones/sua")];
 const australiaSources = (populationSource: DataSource): DataSource[] => [populationSource, source("物価・家賃", "国", "2026年", "Australian Bureau of Statistics・CPI", "https://www.abs.gov.au/statistics/economy/price-indexes-and-inflation/consumer-price-index-australia/latest-release"), source("所得税・Medicare levy", "国", "2026-27年度", "Australian Taxation Office・Tax rates", "https://www.ato.gov.au/tax-rates-and-codes/tax-rates-australian-residents"), source("退職積立", "国", "2026-27年度", "Australian Taxation Office・Super guarantee", "https://www.ato.gov.au/tax-rates-and-codes/key-superannuation-rates-and-thresholds/super-guarantee")];
+const singaporeSources = (): DataSource[] => [
+  source("人口", "国", "2025年6月末", "Singapore Department of Statistics・Population Trends 2025", "https://www.singstat.gov.sg/publications/population/population-trends"),
+  source("給与", "国", "2025年", "Ministry of Manpower・Labour Force in Singapore 2025", "https://stats.mom.gov.sg/iMAS_PdfLibrary/mrsd_2025Labourforce.pdf"),
+  source("物価", "国", "2023年調査", "Singapore Department of Statistics・Household Expenditure Survey", "https://www.singstat.gov.sg/modules/infographics/hes/household-expenditure"),
+  source("物価・家賃", "国", "2026年第1四半期", "Housing & Development Board・Median rents by town and flat type", "https://www.hdb.gov.sg/business-partners/estate-agents-and-salespersons/guide-for-estate-agents-renting-out-a-flat-or-bedrooms/rental-statistics"),
+  source("所得税", "国", "YA 2024以降", "Inland Revenue Authority of Singapore・Individual Income Tax rates", "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates"),
+  source("社会保険", "国", "2026年確認", "Central Provident Fund Board・Foreign employees are exempt from CPF", "https://www.cpf.gov.sg/service/article/if-my-foreign-employees-request-to-contribute-to-cpf-can-i-make-cpf-contributions-for-them"),
+];
+const uaeSources = (): DataSource[] => [
+  source("人口・物価・給与・家賃", "都市", "2026年時点の比較用推定", "Life Atlas保存参考値（自動更新対象外）", "https://u.ae/en/about-the-uae/fact-sheet"),
+  source("所得税", "国", "2026年確認", "UAE Government・No individual income tax", "https://u.ae/en/information-and-services/finance-and-investment/taxation"),
+  source("社会保険", "国", "2026年確認", "UAE Government・Pension schemes for expatriate workers", "https://u.ae/en/information-and-services/moving-to-the-uae/expatriates-working-in-the-uae/pension-schemes-for-expatriate-workers"),
+];
 
 const japanInsurance = (healthRateEmployee: number): InsuranceConfig => ({ healthRateEmployee, careRateEmployee: 0.0081, childSupportRateEmployee: 0.00115, pensionRateEmployee: 0.0915, employmentRateEmployee: 0.005, socialSecurityRateEmployee: 0, medicareRate: 0, employerSuperRate: 0, healthInsuranceEmployeeMonthly: 0, healthInsuranceFamilyMonthly: 0, source: "協会けんぽ・厚生年金・雇用保険（2026年度、労働者負担）" });
 const canadaInsurance: InsuranceConfig = { healthRateEmployee: 0, careRateEmployee: 0, childSupportRateEmployee: 0, pensionRateEmployee: 0.0595, employmentRateEmployee: 0.0163, pensionBaseExemption: 3_500, pensionAnnualMax: 4_230.45, pensionSecondRateEmployee: 0.04, pensionSecondStart: 74_600, pensionSecondCap: 85_000, pensionSecondAnnualMax: 416, socialSecurityRateEmployee: 0, medicareRate: 0, employerSuperRate: 0, healthInsuranceEmployeeMonthly: 0, healthInsuranceFamilyMonthly: 0, source: "Canada Revenue Agency・CPP／EI（2026年）" };
@@ -234,6 +252,7 @@ const franceInsurance: InsuranceConfig = { healthRateEmployee: 0.085, careRateEm
 const italyInsurance: InsuranceConfig = { healthRateEmployee: 0, careRateEmployee: 0, childSupportRateEmployee: 0, pensionRateEmployee: 0.0919, employmentRateEmployee: 0, socialSecurityRateEmployee: 0, medicareRate: 0, employerSuperRate: 0, healthInsuranceEmployeeMonthly: 0, healthInsuranceFamilyMonthly: 0, source: "INPS・被用者年金保険料（2026年）" };
 const mexicoInsurance: InsuranceConfig = { healthRateEmployee: 0.02375, careRateEmployee: 0, childSupportRateEmployee: 0, pensionRateEmployee: 0.00125, employmentRateEmployee: 0, socialSecurityRateEmployee: 0, medicareRate: 0, employerSuperRate: 0, healthInsuranceEmployeeMonthly: 0, healthInsuranceFamilyMonthly: 0, source: "IMSS・給与条件により変動する労働者負担の比較用推定" };
 const australiaInsurance: InsuranceConfig = { healthRateEmployee: 0, careRateEmployee: 0, childSupportRateEmployee: 0, pensionRateEmployee: 0, employmentRateEmployee: 0, socialSecurityRateEmployee: 0, medicareRate: 0.02, employerSuperRate: 0.12, healthInsuranceEmployeeMonthly: 0, healthInsuranceFamilyMonthly: 0, source: "ATO・Medicare levy・Super guarantee（2026-27年度）" };
+const foreignEmployeeNoPayrollInsurance: InsuranceConfig = { healthRateEmployee: 0, careRateEmployee: 0, childSupportRateEmployee: 0, pensionRateEmployee: 0, employmentRateEmployee: 0, socialSecurityRateEmployee: 0, medicareRate: 0, employerSuperRate: 0, healthInsuranceEmployeeMonthly: 0, healthInsuranceFamilyMonthly: 0, source: "外国人就労者の給与天引き対象のみ（任意保険・雇用主負担・退職給付を除く）" };
 
 const cityBase = (id: CityId, name: string, country: string, countryCode: string, region: string, currency: CurrencyCode, currencyLabel: string, timezone: string, climate: string, language: string, population: string, taxSystem: City["taxSystem"], taxRegion: string, insurance: InsuranceConfig, averageAnnualIncome: number, costs: City["costs"], jobs: Record<string, number>, scores: City["scores"], dataSources: DataSource[], sourceLabel: string): City => ({ id, name, country, countryCode, region, currency, currencyLabel, fxToJpy: 1, timezone, climate, language, population, taxSystem, taxRegion, insurance, averageAnnualIncome, costs, jobs, scores, dataSources, sourceLabel, updatedAt: "2026年7月26日" });
 
@@ -279,6 +298,9 @@ type EstimatedCityConfig = {
   englishRegion: string;
   englishClimate: string;
   englishLanguage: string;
+  dataSources?: DataSource[];
+  sourceLabel?: string;
+  updatedAt?: string;
 };
 
 const estimatedCity = (config: EstimatedCityConfig): City => ({
@@ -296,19 +318,20 @@ const estimatedCity = (config: EstimatedCityConfig): City => ({
     config.population,
     config.taxSystem,
     config.taxRegion,
-    config.taxSystem === "japan" ? japanInsurance(0.05065) : config.taxSystem === "canada" ? canadaInsurance : config.taxSystem === "us" ? usInsurance : config.taxSystem === "australia" ? australiaInsurance : estimateInsurance,
+    config.taxSystem === "japan" ? japanInsurance(0.05065) : config.taxSystem === "canada" ? canadaInsurance : config.taxSystem === "us" ? usInsurance : config.taxSystem === "australia" ? australiaInsurance : config.taxSystem === "singapore" || config.taxSystem === "uae" ? foreignEmployeeNoPayrollInsurance : estimateInsurance,
     config.averageAnnualIncome,
     { rent: config.rent, ...config.costs },
     { "IT職": Math.round(config.averageAnnualIncome * 1.35), "エンジニア": Math.round(config.averageAnnualIncome * 1.28), "営業": Math.round(config.averageAnnualIncome * 1.05), "一般事務": Math.round(config.averageAnnualIncome * 0.78) },
     config.scores,
-    [source("人口・物価・給与・家賃", "国", "2026年時点の比較用推定", "各国政府統計・国際統計を基準にしたLife Atlas推定", "https://data.worldbank.org/"), source("税金・保険", "国", "2026年時点の比較用推定", "各国の税務・社会保障制度を基準にしたLife Atlas推定", "https://www.oecd.org/tax/")],
-    "人口・物価は公的統計を参照。給与・家賃・税金・保険は国際比較のための推定値です。"
+    config.dataSources ?? [source("人口・物価・給与・家賃", "国", "2026年時点の比較用推定", "Life Atlas保存参考値（自動更新対象外）", "https://data.worldbank.org/"), source("税金・保険", "国", "未対応", "公式制度による計算未対応（結果を非表示）", "https://www.oecd.org/tax/")],
+    config.sourceLabel ?? "人口・給与・家賃・生活費は保存した参考値です。税金・保険の公式計算が未対応の都市は残額を表示しません。"
   ),
   englishName: config.englishName,
   englishCountry: config.englishCountry,
   englishRegion: config.englishRegion,
   englishClimate: config.englishClimate,
   englishLanguage: config.englishLanguage,
+  updatedAt: config.updatedAt ?? "2026年8月24日",
 });
 
 const extendedCities: Record<CityId, City> = Object.fromEntries([
@@ -316,7 +339,7 @@ const extendedCities: Record<CityId, City> = Object.fromEntries([
   ["fukuoka", estimatedCity({ id: "fukuoka", name: "福岡", country: "日本", countryCode: "JPN", region: "アジア", currency: "JPY", currencyLabel: "日本円", timezone: "UTC+9（日本標準時）", climate: "温暖湿潤・比較的温暖", language: "日本語", population: "約165万人（福岡市・推計）", taxSystem: "japan", taxRegion: "fukuoka", averageAnnualIncome: 4_700_000, rent: 105_000, costs: { food: 57_000, utilities: 16_000, internet: 5_500, transport: 10_000, medical: 9_000, leisure: 26_000 }, scores: { livability: 90, business: 82, nomad: 78, family: 87, safety: 84, healthcare: 87, internet: 91, transit: 87, nature: 84, japaneseFood: 100, english: 35 }, englishName: "Fukuoka", englishCountry: "Japan", englishRegion: "Asia", englishClimate: "Warm humid subtropical", englishLanguage: "Japanese" })],
   ["seoul", estimatedCity({ id: "seoul", name: "ソウル", country: "韓国", countryCode: "KOR", region: "アジア", currency: "KRW", currencyLabel: "韓国ウォン", timezone: "UTC+9", climate: "湿潤大陸性・四季がある", language: "韓国語", population: "約940万人（ソウル特別市・推計）", taxSystem: "estimate", taxRegion: "southKorea", averageAnnualIncome: 55_000_000, rent: 1_100_000, costs: { food: 650_000, utilities: 180_000, internet: 45_000, transport: 80_000, medical: 80_000, leisure: 300_000 }, scores: { livability: 84, business: 88, nomad: 84, family: 78, safety: 83, healthcare: 90, internet: 99, transit: 98, nature: 68, japaneseFood: 90, english: 55 }, englishName: "Seoul", englishCountry: "South Korea", englishRegion: "Asia", englishClimate: "Humid continental, four seasons", englishLanguage: "Korean" })],
   ["taipei", estimatedCity({ id: "taipei", name: "台北", country: "台湾", countryCode: "TWN", region: "アジア", currency: "TWD", currencyLabel: "台湾ドル", timezone: "UTC+8", climate: "亜熱帯・夏は暑く湿潤", language: "中国語", population: "約250万人（台北市・推計）", taxSystem: "estimate", taxRegion: "taiwan", averageAnnualIncome: 900_000, rent: 28_000, costs: { food: 12_000, utilities: 3_500, internet: 1_000, transport: 1_500, medical: 1_500, leisure: 6_000 }, scores: { livability: 88, business: 82, nomad: 88, family: 82, safety: 88, healthcare: 92, internet: 96, transit: 94, nature: 73, japaneseFood: 94, english: 58 }, englishName: "Taipei", englishCountry: "Taiwan", englishRegion: "Asia", englishClimate: "Subtropical, hot and humid summers", englishLanguage: "Mandarin Chinese" })],
-  ["singapore", estimatedCity({ id: "singapore", name: "シンガポール", country: "シンガポール", countryCode: "SGP", region: "アジア", currency: "SGD", currencyLabel: "シンガポールドル", timezone: "UTC+8", climate: "熱帯・高温多湿", language: "英語・中国語・マレー語・タミル語", population: "約604万人（国・推計）", taxSystem: "estimate", taxRegion: "singapore", averageAnnualIncome: 72_000, rent: 3_100, costs: { food: 700, utilities: 180, internet: 55, transport: 130, medical: 80, leisure: 300 }, scores: { livability: 86, business: 96, nomad: 92, family: 83, safety: 95, healthcare: 93, internet: 98, transit: 99, nature: 67, japaneseFood: 92, english: 100 }, englishName: "Singapore", englishCountry: "Singapore", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "English, Mandarin, Malay and Tamil" })],
+  ["singapore", estimatedCity({ id: "singapore", name: "シンガポール", country: "シンガポール", countryCode: "SGP", region: "アジア", currency: "SGD", currencyLabel: "シンガポールドル", timezone: "UTC+8", climate: "熱帯・高温多湿", language: "英語・中国語・マレー語・タミル語", population: "6,111,175人（国・2025年6月末）", taxSystem: "singapore", taxRegion: "singapore", averageAnnualIncome: 69_300, rent: 3_100, costs: { food: 700, utilities: 180, internet: 55, transport: 130, medical: 80, leisure: 300 }, scores: { livability: 86, business: 96, nomad: 92, family: 83, safety: 95, healthcare: 93, internet: 98, transit: 99, nature: 67, japaneseFood: 92, english: 100 }, englishName: "Singapore", englishCountry: "Singapore", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "English, Mandarin, Malay and Tamil", dataSources: singaporeSources(), sourceLabel: "人口・税率・外国人CPF対象外は公式資料です。給与は居住者中央値、家賃・生活費は対象範囲の異なる公的統計を参考にした保存シナリオで、自動更新値ではありません。" })],
   ["hongKong", estimatedCity({ id: "hongKong", name: "香港", country: "香港", countryCode: "HKG", region: "アジア", currency: "HKD", currencyLabel: "香港ドル", timezone: "UTC+8", climate: "亜熱帯・夏は高温多湿", language: "中国語・英語", population: "約750万人（香港・推計）", taxSystem: "estimate", taxRegion: "hongKong", averageAnnualIncome: 420_000, rent: 18_000, costs: { food: 7_000, utilities: 1_600, internet: 350, transport: 1_000, medical: 700, leisure: 3_500 }, scores: { livability: 78, business: 94, nomad: 90, family: 70, safety: 88, healthcare: 91, internet: 95, transit: 99, nature: 75, japaneseFood: 94, english: 82 }, englishName: "Hong Kong", englishCountry: "Hong Kong", englishRegion: "Asia", englishClimate: "Subtropical, hot and humid summers", englishLanguage: "Chinese and English" })],
   ["bangkok", estimatedCity({ id: "bangkok", name: "バンコク", country: "タイ", countryCode: "THA", region: "アジア", currency: "THB", currencyLabel: "タイバーツ", timezone: "UTC+7", climate: "熱帯・高温多湿", language: "タイ語", population: "約550万人（バンコク都・推計）", taxSystem: "estimate", taxRegion: "thailand", averageAnnualIncome: 720_000, rent: 22_000, costs: { food: 12_000, utilities: 3_500, internet: 700, transport: 2_500, medical: 2_000, leisure: 6_000 }, scores: { livability: 82, business: 82, nomad: 95, family: 70, safety: 69, healthcare: 82, internet: 88, transit: 80, nature: 72, japaneseFood: 88, english: 66 }, englishName: "Bangkok", englishCountry: "Thailand", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "Thai" })],
   ["kualaLumpur", estimatedCity({ id: "kualaLumpur", name: "クアラルンプール", country: "マレーシア", countryCode: "MYS", region: "アジア", currency: "MYR", currencyLabel: "マレーシアリンギット", timezone: "UTC+8", climate: "熱帯・高温多湿", language: "マレー語・英語", population: "約200万人（市・推計）", taxSystem: "estimate", taxRegion: "malaysia", averageAnnualIncome: 84_000, rent: 2_500, costs: { food: 1_600, utilities: 260, internet: 140, transport: 180, medical: 150, leisure: 700 }, scores: { livability: 82, business: 84, nomad: 92, family: 78, safety: 76, healthcare: 82, internet: 88, transit: 76, nature: 79, japaneseFood: 84, english: 84 }, englishName: "Kuala Lumpur", englishCountry: "Malaysia", englishRegion: "Asia", englishClimate: "Tropical, hot and humid", englishLanguage: "Malay and English" })],
@@ -341,7 +364,7 @@ const extendedCities: Record<CityId, City> = Object.fromEntries([
   ["berlin", estimatedCity({ id: "berlin", name: "ベルリン", country: "ドイツ", countryCode: "DEU", region: "ヨーロッパ", currency: "EUR", currencyLabel: "ユーロ", timezone: "UTC+1（夏時間あり）", climate: "海洋性・冬は寒冷", language: "ドイツ語", population: "約370万人（市・推計）", taxSystem: "estimate", taxRegion: "germany", averageAnnualIncome: 52_000, rent: 1_500, costs: { food: 380, utilities: 220, internet: 45, transport: 60, medical: 50, leisure: 230 }, scores: { livability: 85, business: 88, nomad: 93, family: 82, safety: 76, healthcare: 91, internet: 88, transit: 91, nature: 82, japaneseFood: 78, english: 88 }, englishName: "Berlin", englishCountry: "Germany", englishRegion: "Europe", englishClimate: "Oceanic, cool winters", englishLanguage: "German" })],
   ["amsterdam", estimatedCity({ id: "amsterdam", name: "アムステルダム", country: "オランダ", countryCode: "NLD", region: "ヨーロッパ", currency: "EUR", currencyLabel: "ユーロ", timezone: "UTC+1（夏時間あり）", climate: "海洋性・雨が多い", language: "オランダ語・英語", population: "約93万人（市・推計）", taxSystem: "estimate", taxRegion: "netherlands", averageAnnualIncome: 58_000, rent: 1_900, costs: { food: 420, utilities: 230, internet: 50, transport: 110, medical: 140, leisure: 250 }, scores: { livability: 87, business: 91, nomad: 94, family: 83, safety: 80, healthcare: 89, internet: 95, transit: 92, nature: 83, japaneseFood: 80, english: 98 }, englishName: "Amsterdam", englishCountry: "Netherlands", englishRegion: "Europe", englishClimate: "Oceanic, rainy and mild", englishLanguage: "Dutch and English" })],
   ["lisbon", estimatedCity({ id: "lisbon", name: "リスボン", country: "ポルトガル", countryCode: "PRT", region: "ヨーロッパ", currency: "EUR", currencyLabel: "ユーロ", timezone: "UTC+0（夏時間あり）", climate: "地中海性・温暖", language: "ポルトガル語", population: "約55万人（市・推計）", taxSystem: "estimate", taxRegion: "portugal", averageAnnualIncome: 28_000, rent: 1_300, costs: { food: 300, utilities: 150, internet: 40, transport: 50, medical: 40, leisure: 180 }, scores: { livability: 86, business: 76, nomad: 95, family: 84, safety: 82, healthcare: 86, internet: 90, transit: 83, nature: 87, japaneseFood: 65, english: 84 }, englishName: "Lisbon", englishCountry: "Portugal", englishRegion: "Europe", englishClimate: "Mediterranean, mild and sunny", englishLanguage: "Portuguese" })],
-  ["dubai", estimatedCity({ id: "dubai", name: "ドバイ", country: "アラブ首長国連邦", countryCode: "ARE", region: "中東", currency: "AED", currencyLabel: "UAEディルハム", timezone: "UTC+4", climate: "砂漠性・非常に暑い", language: "アラビア語・英語", population: "約370万人（市・推計）", taxSystem: "estimate", taxRegion: "uae", averageAnnualIncome: 240_000, rent: 8_000, costs: { food: 2_500, utilities: 900, internet: 400, transport: 1_200, medical: 600, leisure: 1_500 }, scores: { livability: 82, business: 98, nomad: 95, family: 76, safety: 92, healthcare: 87, internet: 94, transit: 76, nature: 58, japaneseFood: 85, english: 96 }, englishName: "Dubai", englishCountry: "United Arab Emirates", englishRegion: "Middle East", englishClimate: "Desert, extremely hot summers", englishLanguage: "Arabic and English" })],
+  ["dubai", estimatedCity({ id: "dubai", name: "ドバイ", country: "アラブ首長国連邦", countryCode: "ARE", region: "中東", currency: "AED", currencyLabel: "UAEディルハム", timezone: "UTC+4", climate: "砂漠性・非常に暑い", language: "アラビア語・英語", population: "約370万人（市・推計）", taxSystem: "uae", taxRegion: "uae", averageAnnualIncome: 240_000, rent: 8_000, costs: { food: 2_500, utilities: 900, internet: 400, transport: 1_200, medical: 600, leisure: 1_500 }, scores: { livability: 82, business: 98, nomad: 95, family: 76, safety: 92, healthcare: 87, internet: 94, transit: 76, nature: 58, japaneseFood: 85, english: 96 }, englishName: "Dubai", englishCountry: "United Arab Emirates", englishRegion: "Middle East", englishClimate: "Desert, extremely hot summers", englishLanguage: "Arabic and English", dataSources: uaeSources(), sourceLabel: "外国人給与の個人所得税・公的年金対象外はUAE政府資料です。人口・給与・家賃・生活費は保存した比較用推定で、自動更新値ではありません。" })],
   ["zurich", estimatedCity({ id: "zurich", name: "チューリッヒ", country: "スイス", countryCode: "CHE", region: "ヨーロッパ", currency: "CHF", currencyLabel: "スイスフラン", timezone: "UTC+1（夏時間あり）", climate: "温帯・四季がある", language: "ドイツ語・英語", population: "約43万人（市・推計）", taxSystem: "estimate", taxRegion: "zurich", averageAnnualIncome: 105_000, rent: 2_600, costs: { food: 850, utilities: 220, internet: 65, transport: 100, medical: 350, leisure: 450 }, scores: { livability: 92, business: 90, nomad: 82, family: 91, safety: 93, healthcare: 97, internet: 94, transit: 94, nature: 95, japaneseFood: 72, english: 90 }, englishName: "Zurich", englishCountry: "Switzerland", englishRegion: "Europe", englishClimate: "Temperate, four seasons", englishLanguage: "German and English" })],
   ["dublin", estimatedCity({ id: "dublin", name: "ダブリン", country: "アイルランド", countryCode: "IRL", region: "ヨーロッパ", currency: "EUR", currencyLabel: "ユーロ", timezone: "UTC+0（夏時間あり）", climate: "海洋性・雨が多い", language: "英語・アイルランド語", population: "約145万人（都市圏・推計）", taxSystem: "estimate", taxRegion: "ireland", averageAnnualIncome: 65_000, rent: 2_100, costs: { food: 500, utilities: 220, internet: 55, transport: 130, medical: 80, leisure: 280 }, scores: { livability: 83, business: 94, nomad: 91, family: 78, safety: 76, healthcare: 84, internet: 94, transit: 80, nature: 91, japaneseFood: 72, english: 100 }, englishName: "Dublin", englishCountry: "Ireland", englishRegion: "Europe", englishClimate: "Oceanic, rainy and mild", englishLanguage: "English and Irish" })],
   ["saoPaulo", estimatedCity({ id: "saoPaulo", name: "サンパウロ", country: "ブラジル", countryCode: "BRA", region: "南米", currency: "BRL", currencyLabel: "ブラジルレアル", timezone: "UTC-3", climate: "亜熱帯・雨季がある", language: "ポルトガル語", population: "約1,140万人（市・推計）", taxSystem: "estimate", taxRegion: "brazil", averageAnnualIncome: 90_000, rent: 3_000, costs: { food: 1_800, utilities: 450, internet: 180, transport: 300, medical: 350, leisure: 800 }, scores: { livability: 68, business: 82, nomad: 78, family: 66, safety: 48, healthcare: 70, internet: 80, transit: 74, nature: 68, japaneseFood: 76, english: 42 }, englishName: "São Paulo", englishCountry: "Brazil", englishRegion: "South America", englishClimate: "Subtropical with a rainy season", englishLanguage: "Portuguese" })],
@@ -484,6 +507,11 @@ const translations = {
     salaryCurrency: "入力通貨",
     originCurrency: "出発地の現地通貨",
     jpyCurrency: "日本円",
+    destinationSalaryMode: "目的地の給与条件",
+    sameYenSalary: "出発地と同じ円価値（比較用）",
+    actualOfferSalary: "実際のオファー年収を入力",
+    destinationSalary: "目的地の年間総支給給与",
+    destinationSalaryHint: "実際の雇用契約・内定条件を現地通貨で入力",
     household: "世帯",
     housing: "住居",
     lifestyle: "生活スタイル",
@@ -491,7 +519,7 @@ const translations = {
     ageHint: "日本の介護保険料に反映",
     compare: "比較結果を見る",
     reset: "条件を初期化",
-    assumption: "税金・社会保険は「現地の居住者・給与所得のみ・標準的な就労者」を基準にした比較用試算です。世帯区分は生活費と、米国の医療保険加入者負担の目安に反映します。扶養控除や児童手当などは国ごとの差が大きいため、この版では含めていません。",
+    assumption: "既定は、現地で長期就労する日本人会社員・税務上の居住者・給与所得のみのシナリオです。シンガポールは外国人のためCPFなしで計算します。公式制度を確認できない都市は税額・手取り・残額を表示しません。",
     resultEyebrow: "02 / 結果のサマリー",
     resultTitle: "毎月、どれくらい残る？",
     dataLoading: "公的データを確認中…",
@@ -547,8 +575,13 @@ const translations = {
     medicare: "Medicare給与税",
     employerSuper: "雇用主の退職積立（手取り外）",
     deductionTotal: "手取りから引かれる合計",
+    calculationOfficial: "公式制度・対象者確認済み",
+    calculationEstimate: "公式税率ベースの簡易試算",
+    calculationUnavailable: "公式計算未対応",
+    calculationUnavailableDetail: "税金・社会保険を公式制度で確認できていないため、手取りと残額を表示していません。家賃・生活費は保存した参考シナリオです。",
     currentScenario: "現在地の試算",
     sameYenScenario: "同じ円価値の給与で試算",
+    actualOfferScenario: "入力した現地オファー給与で試算",
     calloutNote: "住居・生活スタイル・世帯人数を変えると結果も変わります。数字は判断の出発点としてご利用ください。",
     costEyebrow: "03 / 月間コスト",
     costTitle: "生活費の内訳",
@@ -602,8 +635,8 @@ const translations = {
     cityCostsStrong: "公式統計の範囲を明示",
     cityCostsText: "給与は都道府県・州・国、物価は都市のCPIなど、実際に公表されている地域の範囲を明示します。広告や民間ランキングを公式値として扱いません。",
     taxes: "税金・保険料",
-    taxesStrong: "都市の制度に合わせて計算",
-    taxesText: "日本、カナダ、米国、英国、フランス、イタリア、メキシコ、豪州について、所得税と社会保険を分けて試算します。米国の医療保険はKFFの加入者負担平均を推定値として加えています。",
+    taxesStrong: "計算対象と未対応を分離",
+    taxesText: "シンガポールは長期就労する外国人税務居住者としてIRAS累進税率・CPFなし、UAEは外国人被用者として個人所得税・公的年金控除なしで計算します。既存国は公式税率ベースの簡易試算として表示し、未実装の国・州は金額を表示しません。",
     formula: "毎月残る金額・FIRE目安",
     formulaStrong: "手取り − 家賃 − 生活費 / 年間生活費 × 25",
     formulaText: "公式税率を使いますが、各国の扶養、控除、賞与、標準報酬、医療保険プランなどをすべて再現する給与明細ではありません。比較の出発点としてご利用ください。",
@@ -684,6 +717,11 @@ const translations = {
     salaryCurrency: "Input currency",
     originCurrency: "Origin city currency",
     jpyCurrency: "Japanese yen",
+    destinationSalaryMode: "Destination salary scenario",
+    sameYenSalary: "Same JPY value (comparison only)",
+    actualOfferSalary: "Enter an actual salary offer",
+    destinationSalary: "Destination annual gross salary",
+    destinationSalaryHint: "Enter the employment offer in the destination currency",
     household: "Household",
     housing: "Housing",
     lifestyle: "Lifestyle",
@@ -691,7 +729,7 @@ const translations = {
     ageHint: "Applied to Japan's long-term care insurance",
     compare: "See comparison",
     reset: "Reset conditions",
-    assumption: "Taxes and social insurance are comparison estimates for a local employee with salary income. Household size affects living costs and the U.S. employee health insurance estimate. Country-specific dependent deductions and child benefits are not included in this version.",
+    assumption: "The default scenario is a Japanese salaried employee working long term and treated as a tax resident. Singapore is calculated without CPF because the worker is a foreign employee. Where an official calculation is not implemented, take-home and money-left figures are not shown.",
     resultEyebrow: "02 / SUMMARY",
     resultTitle: "How much remains each month?",
     dataLoading: "Checking public data…",
@@ -747,8 +785,13 @@ const translations = {
     medicare: "Medicare levy",
     employerSuper: "Employer superannuation (outside take-home)",
     deductionTotal: "Total deducted from take-home",
+    calculationOfficial: "Official rules and worker scope verified",
+    calculationEstimate: "Simplified estimate using official rates",
+    calculationUnavailable: "Official calculation unavailable",
+    calculationUnavailableDetail: "Take-home and money left are hidden because tax and social-insurance rules have not been verified for this worker scenario. Rent and living costs remain saved reference scenarios.",
     currentScenario: "Origin scenario",
     sameYenScenario: "Same yen-value salary",
+    actualOfferScenario: "Actual destination salary entered",
     calloutNote: "Results change with housing, lifestyle and household size. Use these numbers as a starting point for decisions.",
     costEyebrow: "03 / MONTHLY COSTS",
     costTitle: "Living-cost breakdown",
@@ -802,8 +845,8 @@ const translations = {
     cityCostsStrong: "Public-data coverage is shown",
     cityCostsText: "Salary data is shown at the prefecture, state or national level, while prices use published city or CPI data where available. Advertising and private rankings are not presented as official values.",
     taxes: "Taxes and insurance",
-    taxesStrong: "Calculated for each city's system",
-    taxesText: "Income tax and social insurance are estimated separately for Japan, Canada, the U.S., the U.K., France, Italy, Mexico and Australia. U.S. health insurance uses an estimated employee contribution average from KFF.",
+    taxesStrong: "Calculated and unavailable coverage are separated",
+    taxesText: "Singapore uses IRAS progressive resident rates with no CPF for a foreign employee. The UAE uses no individual income tax or expatriate public-pension deduction. Existing supported countries are labelled as simplified official-rate estimates; unimplemented countries, states and provinces do not show financial results.",
     formula: "Monthly remainder and FIRE estimate",
     formulaStrong: "Take-home − rent − living costs / annual living costs × 25",
     formulaText: "Official tax rates are used, but this is not a payslip that fully reproduces every country's dependents, deductions, bonuses, payroll bases or health-plan choices.",
@@ -1005,7 +1048,27 @@ function calculateUsIncomeTax(city: City, grossAnnual: number) {
   return federalTax;
 }
 
+function taxCalculationStatus(city: City): TaxCalculationStatus {
+  if (city.taxSystem === "estimate") return "unavailable";
+  if (city.taxSystem === "canada" && !["britishColumbia", "ontario"].includes(city.taxRegion)) return "unavailable";
+  if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington"].includes(city.taxRegion)) return "unavailable";
+  if (["singapore", "uae"].includes(city.taxSystem)) return "official-scenario";
+  return "official-rate-estimate";
+}
+
 function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand, household: keyof typeof householdMultipliers) {
+  if (taxCalculationStatus(city) === "unavailable") return null;
+  if (city.taxSystem === "singapore") {
+    const incomeTax = taxFromAnnualBrackets(grossAnnual, [
+      { limit: 20_000, rate: 0 }, { limit: 30_000, rate: 0.02 }, { limit: 40_000, rate: 0.035 },
+      { limit: 80_000, rate: 0.07 }, { limit: 120_000, rate: 0.115 }, { limit: 160_000, rate: 0.15 },
+      { limit: 200_000, rate: 0.18 }, { limit: 240_000, rate: 0.19 }, { limit: 280_000, rate: 0.195 },
+      { limit: 320_000, rate: 0.2 }, { limit: 500_000, rate: 0.22 }, { limit: 1_000_000, rate: 0.23 },
+      { limit: Number.POSITIVE_INFINITY, rate: 0.24 },
+    ]);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
+  }
+  if (city.taxSystem === "uae") return emptyTaxBreakdown();
   if (city.taxSystem === "japan") {
     const insurance = calculateJapanInsurance(city, grossAnnual, ageBand);
     const totalInsurance = insurance.healthInsurance + insurance.childSupport + insurance.careInsurance + insurance.pension + insurance.employment;
@@ -1090,14 +1153,6 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     const totalInsurance = health + pension;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (incomeTax + totalInsurance) / 12 };
   }
-  if (city.taxSystem === "estimate") {
-    const incomeTax = grossAnnual * 0.2;
-    const health = grossAnnual * city.insurance.healthRateEmployee;
-    const pension = grossAnnual * city.insurance.pensionRateEmployee;
-    const employment = grossAnnual * city.insurance.employmentRateEmployee;
-    const totalInsurance = health + pension + employment;
-    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: employment / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (incomeTax + totalInsurance) / 12 };
-  }
   const incomeTax = taxFromAnnualBrackets(grossAnnual, [{ limit: 18_200, rate: 0 }, { limit: 45_000, rate: 0.15 }, { limit: 135_000, rate: 0.3 }, { limit: 190_000, rate: 0.37 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 }]);
   const medicareLevy = grossAnnual * city.insurance.medicareRate;
   return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, medicareLevyMonthly: medicareLevy / 12, totalTaxMonthly: (incomeTax + medicareLevy) / 12, totalDeductionsMonthly: (incomeTax + medicareLevy) / 12, employerSuperMonthly: grossAnnual * city.insurance.employerSuperRate / 12 };
@@ -1108,20 +1163,21 @@ function calculateCity(city: City, grossAnnual: number, household: keyof typeof 
   const housingMultiplier = housingMultipliers[housing];
   const lifestyleMultiplier = lifestyleMultipliers[lifestyle];
   const grossMonthly = grossAnnual / 12;
+  const calculationStatus = taxCalculationStatus(city);
   const taxBreakdown = estimateTaxBreakdown(city, grossAnnual, ageBand, household);
-  const taxMonthly = taxBreakdown.totalDeductionsMonthly;
-  const netMonthly = grossMonthly - taxMonthly;
   const rent = city.costs.rent * housingMultiplier;
   const livingCosts = (city.costs.food + city.costs.utilities + city.costs.internet + city.costs.transport + city.costs.medical + city.costs.leisure) * householdMultiplier * lifestyleMultiplier;
   const totalMonthlyCosts = rent + livingCosts;
-  const monthlyRemaining = netMonthly - totalMonthlyCosts;
-  const annualSavings = Math.max(monthlyRemaining, 0) * 12;
-  const rentBurden = netMonthly > 0 ? (rent / netMonthly) * 100 : 100;
   const costIndex = Math.round((totalMonthlyCosts / (city.averageAnnualIncome / 12)) * 1000) / 10;
-  const purchasingPower = netMonthly > 0 ? Math.round((netMonthly / totalMonthlyCosts) * 100) : 0;
-  const savings = clamp((monthlyRemaining / Math.max(netMonthly * 0.4, 1)) * 100);
-  const fire = clamp(savings * 0.55 + clamp(200 - costIndex, 0, 100) * 0.25 + city.scores.safety * 0.2);
-  const overall = Math.round(city.scores.livability * 0.2 + savings * 0.2 + city.scores.business * 0.15 + fire * 0.15 + city.scores.nomad * 0.1 + city.scores.family * 0.2);
+  const taxMonthly = taxBreakdown?.totalDeductionsMonthly ?? null;
+  const netMonthly = taxMonthly === null ? null : grossMonthly - taxMonthly;
+  const monthlyRemaining = netMonthly === null ? null : netMonthly - totalMonthlyCosts;
+  const annualSavings = monthlyRemaining === null ? null : Math.max(monthlyRemaining, 0) * 12;
+  const rentBurden = netMonthly === null ? null : netMonthly > 0 ? (rent / netMonthly) * 100 : 100;
+  const purchasingPower = netMonthly === null ? null : netMonthly > 0 ? Math.round((netMonthly / totalMonthlyCosts) * 100) : 0;
+  const savings = monthlyRemaining === null || netMonthly === null ? null : clamp((monthlyRemaining / Math.max(netMonthly * 0.4, 1)) * 100);
+  const fire = savings === null ? null : clamp(savings * 0.55 + clamp(200 - costIndex, 0, 100) * 0.25 + city.scores.safety * 0.2);
+  const overall = savings === null || fire === null ? null : Math.round(city.scores.livability * 0.2 + savings * 0.2 + city.scores.business * 0.15 + fire * 0.15 + city.scores.nomad * 0.1 + city.scores.family * 0.2);
   return {
     city,
     grossAnnual,
@@ -1136,12 +1192,13 @@ function calculateCity(city: City, grossAnnual: number, household: keyof typeof 
     rentBurden,
     costIndex,
     purchasingPower,
+    taxCalculationStatus: calculationStatus,
     taxBreakdown,
     scores: {
       livability: city.scores.livability,
-      savings: Math.round(savings),
+      savings: savings === null ? null : Math.round(savings),
       business: city.scores.business,
-      fire: Math.round(fire),
+      fire: fire === null ? null : Math.round(fire),
       nomad: city.scores.nomad,
       family: city.scores.family,
       overall,
@@ -1200,6 +1257,8 @@ export default function Home() {
   const [destinationId, setDestinationId] = useState<CityId>("singapore");
   const [salary, setSalary] = useState("8500000");
   const [salaryCurrency, setSalaryCurrency] = useState<SalaryCurrency>("origin");
+  const [destinationSalaryMode, setDestinationSalaryMode] = useState<DestinationSalaryMode>("sameYen");
+  const [destinationSalary, setDestinationSalary] = useState("");
   const [household, setHousehold] = useState<keyof typeof householdMultipliers>("single");
   const [housing, setHousing] = useState<keyof typeof housingMultipliers>("onebed");
   const [lifestyle, setLifestyle] = useState<keyof typeof lifestyleMultipliers>("balanced");
@@ -1229,6 +1288,10 @@ export default function Home() {
   const money = (value: number, currency: CurrencyCode) => formatMoney(value, currency, language);
   const yen = (value: number) => formatYen(value, language);
   const dualMoney = (value: number, currency: CurrencyCode, rateToJpy: number) => `${money(value, currency)} / ${yen(value * rateToJpy)}`;
+  const optionalMoney = (value: number | null, currency: CurrencyCode) => value === null ? "—" : money(value, currency);
+  const optionalYen = (value: number | null) => value === null ? "—" : yen(value);
+  const optionalDualMoney = (value: number | null, currency: CurrencyCode, rateToJpy: number) => value === null ? "—" : dualMoney(value, currency, rateToJpy);
+  const calculationLabel = (status: TaxCalculationStatus) => status === "official-scenario" ? t.calculationOfficial : status === "official-rate-estimate" ? t.calculationEstimate : t.calculationUnavailable;
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -1309,7 +1372,8 @@ export default function Home() {
   const destination = useMemo(() => ({ ...destinationBase, fxToJpy: fxToJpy(destinationBase.currency) }), [destinationBase, fxToJpy]);
   const grossOriginInput = Number(salary) || 0;
   const grossOrigin = salaryCurrency === "JPY" ? grossOriginInput / origin.fxToJpy : grossOriginInput;
-  const destinationGross = origin.fxToJpy === destination.fxToJpy ? grossOrigin : (grossOrigin * origin.fxToJpy) / destination.fxToJpy;
+  const destinationSameYenGross = origin.fxToJpy === destination.fxToJpy ? grossOrigin : (grossOrigin * origin.fxToJpy) / destination.fxToJpy;
+  const destinationGross = destinationSalaryMode === "actualOffer" ? Number(destinationSalary) || 0 : destinationSameYenGross;
 
   const results = useMemo(() => ({
     origin: calculateCity(origin, grossOrigin, household, housing, lifestyle, ageBand),
@@ -1324,8 +1388,8 @@ export default function Home() {
       const city = { ...candidateBase, fxToJpy: fxToJpy(candidateBase.currency) };
       const candidateGross = origin.fxToJpy === city.fxToJpy ? grossOrigin : (grossOrigin * origin.fxToJpy) / city.fxToJpy;
       const result = calculateCity(city, candidateGross, household, housing, lifestyle, ageBand);
-      return { profile, result, remainingJpy: result.monthlyRemaining * city.fxToJpy };
-    });
+      return { profile, result, remainingJpy: result.monthlyRemaining === null ? null : result.monthlyRemaining * city.fxToJpy };
+    }).filter((candidate): candidate is typeof candidate & { remainingJpy: number } => candidate.remainingJpy !== null);
     const remainingValues = candidates.map((candidate) => candidate.remainingJpy);
     const minRemaining = Math.min(...remainingValues);
     const maxRemaining = Math.max(...remainingValues);
@@ -1406,12 +1470,12 @@ export default function Home() {
   const saveCurrentComparison = async () => {
     if (historyLoading) return;
     setAuthMessage(null);
-    const input: SavedComparisonInput = { originId, destinationId, salary, salaryCurrency, household, housing, lifestyle, ageBand };
+    const input: SavedComparisonInput = { originId, destinationId, salary, salaryCurrency, destinationSalaryMode, destinationSalary, household, housing, lifestyle, ageBand };
     const result = {
       originMonthlyRemaining: results.origin.monthlyRemaining,
       destinationMonthlyRemaining: results.destination.monthlyRemaining,
-      originMonthlyRemainingYen: results.origin.monthlyRemaining * origin.fxToJpy,
-      destinationMonthlyRemainingYen: results.destination.monthlyRemaining * destination.fxToJpy,
+      originMonthlyRemainingYen: results.origin.monthlyRemaining === null ? null : results.origin.monthlyRemaining * origin.fxToJpy,
+      destinationMonthlyRemainingYen: results.destination.monthlyRemaining === null ? null : results.destination.monthlyRemaining * destination.fxToJpy,
     };
     const recordBase = { title: `${displayCityName(origin)} → ${displayCityName(destination)}`, origin_city: originId, destination_city: destinationId, input, result, created_at: new Date().toISOString() };
     const saveLocally = () => {
@@ -1476,6 +1540,8 @@ export default function Home() {
     setDestinationId(input.destinationId as CityId);
     if (typeof input.salary === "string") setSalary(input.salary);
     if (input.salaryCurrency === "origin" || input.salaryCurrency === "JPY") setSalaryCurrency(input.salaryCurrency);
+    if (input.destinationSalaryMode === "sameYen" || input.destinationSalaryMode === "actualOffer") setDestinationSalaryMode(input.destinationSalaryMode);
+    if (typeof input.destinationSalary === "string") setDestinationSalary(input.destinationSalary);
     if (input.household && input.household in householdMultipliers) setHousehold(input.household);
     if (input.housing && input.housing in housingMultipliers) setHousing(input.housing);
     if (input.lifestyle && input.lifestyle in lifestyleMultipliers) setLifestyle(input.lifestyle);
@@ -1517,6 +1583,8 @@ export default function Home() {
     setDestinationId("singapore");
     setSalary("8500000");
     setSalaryCurrency("origin");
+    setDestinationSalaryMode("sameYen");
+    setDestinationSalary("");
     setHousehold("single");
     setHousing("onebed");
     setLifestyle("balanced");
@@ -1692,6 +1760,23 @@ export default function Home() {
               <small>{t.ageHint}</small>
             </label>
           </div>
+          <div className="salary-scenario-grid">
+            <label>{t.destinationSalaryMode}
+              <select value={destinationSalaryMode} onChange={(event) => {
+                const mode = event.target.value as DestinationSalaryMode;
+                setDestinationSalaryMode(mode);
+                if (mode === "actualOffer" && !destinationSalary) setDestinationSalary(String(Math.round(destinationSameYenGross)));
+              }}>
+                <option value="sameYen">{t.sameYenSalary}</option>
+                <option value="actualOffer">{t.actualOfferSalary}</option>
+              </select>
+              <small>{destinationSalaryMode === "sameYen" ? (language === "ja" ? "為替換算しただけの給与で、現地相場ではありません" : "FX conversion only; this is not a local-market salary") : t.destinationSalaryHint}</small>
+            </label>
+            {destinationSalaryMode === "actualOffer" && <label>{t.destinationSalary}
+              <div className="input-with-unit"><input inputMode="numeric" value={destinationSalary} onChange={(event) => setDestinationSalary(event.target.value.replace(/[^0-9]/g, ""))} aria-label={t.destinationSalary} /><span>{destination.currency}</span></div>
+              <small>{t.destinationSalaryHint}</small>
+            </label>}
+          </div>
           <div className="form-actions">
             <button className="primary-button" onClick={handleCalculate}>{t.compare} <span>→</span></button>
             <button className="text-button" onClick={resetForm}>{t.reset}</button>
@@ -1744,49 +1829,56 @@ export default function Home() {
                     <strong>{fxIsBase ? t.jpyBaseCurrency : `1 ${city.currency} = ${formatYen(city.fxToJpy, language)}`}</strong>
                     <p><span>{fxIsAutomatic && officialData?.exchangeObservedOn ? `${t.scopeLabelText}: ${city.currency} / ${officialData.exchangeObservedOn}` : fxIsBase ? `${t.scopeLabelText}: JPY` : `${t.scopeLabelText}: ${city.currency} / ${t.baselineDateUnknown}`}</span>{fxIsAutomatic && fxSource && <a href={fxSource.url} target="_blank" rel="noreferrer">{t.sourceLabelText}: ECB ↗</a>}</p>
                   </div>
+                  <div className="coverage-item">
+                    <div className="coverage-label"><span>{t.taxesInsurance}</span><small className={`coverage-badge ${taxCalculationStatus(city) === "official-scenario" ? "is-live" : taxCalculationStatus(city) === "official-rate-estimate" ? "is-estimate" : "is-reference"}`}>{calculationLabel(taxCalculationStatus(city))}</small></div>
+                    <strong>{taxCalculationStatus(city) === "unavailable" ? t.calculationUnavailable : language === "ja" ? "長期就労する日本人会社員・税務上の居住者" : "Long-term Japanese employee treated as a tax resident"}</strong>
+                    <p><span>{language === "ja" ? "扶養・個別控除・任意保険などは含みません" : "Excludes individual reliefs, dependants and optional insurance"}</span>{city.dataSources.find((item) => item.item === "所得税") && <a href={city.dataSources.find((item) => item.item === "所得税")?.url} target="_blank" rel="noreferrer">{t.sourceLabelText}: {city.dataSources.find((item) => item.item === "所得税")?.source} ↗</a>}</p>
+                  </div>
                 </article>;
               })}
             </div>
             {officialData && <p className="data-coverage-footnote">{language === "ja" ? `対象: ${officialData.coverage.cityCount}都市・${officialData.coverage.currencyCount}通貨。国人口 ${officialData.coverage.automaticCountryCount}/${officialData.coverage.countryCount}、為替 ${officialData.coverage.automaticCurrencyCount}/${officialData.coverage.currencyCount} を今回自動取得。都市人口の保存値は更新していません。` : `Coverage: ${officialData.coverage.cityCount} cities and ${officialData.coverage.currencyCount} currencies. This check retrieved ${officialData.coverage.automaticCountryCount}/${officialData.coverage.countryCount} country populations and ${officialData.coverage.automaticCurrencyCount}/${officialData.coverage.currencyCount} FX rates. Saved city-population baselines were not updated.`}</p>}
           </div>
           <div className="result-grid">
-            {[results.origin, results.destination].map((result, index) => (
-              <article className={`city-result-card ${index === 1 ? "featured-result" : ""}`} key={result.city.id}>
+            {[results.origin, results.destination].map((result, index) => {
+              const breakdown = result.taxBreakdown;
+              return <article className={`city-result-card ${index === 1 ? "featured-result" : ""} ${breakdown ? "" : "calculation-unavailable"}`} data-city-id={result.city.id} data-tax-status={result.taxCalculationStatus} key={result.city.id}>
                 <div className="city-card-top"><div><span className="city-region">{displayCityRegion(result.city)} / {displayCityCountry(result.city)}</span><h3>{displayCityName(result.city)}</h3></div><span className="city-initial">{displayCityName(result.city).slice(0, 1)}</span></div>
-                <div className="big-number">{money(result.monthlyRemaining, result.city.currency)}<small>{t.monthly}</small></div>
-                <div className="yen-caption">{t.yenValue} {yen(result.monthlyRemaining * result.city.fxToJpy)}</div>
+                <div className={`calculation-badge is-${result.taxCalculationStatus}`}>{calculationLabel(result.taxCalculationStatus)}</div>
+                <div className="big-number">{optionalMoney(result.monthlyRemaining, result.city.currency)}{result.monthlyRemaining !== null && <small>{t.monthly}</small>}</div>
+                <div className="yen-caption">{result.monthlyRemaining === null ? t.calculationUnavailableDetail : <>{t.yenValue} {optionalYen(result.monthlyRemaining * result.city.fxToJpy)}</>}</div>
                 <div className="metric-list">
-                  <div><span>{t.takeHome}</span><strong>{dualMoney(result.netMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
-                  <div><span>{t.taxesInsurance}</span><strong>{dualMoney(result.taxBreakdown.totalDeductionsMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                  <div><span>{t.takeHome}</span><strong>{optionalDualMoney(result.netMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                  <div><span>{t.taxesInsurance}</span><strong>{optionalDualMoney(breakdown?.totalDeductionsMonthly ?? null, result.city.currency, result.city.fxToJpy)}</strong></div>
                   <div><span>{t.monthlySpend}</span><strong>{dualMoney(result.totalMonthlyCosts, result.city.currency, result.city.fxToJpy)}</strong></div>
-                  <div><span>{t.rentBurden}</span><strong>{result.rentBurden.toFixed(1)}%</strong></div>
+                  <div><span>{t.rentBurden}</span><strong>{result.rentBurden === null ? "—" : `${result.rentBurden.toFixed(1)}%`}</strong></div>
                 </div>
-                <div className="deduction-list">
+                {breakdown ? <div className="deduction-list">
                   <div className="deduction-heading">{t.deductionHeading}</div>
-                  <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? t.federalProvincialTax : result.city.taxSystem === "us" ? t.federalStateCityTax : t.incomeTax}</span><strong>{dualMoney(result.taxBreakdown.incomeTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                  <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? t.federalProvincialTax : result.city.taxSystem === "us" ? t.federalStateCityTax : t.incomeTax}</span><strong>{dualMoney(breakdown.incomeTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
                   {result.city.taxSystem === "japan" ? <>
-                    <div className="deduction-row"><span>{t.reconstructionTax}</span><strong>{dualMoney(result.taxBreakdown.reconstructionSurtaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
-                    <div className="deduction-row"><span>{t.residentTax}</span><strong>{dualMoney(result.taxBreakdown.residentTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
-                    <div className="deduction-row"><span>{t.healthInsurance}</span><strong>{dualMoney(result.taxBreakdown.healthInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
-                    <div className="deduction-row"><span>{t.pension}</span><strong>{dualMoney(result.taxBreakdown.pensionMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
-                    <div className="deduction-row"><span>{t.employmentInsurance}</span><strong>{dualMoney(result.taxBreakdown.employmentInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
-                    {ageBand === "40to64" && <div className="deduction-row"><span>{t.careInsurance}</span><strong>{dualMoney(result.taxBreakdown.careInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
-                    <div className="deduction-row"><span>{t.childSupport}</span><strong>{dualMoney(result.taxBreakdown.childSupportMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                    <div className="deduction-row"><span>{t.reconstructionTax}</span><strong>{dualMoney(breakdown.reconstructionSurtaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                    <div className="deduction-row"><span>{t.residentTax}</span><strong>{dualMoney(breakdown.residentTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                    <div className="deduction-row"><span>{t.healthInsurance}</span><strong>{dualMoney(breakdown.healthInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                    <div className="deduction-row"><span>{t.pension}</span><strong>{dualMoney(breakdown.pensionMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                    <div className="deduction-row"><span>{t.employmentInsurance}</span><strong>{dualMoney(breakdown.employmentInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                    {ageBand === "40to64" && <div className="deduction-row"><span>{t.careInsurance}</span><strong>{dualMoney(breakdown.careInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    <div className="deduction-row"><span>{t.childSupport}</span><strong>{dualMoney(breakdown.childSupportMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
                   </> : <>
-                    {result.taxBreakdown.residentTaxMonthly > 0 && <div className="deduction-row"><span>{t.localTax}</span><strong>{dualMoney(result.taxBreakdown.residentTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
-                    {result.taxBreakdown.healthInsuranceMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "us" ? t.employerHealth : result.city.taxSystem === "france" ? t.medicalSocial : result.city.taxSystem === "mexico" ? t.imssHealth : t.healthInsurance}</span><strong>{dualMoney(result.taxBreakdown.healthInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
-                    {result.taxBreakdown.pensionMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? t.cppPension : result.city.taxSystem === "us" ? t.socialSecurity : result.city.taxSystem === "italy" ? t.inpsPension : result.city.taxSystem === "mexico" ? t.retirementFund : result.city.taxSystem === "france" ? t.pensionInsurance : t.retirement}</span><strong>{dualMoney(result.taxBreakdown.pensionMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
-                    {result.taxBreakdown.employmentInsuranceMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? "EI employment insurance" : result.city.taxSystem === "uk" ? "National Insurance" : result.city.taxSystem === "france" ? t.unemployment : t.employmentInsurance}</span><strong>{dualMoney(result.taxBreakdown.employmentInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
-                    {result.taxBreakdown.medicareLevyMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "australia" ? "Medicare levy" : t.medicare}</span><strong>{dualMoney(result.taxBreakdown.medicareLevyMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
-                    {result.taxBreakdown.employerSuperMonthly > 0 && <div className="deduction-row is-employer"><span>{t.employerSuper}</span><strong>{dualMoney(result.taxBreakdown.employerSuperMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {breakdown.residentTaxMonthly > 0 && <div className="deduction-row"><span>{t.localTax}</span><strong>{dualMoney(breakdown.residentTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {breakdown.healthInsuranceMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "us" ? t.employerHealth : result.city.taxSystem === "france" ? t.medicalSocial : result.city.taxSystem === "mexico" ? t.imssHealth : t.healthInsurance}</span><strong>{dualMoney(breakdown.healthInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {breakdown.pensionMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? t.cppPension : result.city.taxSystem === "us" ? t.socialSecurity : result.city.taxSystem === "italy" ? t.inpsPension : result.city.taxSystem === "mexico" ? t.retirementFund : result.city.taxSystem === "france" ? t.pensionInsurance : t.retirement}</span><strong>{dualMoney(breakdown.pensionMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {breakdown.employmentInsuranceMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? "EI employment insurance" : result.city.taxSystem === "uk" ? "National Insurance" : result.city.taxSystem === "france" ? t.unemployment : t.employmentInsurance}</span><strong>{dualMoney(breakdown.employmentInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {breakdown.medicareLevyMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "australia" ? "Medicare levy" : t.medicare}</span><strong>{dualMoney(breakdown.medicareLevyMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {breakdown.employerSuperMonthly > 0 && <div className="deduction-row is-employer"><span>{t.employerSuper}</span><strong>{dualMoney(breakdown.employerSuperMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
                   </>}
-                  <div className="deduction-total"><span>{t.deductionTotal}</span><strong>{dualMoney(result.taxBreakdown.totalDeductionsMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
-                </div>
-                <div className="card-footer"><span className="status-dot" /> {index === 0 ? t.currentScenario : t.sameYenScenario}</div>
-              </article>
-            ))}
+                  <div className="deduction-total"><span>{t.deductionTotal}</span><strong>{dualMoney(breakdown.totalDeductionsMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                </div> : <div className="deduction-list unavailable-note"><strong>{t.calculationUnavailable}</strong><span>{t.calculationUnavailableDetail}</span></div>}
+                <div className="card-footer"><span className="status-dot" /> {index === 0 ? t.currentScenario : destinationSalaryMode === "actualOffer" ? t.actualOfferScenario : t.sameYenScenario}</div>
+              </article>;
+            })}
           </div>
-          <div className="headline-callout"><span className="callout-icon">↗</span><div><strong>{results.destination.monthlyRemaining > results.origin.monthlyRemaining ? (language === "ja" ? `${displayCityName(destination)}の方が、月間の余裕が大きい試算です。` : `${displayCityName(destination)} has more monthly room in this estimate.`) : (language === "ja" ? `${displayCityName(origin)}の方が、月間の余裕が大きい試算です。` : `${displayCityName(origin)} has more monthly room in this estimate.`)}</strong><p>{t.calloutNote}</p></div></div>
+          <div className="headline-callout"><span className="callout-icon">↗</span><div><strong>{results.origin.monthlyRemaining === null || results.destination.monthlyRemaining === null ? t.calculationUnavailableDetail : results.destination.monthlyRemaining > results.origin.monthlyRemaining ? (language === "ja" ? `${displayCityName(destination)}の方が、月間の余裕が大きい試算です。` : `${displayCityName(destination)} has more monthly room in this estimate.`) : (language === "ja" ? `${displayCityName(origin)}の方が、月間の余裕が大きい試算です。` : `${displayCityName(origin)} has more monthly room in this estimate.`)}</strong><p>{t.calloutNote}</p></div></div>
         </section>
 
         <section className="split-section">
@@ -1805,8 +1897,8 @@ export default function Home() {
           </div>
           <div className="panel asset-panel">
             <div className="panel-heading"><div><p className="eyebrow">{t.assetEyebrow}</p><h2>{t.assetTitle}</h2></div><span className="sparkle">✦</span></div>
-            <div className="asset-compare"><div><span>{displayCityName(origin)}</span><strong>{dualMoney(results.origin.annualSavings, origin.currency, origin.fxToJpy)}</strong><small>{t.annualSavings}</small></div><div className="asset-divider">vs</div><div><span>{displayCityName(destination)}</span><strong>{dualMoney(results.destination.annualSavings, destination.currency, destination.fxToJpy)}</strong><small>{t.annualSavings}</small></div></div>
-            <div className="index-grid"><div><span>{t.costIndex}</span><strong>{results.origin.costIndex}</strong><small>{displayCityName(origin)}</small></div><div><span>{t.purchasingPower}</span><strong>{results.origin.purchasingPower}</strong><small>{displayCityName(origin)}</small></div><div><span>{t.costIndex}</span><strong>{results.destination.costIndex}</strong><small>{displayCityName(destination)}</small></div><div><span>{t.purchasingPower}</span><strong>{results.destination.purchasingPower}</strong><small>{displayCityName(destination)}</small></div></div>
+            <div className="asset-compare"><div><span>{displayCityName(origin)}</span><strong>{optionalDualMoney(results.origin.annualSavings, origin.currency, origin.fxToJpy)}</strong><small>{t.annualSavings}</small></div><div className="asset-divider">vs</div><div><span>{displayCityName(destination)}</span><strong>{optionalDualMoney(results.destination.annualSavings, destination.currency, destination.fxToJpy)}</strong><small>{t.annualSavings}</small></div></div>
+            <div className="index-grid"><div><span>{t.costIndex}</span><strong>{results.origin.costIndex}</strong><small>{displayCityName(origin)}</small></div><div><span>{t.purchasingPower}</span><strong>{results.origin.purchasingPower ?? "—"}</strong><small>{displayCityName(origin)}</small></div><div><span>{t.costIndex}</span><strong>{results.destination.costIndex}</strong><small>{displayCityName(destination)}</small></div><div><span>{t.purchasingPower}</span><strong>{results.destination.purchasingPower ?? "—"}</strong><small>{displayCityName(destination)}</small></div></div>
             <div className="fire-note"><span>{t.fireNote}</span><strong>{t.fireTitle}</strong><small>{t.fireDescription}</small></div>
           </div>
         </section>
@@ -1815,14 +1907,18 @@ export default function Home() {
           <div className="section-heading"><div><p className="eyebrow">{t.profileEyebrow}</p><h2>{t.profileTitle}</h2></div><p className="section-note">{t.profileNote}</p></div>
           <div className="profile-grid">
             {[origin, destination].map((city) => {
-              return <article className="profile-card" key={city.id}><div className="profile-header"><div><span className="city-region">{displayCityRegion(city)} / {displayCityCountry(city)}</span><h3>{displayCityName(city)}</h3></div><span className="currency-chip">{city.currency}</span></div><div className="profile-facts"><div><span>{t.population}</span><strong>{localizedCityPopulation(city, language)}</strong></div><div><span>{t.timezone}</span><strong>{language === "ja" ? city.timezone : cityTimezoneEnglish[city.id] ?? city.timezone}</strong></div><div><span>{t.climate}</span><strong>{displayCityClimate(city)}</strong></div><div><span>{t.officialLanguage}</span><strong>{displayCityLanguage(city)}</strong></div></div><div className="profile-tags"><span>{t.japaneseFood} {city.scores.japaneseFood}/100</span><span>{t.englishLiving} {city.scores.english}/100</span><span>{t.internetScore} {city.scores.internet}/100</span><span>{t.transitScore} {city.scores.transit}/100</span></div><p className="source-quality">{t.dataCoverage}{language === "ja" ? city.sourceLabel : "Population and price data use public sources where available; salary, rent, tax and insurance may be regional comparison estimates."}</p></article>;
+              return <article className="profile-card" key={city.id}><div className="profile-header"><div><span className="city-region">{displayCityRegion(city)} / {displayCityCountry(city)}</span><h3>{displayCityName(city)}</h3></div><span className="currency-chip">{city.currency}</span></div><div className="profile-facts"><div><span>{t.population}</span><strong>{localizedCityPopulation(city, language)}</strong></div><div><span>{t.timezone}</span><strong>{language === "ja" ? city.timezone : cityTimezoneEnglish[city.id] ?? city.timezone}</strong></div><div><span>{t.climate}</span><strong>{displayCityClimate(city)}</strong></div><div><span>{t.officialLanguage}</span><strong>{displayCityLanguage(city)}</strong></div></div><div className="profile-tags"><span>{t.japaneseFood} {city.scores.japaneseFood}/100</span><span>{t.englishLiving} {city.scores.english}/100</span><span>{t.internetScore} {city.scores.internet}/100</span><span>{t.transitScore} {city.scores.transit}/100</span></div><p className="source-quality">{t.dataCoverage}{language === "ja" ? city.sourceLabel : taxCalculationStatus(city) === "unavailable" ? "Population, salary, rent and living costs are saved reference scenarios. Tax and social-insurance calculations are unavailable and financial results are hidden." : "Public sources and saved reference scenarios are separated. The tax status shown above states whether this is a verified foreign-worker scenario or a simplified official-rate estimate."}</p></article>;
             })}
           </div>
         </section>
 
         <section className="score-section">
           <div className="section-heading"><div><p className="eyebrow">{t.scoreEyebrow}</p><h2>{t.scoreTitle}</h2></div><span className="score-note">{t.scoreNote}</span></div>
-          <div className="score-board"><div className="score-city-labels"><span /><strong>{displayCityName(origin)}</strong><strong>{displayCityName(destination)}</strong></div>{scoreRows.map(([labelJa, labelEn, key]) => <div className="score-row" key={key}><span className="score-name">{language === "ja" ? labelJa : labelEn}</span><div className="score-value"><div className="score-track"><span className="score-fill origin-fill" style={{ width: `${results.origin.scores[key]}%` }} /></div><strong>{results.origin.scores[key]}</strong></div><div className="score-value"><div className="score-track"><span className="score-fill destination-fill" style={{ width: `${results.destination.scores[key]}%` }} /></div><strong>{results.destination.scores[key]}</strong></div></div>)}</div>
+          <div className="score-board"><div className="score-city-labels"><span /><strong>{displayCityName(origin)}</strong><strong>{displayCityName(destination)}</strong></div>{scoreRows.map(([labelJa, labelEn, key]) => {
+            const originScore = results.origin.scores[key];
+            const destinationScore = results.destination.scores[key];
+            return <div className="score-row" key={key}><span className="score-name">{language === "ja" ? labelJa : labelEn}</span><div className="score-value"><div className="score-track"><span className="score-fill origin-fill" style={{ width: `${originScore ?? 0}%` }} /></div><strong>{originScore ?? "—"}</strong></div><div className="score-value"><div className="score-track"><span className="score-fill destination-fill" style={{ width: `${destinationScore ?? 0}%` }} /></div><strong>{destinationScore ?? "—"}</strong></div></div>;
+          })}</div>
           <p className="panel-footnote">{t.scoreFootnote}</p>
         </section>
 
@@ -1847,7 +1943,7 @@ export default function Home() {
               </article>;
             })}
           </div>
-          <div className="recommendation-method"><span>{language === "ja" ? "現在の配点" : "Current weighting"}</span><strong>{recommendationPriority === "balance" ? (language === "ja" ? "手元資金40%・ビジネス35%・暮らし25%" : "Money 40% · Business 35% · Livability 25%") : recommendationPriority === "money" ? (language === "ja" ? "手元資金60%・ビジネス20%・暮らし20%" : "Money 60% · Business 20% · Livability 20%") : (language === "ja" ? "手元資金20%・ビジネス60%・暮らし20%" : "Money 20% · Business 60% · Livability 20%")}</strong><p>{language === "ja" ? "注目10都市内での比較用試算です。移住・投資・税務判断を代替するものではありません。" : "This is a comparison estimate across the ten featured cities and does not replace relocation, investment or tax advice."}</p></div>
+          <div className="recommendation-method"><span>{language === "ja" ? "現在の配点" : "Current weighting"}</span><strong>{recommendationPriority === "balance" ? (language === "ja" ? "手元資金40%・ビジネス35%・暮らし25%" : "Money 40% · Business 35% · Livability 25%") : recommendationPriority === "money" ? (language === "ja" ? "手元資金60%・ビジネス20%・暮らし20%" : "Money 60% · Business 20% · Livability 20%") : (language === "ja" ? "手元資金20%・ビジネス60%・暮らし20%" : "Money 20% · Business 60% · Livability 20%")}</strong><p>{language === "ja" ? "注目10都市のうち、税金・社会保険の計算対象が確認できた都市だけを金額順位に含めます。移住・投資・税務判断を代替するものではありません。" : "Money rankings include only featured cities whose tax and social-insurance calculation scope is verified. This does not replace relocation, investment or tax advice."}</p></div>
         </section>
 
         <section id="global-business" className="global-business-section section-anchor">

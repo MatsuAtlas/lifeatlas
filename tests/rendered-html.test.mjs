@@ -71,6 +71,11 @@ test("renders the account and comparison history interface", async () => {
   assert.match(html, /登録と比較履歴/);
   assert.match(html, /現在のデータ範囲/);
   assert.match(html, /都市人口の基準値/);
+  assert.match(html, /目的地の給与条件/);
+  assert.match(html, /実際のオファー年収を入力/);
+  assert.match(html, /公式制度を確認できない都市は税額・手取り・残額を表示しません/);
+  assert.match(html, /Inland Revenue Authority of Singapore/);
+  assert.doesNotMatch(html, /8\.5百万円/);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
