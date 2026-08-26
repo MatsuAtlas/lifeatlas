@@ -76,6 +76,13 @@ test("renders the account and comparison history interface", async () => {
   assert.match(html, /リモート勤務：日本の収入を維持/);
   assert.match(html, /実際のオファー年収を入力/);
   assert.match(html, /給与または税制度を公式資料で確認できない都市は手取り・残額を表示しません/);
+  assert.match(html, /Life Atlasの50都市すべてを対象/);
+  assert.match(html, /50都市すべてを候補にします/);
+  assert.match(html, />50<\/strong>対象都市/);
+  assert.match(html, />10<\/strong>ビジネス詳細あり/);
+  assert.match(html, />40<\/strong>ビジネス参考値/);
+  assert.match(html, /詳細未整備・参考スコアを50%補正|ビジネス詳細データあり/);
+  assert.match(html, /この都市を詳しく比較する/);
   assert.match(html, /Inland Revenue Authority of Singapore/);
   assert.doesNotMatch(html, /8\.5百万円/);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
