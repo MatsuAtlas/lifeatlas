@@ -55,3 +55,13 @@ drop policy if exists "Users can delete their own comparison history" on public.
 create policy "Users can delete their own comparison history"
   on public.comparison_history for delete to authenticated
   using (auth.uid() = user_id);
+
+-- Supabase may install this internal SECURITY DEFINER helper in the public schema.
+-- Keep it available to its owner while preventing API roles from invoking it.
+do $$
+begin
+  if to_regprocedure('public.rls_auto_enable()') is not null then
+    revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
+  end if;
+end
+$$;

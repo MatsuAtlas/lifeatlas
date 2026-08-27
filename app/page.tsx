@@ -1304,7 +1304,7 @@ export default function Home() {
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [supabaseConfigured, setSupabaseConfigured] = useState(() => Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY));
+  const [supabaseConfigured, setSupabaseConfigured] = useState(true);
   const resultRef = useRef<HTMLDivElement>(null);
   const t = translations[language];
   const displayCityName = (city: City) => cityName(city, language);
