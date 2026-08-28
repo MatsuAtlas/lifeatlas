@@ -1,16 +1,10 @@
 import { cities } from "../../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../../data/currencies.ts";
-import type { CurrencyCode } from "../../types/city";
 import type { AgeBand, HouseholdType } from "../../types/finance";
-import type { DataConfidence, ScenarioInput, ScenarioResult } from "../../types/scenario";
+import type { DataConfidence, ScenarioCalculationOptions, ScenarioInput, ScenarioResult } from "../../types/scenario";
 import { calculateCity } from "./legacy-engine.ts";
 
 export const CALCULATION_VERSION = "2026.08-v2.1";
-
-export type ScenarioCalculationOptions = {
-  ratesToJpy?: Record<CurrencyCode, number>;
-  exchangeRateStatus?: "live" | "fallback";
-};
 
 function assertFiniteInRange(name: string, value: number, min: number, max: number) {
   if (!Number.isFinite(value) || value < min || value > max) {

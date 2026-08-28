@@ -3,6 +3,11 @@ import type { AgeBand, HousingType, LifestyleType, TaxBreakdown, TaxCalculationS
 
 export type ScenarioHousehold = "single" | "couple";
 
+export type ScenarioCalculationOptions = {
+  ratesToJpy?: Record<CurrencyCode, number>;
+  exchangeRateStatus?: "live" | "fallback";
+};
+
 export type ScenarioInput = {
   id: string;
   cityId: CityId;
