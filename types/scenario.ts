@@ -85,6 +85,7 @@ export type UserPriorities = Record<PriorityKey, number>;
 
 export type ScenarioScore = {
   scenarioId: string;
+  eligible: boolean;
   score: number;
   rank: number;
   financialScore: number;
@@ -94,4 +95,11 @@ export type ScenarioScore = {
   strongestFactors: string[];
   weakestFactors: string[];
   omittedPriorities: PriorityKey[];
+  riskFlags: string[];
+  contributions: {
+    financial: number;
+    lifestyle: number;
+    preference: number;
+    confidence: number;
+  };
 };
