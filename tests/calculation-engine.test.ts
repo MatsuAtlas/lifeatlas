@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { cities, cityOrder } from "../data/cities.ts";
 import { calculateCity, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
@@ -38,6 +39,16 @@ function city(overrides: Partial<CalculationCity>): CalculationCity {
     ...overrides,
   };
 }
+
+test("keeps the complete 50-city catalog available to every product surface", () => {
+  assert.equal(cityOrder.length, 50);
+  assert.equal(new Set(cityOrder).size, 50);
+  assert.deepEqual(Object.keys(cities).sort(), [...cityOrder].sort());
+  for (const cityId of cityOrder) {
+    assert.equal(cities[cityId].id, cityId);
+    assert.ok(cities[cityId].dataSources.length > 0);
+  }
+});
 
 test("keeps the Tokyo single-household baseline stable", () => {
   const tokyo = city({
