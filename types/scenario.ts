@@ -19,6 +19,7 @@ export type ScenarioInput = {
   customSavingsTarget?: number;
   currentSavings?: number;
   retirementAge?: number;
+  annualReturnRate?: number;
 };
 
 export type ScenarioAssumptions = {
@@ -71,6 +72,7 @@ export type ScenarioResult = {
   netAnnualJpy: number | null;
   projectedSavings5Years: number | null;
   projectedSavings10Years: number | null;
+  savingsTargetYears: number | null;
   fire: FireMetrics | null;
   dataConfidence: DataConfidence;
   calculationStatus: TaxCalculationStatus;
