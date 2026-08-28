@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
+import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
 import { calculateCity, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
@@ -48,6 +49,12 @@ test("keeps the complete 50-city catalog available to every product surface", ()
     assert.equal(cities[cityId].id, cityId);
     assert.ok(cities[cityId].dataSources.length > 0);
   }
+});
+
+test("uses one shared and reversible currency conversion contract", () => {
+  const cad = convertCurrency(1_000_000, "JPY", "CAD");
+  assert.equal(cad, 1_000_000 / FALLBACK_FX_TO_JPY.CAD);
+  assert.equal(convertCurrency(cad, "CAD", "JPY"), 1_000_000);
 });
 
 test("keeps the Tokyo single-household baseline stable", () => {

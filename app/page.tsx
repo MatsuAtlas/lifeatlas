@@ -2,6 +2,7 @@
 
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cities, cityOrder } from "../data/cities";
+import { FALLBACK_FX_TO_JPY } from "../data/currencies";
 import type { City, CityId, CurrencyCode, DataSource } from "../types/city";
 import type { AgeBand, LegacyCityResult, TaxCalculationStatus } from "../types/finance";
 import {
@@ -64,8 +65,6 @@ type SavedComparisonInput = {
 
 const LOCAL_HISTORY_KEY = "life-atlas-comparison-history";
 const LOCAL_HISTORY_LIMIT = 50;
-const FALLBACK_FX_TO_JPY: Record<CurrencyCode, number> = { JPY: 1, CAD: 108, USD: 145, GBP: 190, EUR: 170, MXN: 8.5, AUD: 98, KRW: 0.108, TWD: 4.55, SGD: 108, HKD: 18.6, THB: 4.15, MYR: 34, IDR: 0.009, PHP: 2.55, VND: 0.0058, CNY: 20.1, AED: 39.5, CHF: 181, BRL: 27, ARS: 0.13, CLP: 0.15, COP: 0.035 };
-
 function isHistoryRecord(value: unknown): value is HistoryRecord {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record = value as Partial<HistoryRecord>;
