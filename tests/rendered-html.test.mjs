@@ -92,6 +92,19 @@ test("renders the account and comparison history interface", async () => {
   assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
 });
 
+test("renders the Offer Analyzer as a separate deterministic decision flow", async () => {
+  const response = await fetch(`${baseUrl}/analyze`);
+  assert.equal(response.status, 200);
+  const html = await response.text();
+
+  assert.match(html, /LifeAtlas Offer Analyzer/);
+  assert.match(html, /2〜5件の仕事・移住案/);
+  assert.match(html, /AIに数字を作らせず/);
+  assert.match(html, /What-If シミュレーター/);
+  assert.match(html, /逆転に必要な給与/);
+  assert.match(html, /税務・金融・移住助言ではありません/);
+});
+
 test("reports transparent official-data coverage for all comparison cities", async () => {
   const response = await fetch(`${baseUrl}/api/data-refresh`);
   assert.equal(response.status, 200);

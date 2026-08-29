@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { cities, cityOrder } from "../data/cities";
 import { FALLBACK_FX_TO_JPY } from "../data/currencies";
 import type { City, CityId, CurrencyCode, DataSource } from "../types/city";
@@ -1099,6 +1100,7 @@ export default function Home() {
           <span>Life Atlas</span>
         </a>
         <nav className="desktop-nav" aria-label={language === "ja" ? "主要メニュー" : "Main menu"}>
+          <Link href="/analyze">Offer Analyzer</Link>
           <a href="#compare">{t.navCompare}</a>
           <a href="#recommendations">{language === "ja" ? "おすすめ" : "Matches"}</a>
           <a href="#profile">{t.navProfile}</a>
@@ -1122,7 +1124,10 @@ export default function Home() {
             <div className="hero-pills">
               <span>{t.pillCities}</span><span>{t.pillCurrencies}</span><span>{t.pillDeductions}</span>
             </div>
-            <a className="hero-cta" href="#compare">{language === "ja" ? "都市を比較する" : "Compare cities"}<span>↘</span></a>
+            <div className="hero-cta-row">
+              <Link className="hero-cta" href="/analyze">{language === "ja" ? "オファーを比較する" : "Compare my offers"}<span>→</span></Link>
+              <a className="hero-secondary-cta" href="#compare">{language === "ja" ? "都市を比較する" : "Explore cities"}</a>
+            </div>
           </div>
           <div className="hero-visual" aria-label={language === "ja" ? "海と海外の街並み" : "Coastal international city"}>
             <div className="hero-visual-caption"><span>48°51′N · COASTAL EDITION</span><strong>{language === "ja" ? "暮らす場所を、意思で選ぶ。" : "Choose where life can expand."}</strong></div>
