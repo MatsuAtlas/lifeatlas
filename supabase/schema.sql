@@ -56,6 +56,65 @@ create policy "Users can delete their own comparison history"
   on public.comparison_history for delete to authenticated
   using (auth.uid() = user_id);
 
+create table if not exists public.ai_recommendations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  context_hash text not null,
+  model text not null,
+  prompt_version text not null,
+  language text not null,
+  question text,
+  status text not null default 'pending',
+  recommendation jsonb,
+  input_tokens integer,
+  output_tokens integer,
+  total_tokens integer,
+  error_code text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, context_hash),
+  constraint ai_recommendations_context_hash check (context_hash ~ '^[0-9a-f]{64}$'),
+  constraint ai_recommendations_language check (language in ('ja', 'en')),
+  constraint ai_recommendations_status check (status in ('pending', 'complete', 'error')),
+  constraint ai_recommendations_question_length check (question is null or char_length(question) between 1 and 400),
+  constraint ai_recommendations_recommendation_object check (recommendation is null or jsonb_typeof(recommendation) = 'object'),
+  constraint ai_recommendations_token_counts check (
+    (input_tokens is null or input_tokens >= 0)
+    and (output_tokens is null or output_tokens >= 0)
+    and (total_tokens is null or total_tokens >= 0)
+  )
+);
+
+create index if not exists ai_recommendations_user_created_idx
+  on public.ai_recommendations (user_id, created_at desc);
+
+alter table public.ai_recommendations enable row level security;
+alter table public.ai_recommendations force row level security;
+
+revoke all on table public.ai_recommendations from anon;
+revoke all on table public.ai_recommendations from authenticated;
+grant select on table public.ai_recommendations to authenticated;
+grant insert (user_id, context_hash, model, prompt_version, language, question, status)
+  on table public.ai_recommendations to authenticated;
+grant update (status, recommendation, input_tokens, output_tokens, total_tokens, error_code, updated_at)
+  on table public.ai_recommendations to authenticated;
+
+drop policy if exists "Users can read their own AI recommendations" on public.ai_recommendations;
+create policy "Users can read their own AI recommendations"
+  on public.ai_recommendations for select to authenticated
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can create their own AI recommendations" on public.ai_recommendations;
+create policy "Users can create their own AI recommendations"
+  on public.ai_recommendations for insert to authenticated
+  with check (auth.uid() = user_id and status = 'pending' and recommendation is null);
+
+drop policy if exists "Users can update their own AI recommendations" on public.ai_recommendations;
+create policy "Users can update their own AI recommendations"
+  on public.ai_recommendations for update to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
 -- Supabase may install this internal SECURITY DEFINER helper in the public schema.
 -- Keep it available to its owner while preventing API roles from invoking it.
 do $$

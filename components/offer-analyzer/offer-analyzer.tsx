@@ -6,6 +6,7 @@ import Link from "next/link";
 import { cities, cityOrder } from "../../data/cities";
 import { DEFAULT_PRIORITIES } from "../../lib/scoring/life-atlas-score";
 import { simulateWhatIf } from "../../lib/calculations/what-if";
+import { validateAIRecommendation } from "../../lib/ai/recommendation";
 import {
   consumeQueuedAnalyzerRestore,
   isComparisonRecord,
@@ -18,6 +19,7 @@ import {
 } from "../../lib/comparison-history";
 import type { City, CityId, CurrencyCode } from "../../types/city";
 import type { BreakEvenMetric } from "../../types/break-even";
+import type { RecommendationGeneration } from "../../types/ai";
 import type { ComparisonRecord, SavedAnalyzerInput, SavedAnalyzerResult } from "../../types/comparison";
 import type { HousingType, LifestyleType } from "../../types/finance";
 import type { PriorityKey, ScenarioHousehold, ScenarioInput, ScenarioResult, ScenarioScore, UserPriorities } from "../../types/scenario";
@@ -196,6 +198,27 @@ const copy = {
     invalidSavedAnalysis: "保存内容を確認できませんでした。",
     saveError: "保存履歴を処理できませんでした。",
     loading: "処理中…",
+    aiTitle: "AIに結果を説明してもらう",
+    aiNote: "順位・金額はLifeAtlasの計算結果を固定したまま、AIが理由・トレードオフ・不確実性を読みやすく整理します。",
+    generateAI: "構造化AI説明を生成",
+    generatingAI: "説明を生成中…",
+    aiAccountRequired: "AI説明はログイン後に利用できます。",
+    aiUnavailable: "AI説明は現在準備中です。決定結果・What-If・逆転給与はそのまま利用できます。",
+    aiLimit: "無料AI説明の24時間上限に達しました。",
+    aiError: "AI説明を生成できませんでした。計算結果はそのまま利用できます。",
+    aiPrivacy: "生成時には、この分析の給与・世帯・都市・計算結果だけをAIサービスへ送信します。氏名やメールアドレスは送りません。",
+    aiCached: "同じ条件の保存済み説明を再利用しました",
+    aiFresh: "新しい説明を生成しました",
+    aiReasons: "この順位になる理由",
+    aiTradeoffs: "候補ごとのトレードオフ",
+    advantages: "利点",
+    disadvantages: "注意点",
+    aiRisks: "不確実性と確認事項",
+    aiNext: "次に確認できる質問",
+    followUp: "追加で質問する",
+    followUpPlaceholder: "例：家賃が10%上がる場合、どの注意点が重要ですか？",
+    askAI: "質問を送る",
+    aiDisclaimer: "AIはLifeAtlasの構造化された計算結果のみを説明します。未計算の税率・控除・移住条件を推測せず、専門的な税務・金融・移住助言を提供しません。",
     disclaimer: "比較結果は公開情報と保存した参考値に基づく概算です。個別の控除、在留資格、雇用条件、医療保険等を完全には反映せず、税務・金融・移住助言ではありません。重要な判断では専門家と最新の公式情報をご確認ください。",
   },
   en: {
@@ -291,6 +314,27 @@ const copy = {
     invalidSavedAnalysis: "This saved analysis could not be verified.",
     saveError: "Saved analyses could not be processed.",
     loading: "Working…",
+    aiTitle: "Ask AI to explain the result",
+    aiNote: "LifeAtlas keeps every rank and number fixed while AI organizes the reasons, trade-offs and uncertainty into plain language.",
+    generateAI: "Generate structured AI explanation",
+    generatingAI: "Generating explanation…",
+    aiAccountRequired: "Sign in to use AI explanations.",
+    aiUnavailable: "AI explanations are not configured yet. Your decision result, What-If and break-even salary remain available.",
+    aiLimit: "You have reached the free AI explanation limit for the last 24 hours.",
+    aiError: "The AI explanation could not be generated. Your calculated results remain available.",
+    aiPrivacy: "Generation sends only this analysis's salary, household, cities and calculated results to the AI service. Your name and email are not sent.",
+    aiCached: "Reused the saved explanation for these conditions",
+    aiFresh: "Generated a new explanation",
+    aiReasons: "Why this option ranks first",
+    aiTradeoffs: "Trade-offs by option",
+    advantages: "Advantages",
+    disadvantages: "Watch-outs",
+    aiRisks: "Uncertainty and checks",
+    aiNext: "Useful follow-up questions",
+    followUp: "Ask a follow-up",
+    followUpPlaceholder: "Example: Which risk matters most if rent rises by 10%?",
+    askAI: "Send question",
+    aiDisclaimer: "AI only explains LifeAtlas's structured calculation result. It does not guess missing tax rates, deductions or immigration rules, and it does not provide professional tax, financial or immigration advice.",
     disclaimer: "Results are estimates based on public sources and saved reference values. They do not fully reflect individual deductions, immigration status, employment terms or health coverage, and are not tax, financial or immigration advice. Confirm important decisions with professionals and current official sources.",
   },
 } as const;
@@ -325,6 +369,22 @@ function formatPercent(value: number | null) {
 
 function optionalNumber(value: number | undefined) {
   return value === undefined ? "" : String(value);
+}
+
+function isRecommendationGeneration(
+  value: unknown,
+  winnerScenarioId: string,
+  scenarioIds: string[],
+): value is RecommendationGeneration {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const generation = value as Partial<RecommendationGeneration>;
+  return typeof generation.id === "string"
+    && typeof generation.model === "string"
+    && typeof generation.cached === "boolean"
+    && typeof generation.createdAt === "string"
+    && typeof generation.usage === "object"
+    && generation.usage !== null
+    && validateAIRecommendation(generation.recommendation, winnerScenarioId, scenarioIds);
 }
 
 function makeScenario(index: number): ScenarioInput {
@@ -363,6 +423,12 @@ export function OfferAnalyzer() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [supabaseConfigured, setSupabaseConfigured] = useState(true);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [aiGeneration, setAiGeneration] = useState<RecommendationGeneration | null>(null);
+  const [aiGenerationLanguage, setAiGenerationLanguage] = useState<Language | null>(null);
+  const [aiAnalysisSignature, setAiAnalysisSignature] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [followUpQuestion, setFollowUpQuestion] = useState("");
   const t = copy[language];
 
   const loadCloudHistory = useCallback(async () => {
@@ -455,6 +521,24 @@ export function OfferAnalyzer() {
     : null;
   const breakEven = simulation.after.breakEven[0];
   const analyzerHistory = history.filter((record) => isSavedAnalyzerInput(record.input));
+  const currentAnalysis: SavedAnalyzerInput = {
+    kind: "offer-analyzer",
+    version: 1,
+    scenarios: scenarios.map((scenario) => ({ ...scenario })),
+    priorities: { ...priorities },
+    whatIf: {
+      scenarioId: activeWhatIfScenario.id,
+      salaryPercent,
+      rentPercent,
+      exchangePercent,
+    },
+    breakEven: {
+      candidateScenarioId: activeBreakEvenCandidateId ?? scenarios[0].id,
+      metric: breakEvenMetric,
+    },
+  };
+  const currentAnalysisSignature = JSON.stringify(currentAnalysis);
+  const visibleAIGeneration = aiGenerationLanguage === language && aiAnalysisSignature === currentAnalysisSignature ? aiGeneration : null;
 
   const applySavedInput = useCallback((saved: SavedAnalyzerInput) => {
     setScenarios(saved.scenarios.map((scenario) => ({ ...scenario })));
@@ -479,22 +563,6 @@ export function OfferAnalyzer() {
   const saveCurrentAnalysis = async () => {
     if (historyLoading) return;
     setSaveMessage(null);
-    const savedInput: SavedAnalyzerInput = {
-      kind: "offer-analyzer",
-      version: 1,
-      scenarios: scenarios.map((scenario) => ({ ...scenario })),
-      priorities: { ...priorities },
-      whatIf: {
-        scenarioId: activeWhatIfScenario.id,
-        salaryPercent,
-        rentPercent,
-        exchangePercent,
-      },
-      breakEven: {
-        candidateScenarioId: activeBreakEvenCandidateId ?? scenarios[0].id,
-        metric: breakEvenMetric,
-      },
-    };
     const savedResult: SavedAnalyzerResult = {
       kind: "offer-analyzer",
       version: 1,
@@ -507,7 +575,7 @@ export function OfferAnalyzer() {
       title,
       origin_city: scenarios[0].cityId,
       destination_city: scenarios[1].cityId,
-      input: savedInput as unknown as Record<string, unknown>,
+      input: currentAnalysis as unknown as Record<string, unknown>,
       result: savedResult as unknown as Record<string, unknown>,
       created_at: savedResult.calculatedAt,
     };
@@ -556,6 +624,47 @@ export function OfferAnalyzer() {
       return;
     }
     saveLocally();
+  };
+
+  const generateAIRecommendation = async (question?: string) => {
+    if (aiLoading) return;
+    if (!authUser) {
+      setAiError(t.aiAccountRequired);
+      return;
+    }
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const response = await fetch("/api/ai/recommendation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language, analysis: currentAnalysis, ...(question ? { followUpQuestion: question } : {}) }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        if (response.status === 401) setAuthUser(null);
+        setAiError(response.status === 401
+          ? t.aiAccountRequired
+          : response.status === 429
+            ? t.aiLimit
+            : response.status === 503
+              ? t.aiUnavailable
+              : t.aiError);
+        return;
+      }
+      if (!isRecommendationGeneration(data?.generation, winnerScore.scenarioId, scenarios.map((scenario) => scenario.id))) {
+        setAiError(t.aiError);
+        return;
+      }
+      setAiGeneration(data.generation);
+      setAiGenerationLanguage(language);
+      setAiAnalysisSignature(currentAnalysisSignature);
+      setFollowUpQuestion("");
+    } catch {
+      setAiError(t.aiError);
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const restoreAnalysis = (record: ComparisonRecord) => {
@@ -660,7 +769,7 @@ export function OfferAnalyzer() {
       <header className="site-header oa-header">
         <Link className="brand" href="/" aria-label="Life Atlas"><span className="brand-mark" aria-hidden="true">✦</span><span>Life Atlas</span></Link>
         <nav className="desktop-nav" aria-label={language === "ja" ? "Offer Analyzerメニュー" : "Offer Analyzer navigation"}>
-          <a href="#offers">{t.scenarios}</a><a href="#result">{t.result}</a><a href="#what-if">What-If</a><a href="#break-even">Break-even</a><a href="#save">{language === "ja" ? "保存" : "Save"}</a>
+          <a href="#offers">{t.scenarios}</a><a href="#result">{t.result}</a><a href="#what-if">What-If</a><a href="#break-even">Break-even</a><a href="#save">{language === "ja" ? "保存" : "Save"}</a><a href="#ai">AI</a>
         </nav>
         <div className="header-actions"><Link className="oa-back-link" href="/">← {t.back}</Link><button className="language-button" type="button" onClick={() => setLanguage((current) => current === "ja" ? "en" : "ja")}>{t.language}</button><button className="theme-button" type="button" onClick={() => setDarkMode((current) => !current)}>{t.theme}</button></div>
       </header>
@@ -753,6 +862,30 @@ export function OfferAnalyzer() {
                   <div className="oa-saved-item-actions"><button className="secondary-button" type="button" onClick={() => restoreAnalysis(record)}>{t.restore}</button><button className="text-button" type="button" onClick={() => void deleteAnalysis(record)} disabled={historyLoading}>{t.delete}</button></div>
                 </article>
               ))}
+            </div>
+          )}
+        </section>
+
+        <section id="ai" className="oa-section oa-ai-section" aria-busy={aiLoading}>
+          <div className="oa-section-heading"><div><p className="eyebrow">07 / EXPLAIN</p><h2>{t.aiTitle}</h2></div><p>{t.aiNote}</p></div>
+          <div className="oa-ai-launch">
+            <div><strong>{language === "ja" ? "計算は固定、説明だけAI" : "Fixed calculations, AI explanation only"}</strong><p>{t.aiPrivacy}</p></div>
+            <button className="primary-button" type="button" onClick={() => void generateAIRecommendation()} disabled={aiLoading || !authUser}>{aiLoading ? t.generatingAI : t.generateAI}</button>
+          </div>
+          {!authUser && <p className="oa-save-signin">{t.aiAccountRequired} <Link href="/#account">{t.signInLink} →</Link></p>}
+          {aiError && <p className="oa-ai-error" role="status" aria-live="polite">{aiError}</p>}
+          {visibleAIGeneration && (
+            <div className="oa-ai-result">
+              <div className="oa-ai-summary"><span>{visibleAIGeneration.cached ? t.aiCached : t.aiFresh}</span><h3>{visibleAIGeneration.recommendation.executiveSummary}</h3></div>
+              <div className="oa-ai-reasons"><h3>{t.aiReasons}</h3>{visibleAIGeneration.recommendation.reasons.map((reason) => <article key={reason.title}><strong>{reason.title}</strong><p>{reason.explanation}</p></article>)}</div>
+              <div className="oa-ai-tradeoffs"><h3>{t.aiTradeoffs}</h3>{visibleAIGeneration.recommendation.tradeoffs.map((tradeoff) => {
+                const scenario = scenarios.find((item) => item.id === tradeoff.scenarioId);
+                const label = scenario ? cityName(cities[scenario.cityId], language) : tradeoff.scenarioId;
+                return <article key={tradeoff.scenarioId}><h4>{label}</h4><div><span>{t.advantages}</span><ul>{tradeoff.advantages.map((item) => <li key={item}>{item}</li>)}</ul></div><div><span>{t.disadvantages}</span><ul>{tradeoff.disadvantages.map((item) => <li key={item}>{item}</li>)}</ul></div></article>;
+              })}</div>
+              {visibleAIGeneration.recommendation.risks.length > 0 && <div className="oa-ai-risks"><h3>{t.aiRisks}</h3><ul>{visibleAIGeneration.recommendation.risks.map((risk) => <li key={risk}>{risk}</li>)}</ul></div>}
+              <div className="oa-ai-followups"><h3>{t.aiNext}</h3><div>{visibleAIGeneration.recommendation.nextQuestions.map((question) => <button type="button" key={question} onClick={() => void generateAIRecommendation(question)} disabled={aiLoading}>{question}</button>)}</div><form onSubmit={(event) => { event.preventDefault(); const question = followUpQuestion.trim(); if (question) void generateAIRecommendation(question); }}><label>{t.followUp}<input value={followUpQuestion} maxLength={400} placeholder={t.followUpPlaceholder} onChange={(event) => setFollowUpQuestion(event.target.value)} /></label><button className="secondary-button" type="submit" disabled={aiLoading || followUpQuestion.trim().length === 0}>{t.askAI}</button></form></div>
+              <p className="oa-ai-disclaimer">{t.aiDisclaimer}</p>
             </div>
           )}
         </section>

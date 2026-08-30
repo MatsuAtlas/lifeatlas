@@ -105,6 +105,9 @@ test("renders the Offer Analyzer as a separate deterministic decision flow", asy
   assert.match(html, /分析を保存する/);
   assert.match(html, /Supabase未設定の環境では、この端末だけに最大50件保存します/);
   assert.match(html, /href="\/#account"/);
+  assert.match(html, /AIに結果を説明してもらう/);
+  assert.match(html, /計算は固定、説明だけAI/);
+  assert.match(html, /氏名やメールアドレスは送りません/);
   assert.match(html, /税務・金融・移住助言ではありません/);
 });
 
@@ -136,6 +139,16 @@ test("reports an unconfigured Supabase server consistently", async () => {
   });
   assert.equal(login.status, 503);
   assert.equal((await login.json()).configured, false);
+});
+
+test("keeps AI optional when its authenticated persistence is unconfigured", async () => {
+  const response = await fetch(`${baseUrl}/api/ai/recommendation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).configured, false);
 });
 
 test("clears the local session even when Supabase is unconfigured", async () => {
