@@ -4,7 +4,9 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import Link from "next/link";
 import { cities, cityOrder } from "../data/cities";
 import { FALLBACK_FX_TO_JPY } from "../data/currencies";
+import { isComparisonRecord, isSavedAnalyzerInput, LOCAL_HISTORY_LIMIT, localHistoryId, queueAnalyzerRestore, readLocalHistory, writeLocalHistory } from "../lib/comparison-history";
 import type { City, CityId, CurrencyCode, DataSource } from "../types/city";
+import type { ComparisonRecord as HistoryRecord } from "../types/comparison";
 import type { AgeBand, LegacyCityResult, TaxCalculationStatus } from "../types/finance";
 import {
   calculateCity,
@@ -41,16 +43,6 @@ type OfficialData = {
   warnings: string[];
 };
 
-type HistoryRecord = {
-  id: string;
-  title: string;
-  origin_city: string;
-  destination_city: string;
-  input: Record<string, unknown>;
-  result: Record<string, unknown>;
-  created_at: string;
-};
-
 type SavedComparisonInput = {
   originId: CityId;
   destinationId: CityId;
@@ -63,49 +55,6 @@ type SavedComparisonInput = {
   lifestyle: keyof typeof lifestyleMultipliers;
   ageBand: AgeBand;
 };
-
-const LOCAL_HISTORY_KEY = "life-atlas-comparison-history";
-const LOCAL_HISTORY_LIMIT = 50;
-function isHistoryRecord(value: unknown): value is HistoryRecord {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const record = value as Partial<HistoryRecord>;
-  return typeof record.id === "string"
-    && typeof record.title === "string"
-    && typeof record.origin_city === "string"
-    && typeof record.destination_city === "string"
-    && typeof record.created_at === "string"
-    && typeof record.input === "object"
-    && record.input !== null
-    && !Array.isArray(record.input)
-    && typeof record.result === "object"
-    && record.result !== null
-    && !Array.isArray(record.result);
-}
-
-function readLocalHistory(): HistoryRecord[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const saved: unknown = JSON.parse(window.localStorage.getItem(LOCAL_HISTORY_KEY) ?? "[]");
-    return Array.isArray(saved) ? saved.filter(isHistoryRecord).slice(0, LOCAL_HISTORY_LIMIT) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalHistory(history: HistoryRecord[]) {
-  try {
-    window.localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history.slice(0, LOCAL_HISTORY_LIMIT)));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function localHistoryId() {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? `local-${crypto.randomUUID()}`
-    : `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 const cityEnglishLabels: Partial<Record<CityId, { name: string; country: string; region: string; climate: string; language: string }>> = {
   tokyo: { name: "Tokyo", country: "Japan", region: "Asia", climate: "Humid subtropical, four seasons", language: "Japanese" },
@@ -759,7 +708,7 @@ export default function Home() {
     try {
       const response = await fetch("/api/history", { cache: "no-store" });
       const data = await response.json();
-      if (response.ok) setHistory(Array.isArray(data.history) ? data.history.filter(isHistoryRecord).slice(0, LOCAL_HISTORY_LIMIT) : []);
+      if (response.ok) setHistory(Array.isArray(data.history) ? data.history.filter(isComparisonRecord).slice(0, LOCAL_HISTORY_LIMIT) : []);
       else if (response.status === 503 && data.configured === false) {
         setAuthUser(null);
         setSupabaseConfigured(false);
@@ -1020,6 +969,14 @@ export default function Home() {
   };
 
   const restoreHistory = (record: HistoryRecord) => {
+    if (isSavedAnalyzerInput(record.input)) {
+      if (!queueAnalyzerRestore(record)) {
+        setAuthMessage(t.authError);
+        return;
+      }
+      window.location.assign("/analyze");
+      return;
+    }
     const input = record.input as Partial<SavedComparisonInput>;
     if (typeof input.originId !== "string" || !(input.originId in cities) || typeof input.destinationId !== "string" || !(input.destinationId in cities)) {
       setAuthMessage(language === "ja" ? "この履歴は現在の都市データと合わないため呼び出せません。" : "This history entry no longer matches the current city data.");
@@ -1135,7 +1092,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="account-card" aria-labelledby="account-title">
+        <section id="account" className="account-card section-anchor" aria-labelledby="account-title">
           <div className="section-heading">
             <div>
               <p className="eyebrow">Life Atlas</p>

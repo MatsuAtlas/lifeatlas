@@ -1,13 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { cities, cityOrder } from "../../data/cities";
 import { DEFAULT_PRIORITIES } from "../../lib/scoring/life-atlas-score";
 import { simulateWhatIf } from "../../lib/calculations/what-if";
+import {
+  consumeQueuedAnalyzerRestore,
+  isComparisonRecord,
+  isSavedAnalyzerInput,
+  LOCAL_HISTORY_KEY,
+  LOCAL_HISTORY_LIMIT,
+  localHistoryId,
+  readLocalHistory,
+  writeLocalHistory,
+} from "../../lib/comparison-history";
 import type { City, CityId, CurrencyCode } from "../../types/city";
 import type { BreakEvenMetric } from "../../types/break-even";
+import type { ComparisonRecord, SavedAnalyzerInput, SavedAnalyzerResult } from "../../types/comparison";
 import type { HousingType, LifestyleType } from "../../types/finance";
 import type { PriorityKey, ScenarioHousehold, ScenarioInput, ScenarioResult, ScenarioScore, UserPriorities } from "../../types/scenario";
 import type { WhatIfChange } from "../../types/what-if";
@@ -167,6 +178,24 @@ const copy = {
     already: "すでに基準を満たしています",
     unreachable: "設定上限内では到達できません",
     calculationUnavailable: "この組み合わせは税・保険計算が未対応です",
+    saveTitle: "分析を保存する",
+    saveNote: "ログイン中はアカウントに保存します。Supabase未設定の環境では、この端末だけに最大50件保存します。",
+    saveAnalysis: "現在の分析を保存",
+    savedAnalyses: "保存済みの分析",
+    noSavedAnalyses: "保存済みのOffer Analyzer分析はありません。",
+    restore: "復元",
+    delete: "削除",
+    signInRequired: "アカウント保存にはログインが必要です。",
+    signInLink: "ログイン画面へ",
+    signedInAs: "ログイン中",
+    localMode: "端末保存モード",
+    cloudMode: "アカウント保存モード",
+    saved: "分析を保存しました。",
+    restored: "保存した条件を復元しました。",
+    deleted: "保存した分析を削除しました。",
+    invalidSavedAnalysis: "保存内容を確認できませんでした。",
+    saveError: "保存履歴を処理できませんでした。",
+    loading: "処理中…",
     disclaimer: "比較結果は公開情報と保存した参考値に基づく概算です。個別の控除、在留資格、雇用条件、医療保険等を完全には反映せず、税務・金融・移住助言ではありません。重要な判断では専門家と最新の公式情報をご確認ください。",
   },
   en: {
@@ -244,6 +273,24 @@ const copy = {
     already: "This option already meets the target",
     unreachable: "The target is unreachable within the search limit",
     calculationUnavailable: "Tax and insurance calculations are unavailable for this option",
+    saveTitle: "Save this analysis",
+    saveNote: "Signed-in analyses are saved to your account. If Supabase is not configured, up to 50 analyses stay on this device only.",
+    saveAnalysis: "Save current analysis",
+    savedAnalyses: "Saved analyses",
+    noSavedAnalyses: "No saved Offer Analyzer analyses yet.",
+    restore: "Restore",
+    delete: "Delete",
+    signInRequired: "Sign in to save this analysis to your account.",
+    signInLink: "Go to sign in",
+    signedInAs: "Signed in",
+    localMode: "On-device storage",
+    cloudMode: "Account storage",
+    saved: "Analysis saved.",
+    restored: "Saved conditions restored.",
+    deleted: "Saved analysis deleted.",
+    invalidSavedAnalysis: "This saved analysis could not be verified.",
+    saveError: "Saved analyses could not be processed.",
+    loading: "Working…",
     disclaimer: "Results are estimates based on public sources and saved reference values. They do not fully reflect individual deductions, immigration status, employment terms or health coverage, and are not tax, financial or immigration advice. Confirm important decisions with professionals and current official sources.",
   },
 } as const;
@@ -310,7 +357,63 @@ export function OfferAnalyzer() {
   const [exchangePercent, setExchangePercent] = useState(0);
   const [breakEvenCandidateId, setBreakEvenCandidateId] = useState(initialScenarios[1].id);
   const [breakEvenMetric, setBreakEvenMetric] = useState<BreakEvenMetric>("disposableIncome");
+  const [authUser, setAuthUser] = useState<{ id: string; email?: string } | null>(null);
+  const [history, setHistory] = useState<ComparisonRecord[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [supabaseConfigured, setSupabaseConfigured] = useState(true);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const t = copy[language];
+
+  const loadCloudHistory = useCallback(async () => {
+    if (!supabaseConfigured) return;
+    setHistoryLoading(true);
+    try {
+      const response = await fetch("/api/history", { cache: "no-store" });
+      const data = await response.json().catch(() => null);
+      if (response.ok) {
+        setHistory(Array.isArray(data?.history) ? data.history.filter(isComparisonRecord).slice(0, LOCAL_HISTORY_LIMIT) : []);
+      } else if (response.status === 503 && data?.configured === false) {
+        setAuthUser(null);
+        setSupabaseConfigured(false);
+        setHistory(readLocalHistory());
+        setSaveMessage(t.localMode);
+      } else if (response.status !== 401) {
+        setSaveMessage(data?.error ?? t.saveError);
+      }
+    } catch {
+      setSaveMessage(t.saveError);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [supabaseConfigured, t.localMode, t.saveError]);
+
+  useEffect(() => {
+    if (!supabaseConfigured) {
+      const syncLocalHistory = (event?: StorageEvent) => {
+        if (!event || event.key === null || event.key === LOCAL_HISTORY_KEY) setHistory(readLocalHistory());
+      };
+      syncLocalHistory();
+      window.addEventListener("storage", syncLocalHistory);
+      return () => window.removeEventListener("storage", syncLocalHistory);
+    }
+
+    void fetch("/api/auth/me", { cache: "no-store" })
+      .then(async (response) => ({ response, data: await response.json().catch(() => null) }))
+      .then(({ response, data }) => {
+        if (response.status === 503 && data?.configured === false) {
+          setAuthUser(null);
+          setSupabaseConfigured(false);
+          setHistory(readLocalHistory());
+          return;
+        }
+        if (data?.user) {
+          setAuthUser(data.user);
+          void loadCloudHistory();
+        }
+      })
+      .catch(() => undefined);
+  }, [loadCloudHistory, supabaseConfigured]);
 
   const updateScenario = (id: string, patch: Partial<ScenarioInput>) => {
     setScenarios((current) => current.map((scenario) => scenario.id === id ? { ...scenario, ...patch } : scenario));
@@ -351,6 +454,152 @@ export function OfferAnalyzer() {
     ? winnerResult.annualSavingsJpy - runnerUpResult.annualSavingsJpy
     : null;
   const breakEven = simulation.after.breakEven[0];
+  const analyzerHistory = history.filter((record) => isSavedAnalyzerInput(record.input));
+
+  const applySavedInput = useCallback((saved: SavedAnalyzerInput) => {
+    setScenarios(saved.scenarios.map((scenario) => ({ ...scenario })));
+    setPriorities({ ...saved.priorities });
+    setWhatIfScenarioId(saved.whatIf.scenarioId);
+    setSalaryPercent(saved.whatIf.salaryPercent);
+    setRentPercent(saved.whatIf.rentPercent);
+    setExchangePercent(saved.whatIf.exchangePercent);
+    setBreakEvenCandidateId(saved.breakEven.candidateScenarioId);
+    setBreakEvenMetric(saved.breakEven.metric);
+    setSaveMessage(t.restored);
+    requestAnimationFrame(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [t.restored]);
+
+  useEffect(() => {
+    const queued = consumeQueuedAnalyzerRestore();
+    if (!queued || !isSavedAnalyzerInput(queued.input)) return;
+    const frame = requestAnimationFrame(() => applySavedInput(queued.input as SavedAnalyzerInput));
+    return () => cancelAnimationFrame(frame);
+  }, [applySavedInput]);
+
+  const saveCurrentAnalysis = async () => {
+    if (historyLoading) return;
+    setSaveMessage(null);
+    const savedInput: SavedAnalyzerInput = {
+      kind: "offer-analyzer",
+      version: 1,
+      scenarios: scenarios.map((scenario) => ({ ...scenario })),
+      priorities: { ...priorities },
+      whatIf: {
+        scenarioId: activeWhatIfScenario.id,
+        salaryPercent,
+        rentPercent,
+        exchangePercent,
+      },
+      breakEven: {
+        candidateScenarioId: activeBreakEvenCandidateId ?? scenarios[0].id,
+        metric: breakEvenMetric,
+      },
+    };
+    const savedResult: SavedAnalyzerResult = {
+      kind: "offer-analyzer",
+      version: 1,
+      calculatedAt: new Date().toISOString(),
+      snapshot: simulation.after,
+      deltas: simulation.deltas,
+    };
+    const title = scenarios.map((scenario) => cityName(cities[scenario.cityId], language)).join(" vs ").slice(0, 120);
+    const recordBase = {
+      title,
+      origin_city: scenarios[0].cityId,
+      destination_city: scenarios[1].cityId,
+      input: savedInput as unknown as Record<string, unknown>,
+      result: savedResult as unknown as Record<string, unknown>,
+      created_at: savedResult.calculatedAt,
+    };
+    const saveLocally = () => {
+      const localRecord: ComparisonRecord = { id: localHistoryId(), ...recordBase };
+      const next = [localRecord, ...readLocalHistory()].slice(0, LOCAL_HISTORY_LIMIT);
+      if (!writeLocalHistory(next)) {
+        setSaveMessage(t.saveError);
+        return;
+      }
+      setHistory(next);
+      setSaveMessage(t.saved);
+    };
+
+    if (supabaseConfigured && authUser) {
+      setHistoryLoading(true);
+      try {
+        const response = await fetch("/api/history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(recordBase),
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          if (response.status === 503 && data?.configured === false) {
+            setAuthUser(null);
+            setSupabaseConfigured(false);
+            saveLocally();
+            return;
+          }
+          setSaveMessage(data?.error ?? t.saveError);
+          return;
+        }
+        if (isComparisonRecord(data?.record)) setHistory((current) => [data.record, ...current].slice(0, LOCAL_HISTORY_LIMIT));
+        setSaveMessage(t.saved);
+      } catch {
+        setSaveMessage(t.saveError);
+      } finally {
+        setHistoryLoading(false);
+      }
+      return;
+    }
+
+    if (supabaseConfigured) {
+      setSaveMessage(t.signInRequired);
+      return;
+    }
+    saveLocally();
+  };
+
+  const restoreAnalysis = (record: ComparisonRecord) => {
+    if (!isSavedAnalyzerInput(record.input)) {
+      setSaveMessage(t.invalidSavedAnalysis);
+      return;
+    }
+    applySavedInput(record.input);
+    setHistoryOpen(false);
+  };
+
+  const deleteAnalysis = async (record: ComparisonRecord) => {
+    setSaveMessage(null);
+    if (supabaseConfigured && authUser && !record.id.startsWith("local-")) {
+      setHistoryLoading(true);
+      try {
+        const response = await fetch(`/api/history?id=${encodeURIComponent(record.id)}`, { method: "DELETE" });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          if (response.status === 503 && data?.configured === false) {
+            setAuthUser(null);
+            setSupabaseConfigured(false);
+            setHistory(readLocalHistory());
+            setSaveMessage(t.localMode);
+            return;
+          }
+          setSaveMessage(data?.error ?? t.saveError);
+          return;
+        }
+      } catch {
+        setSaveMessage(t.saveError);
+        return;
+      } finally {
+        setHistoryLoading(false);
+      }
+    }
+    const next = history.filter((item) => item.id !== record.id);
+    if (!supabaseConfigured && !writeLocalHistory(next)) {
+      setSaveMessage(t.saveError);
+      return;
+    }
+    setHistory(next);
+    setSaveMessage(t.deleted);
+  };
 
   const removeScenario = (id: string) => {
     if (scenarios.length <= 2) return;
@@ -411,7 +660,7 @@ export function OfferAnalyzer() {
       <header className="site-header oa-header">
         <Link className="brand" href="/" aria-label="Life Atlas"><span className="brand-mark" aria-hidden="true">✦</span><span>Life Atlas</span></Link>
         <nav className="desktop-nav" aria-label={language === "ja" ? "Offer Analyzerメニュー" : "Offer Analyzer navigation"}>
-          <a href="#offers">{t.scenarios}</a><a href="#result">{t.result}</a><a href="#what-if">What-If</a><a href="#break-even">Break-even</a>
+          <a href="#offers">{t.scenarios}</a><a href="#result">{t.result}</a><a href="#what-if">What-If</a><a href="#break-even">Break-even</a><a href="#save">{language === "ja" ? "保存" : "Save"}</a>
         </nav>
         <div className="header-actions"><Link className="oa-back-link" href="/">← {t.back}</Link><button className="language-button" type="button" onClick={() => setLanguage((current) => current === "ja" ? "en" : "ja")}>{t.language}</button><button className="theme-button" type="button" onClick={() => setDarkMode((current) => !current)}>{t.theme}</button></div>
       </header>
@@ -480,6 +729,32 @@ export function OfferAnalyzer() {
         <section id="break-even" className="oa-section oa-break-even-section">
           <div className="oa-section-heading"><div><p className="eyebrow">05 / BREAK-EVEN</p><h2>{t.breakEven}</h2></div><p>{t.breakEvenNote}</p></div>
           <div className="oa-break-even-grid"><label>{t.candidate}<select value={activeBreakEvenCandidateId} onChange={(event) => setBreakEvenCandidateId(event.target.value)}>{candidateOptions.map((scenario) => <option value={scenario.id} key={scenario.id}>{cityName(cities[scenario.cityId], language)}</option>)}</select></label><label>{t.metric}<select value={breakEvenMetric} onChange={(event) => setBreakEvenMetric(event.target.value as BreakEvenMetric)}><option value="disposableIncome">{t.metricIncome}</option><option value="savingsRate">{t.metricSavings}</option><option value="lifeAtlasScore">{t.metricScore}</option></select></label><div className="oa-break-even-result"><span>{t.requiredSalary}</span><strong>{breakEven?.status === "matched" ? formatMoney(breakEven.requiredAnnualSalary, breakEven.salaryCurrency, language) : "—"}</strong><small>{breakEven?.status === "unreachable" ? t.unreachable : breakEven?.status === "calculation-unavailable" ? t.calculationUnavailable : `${cityName(winnerCity, language)} · ${breakEvenMetric === "disposableIncome" ? t.metricIncome : breakEvenMetric === "savingsRate" ? t.metricSavings : t.metricScore}`}</small></div></div>
+        </section>
+
+        <section id="save" className="oa-section oa-save-section">
+          <div className="oa-section-heading"><div><p className="eyebrow">06 / SAVE</p><h2>{t.saveTitle}</h2></div><p>{t.saveNote}</p></div>
+          <div className="oa-save-toolbar">
+            <div className="oa-save-status">
+              <span>{supabaseConfigured ? t.cloudMode : t.localMode}</span>
+              <strong>{authUser ? `${t.signedInAs}: ${authUser.email ?? authUser.id}` : supabaseConfigured ? t.signInRequired : t.localMode}</strong>
+            </div>
+            <div className="oa-save-actions">
+              <button className="primary-button" type="button" onClick={() => void saveCurrentAnalysis()} disabled={historyLoading}>{historyLoading ? t.loading : t.saveAnalysis}</button>
+              <button className="secondary-button" type="button" onClick={() => { setHistoryOpen((open) => !open); if (supabaseConfigured && authUser) void loadCloudHistory(); }}>{t.savedAnalyses}</button>
+            </div>
+          </div>
+          {supabaseConfigured && !authUser && <p className="oa-save-signin">{t.signInRequired} <Link href="/#account">{t.signInLink} →</Link></p>}
+          {saveMessage && <p className="oa-save-message" role="status" aria-live="polite">{saveMessage}</p>}
+          {historyOpen && (
+            <div className="oa-saved-list">
+              {analyzerHistory.length === 0 ? <p>{t.noSavedAnalyses}</p> : analyzerHistory.map((record) => (
+                <article className="oa-saved-item" key={record.id}>
+                  <div><strong>{record.title}</strong><small>{new Date(record.created_at).toLocaleString(language === "ja" ? "ja-JP" : "en-US")}</small></div>
+                  <div className="oa-saved-item-actions"><button className="secondary-button" type="button" onClick={() => restoreAnalysis(record)}>{t.restore}</button><button className="text-button" type="button" onClick={() => void deleteAnalysis(record)} disabled={historyLoading}>{t.delete}</button></div>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         <aside className="oa-disclaimer" role="note"><strong>{language === "ja" ? "重要な前提" : "Important assumptions"}</strong><p>{t.disclaimer}</p></aside>

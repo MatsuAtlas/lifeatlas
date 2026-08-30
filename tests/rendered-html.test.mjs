@@ -102,6 +102,9 @@ test("renders the Offer Analyzer as a separate deterministic decision flow", asy
   assert.match(html, /AIに数字を作らせず/);
   assert.match(html, /What-If シミュレーター/);
   assert.match(html, /逆転に必要な給与/);
+  assert.match(html, /分析を保存する/);
+  assert.match(html, /Supabase未設定の環境では、この端末だけに最大50件保存します/);
+  assert.match(html, /href="\/#account"/);
   assert.match(html, /税務・金融・移住助言ではありません/);
 });
 
