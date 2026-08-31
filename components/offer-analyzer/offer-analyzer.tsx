@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { cities, cityOrder } from "../../data/cities";
 import { DEFAULT_PRIORITIES } from "../../lib/scoring/life-atlas-score";
+import { trackProductEvent, trackProductEventOnce } from "../../lib/analytics/client";
 import { simulateWhatIf } from "../../lib/calculations/what-if";
 import { validateAIRecommendation } from "../../lib/ai/recommendation";
 import { canCreateScenario, FREE_ENTITLEMENTS } from "../../lib/billing/entitlements";
@@ -200,6 +201,14 @@ const copy = {
     invalidSavedAnalysis: "保存内容を確認できませんでした。",
     saveError: "保存履歴を処理できませんでした。",
     loading: "処理中…",
+    shareTitle: "結果を公開共有する",
+    shareNote: "Proでは、氏名・メール・年齢・世帯・カスタム支出を含まない公開スナップショットを作成できます。",
+    createShare: "公開リンクを作成",
+    creatingShare: "公開リンクを作成中…",
+    copyShare: "リンクをコピー",
+    shareCreated: "公開リンクを作成しました。",
+    shareCopied: "公開リンクをコピーしました。",
+    shareError: "公開リンクを作成できませんでした。",
     aiTitle: "AIに結果を説明してもらう",
     aiNote: "順位・金額はLifeAtlasの計算結果を固定したまま、AIが理由・トレードオフ・不確実性を読みやすく整理します。",
     generateAI: "構造化AI説明を生成",
@@ -320,6 +329,14 @@ const copy = {
     invalidSavedAnalysis: "This saved analysis could not be verified.",
     saveError: "Saved analyses could not be processed.",
     loading: "Working…",
+    shareTitle: "Share a public result",
+    shareNote: "Pro creates a public snapshot without your name, email, age, household or custom spending.",
+    createShare: "Create public link",
+    creatingShare: "Creating public link…",
+    copyShare: "Copy link",
+    shareCreated: "Public link created.",
+    shareCopied: "Public link copied.",
+    shareError: "The public link could not be created.",
     aiTitle: "Ask AI to explain the result",
     aiNote: "LifeAtlas keeps every rank and number fixed while AI organizes the reasons, trade-offs and uncertainty into plain language.",
     generateAI: "Generate structured AI explanation",
@@ -434,6 +451,8 @@ export function OfferAnalyzer() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [supabaseConfigured, setSupabaseConfigured] = useState(true);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [aiGeneration, setAiGeneration] = useState<RecommendationGeneration | null>(null);
   const [aiGenerationLanguage, setAiGenerationLanguage] = useState<Language | null>(null);
   const [aiAnalysisSignature, setAiAnalysisSignature] = useState<string | null>(null);
@@ -442,6 +461,21 @@ export function OfferAnalyzer() {
   const [followUpQuestion, setFollowUpQuestion] = useState("");
   const t = copy[language];
   const activeEntitlements = authUser ? entitlements : FREE_ENTITLEMENTS;
+
+  useEffect(() => {
+    trackProductEventOnce("analyzer_started");
+    trackProductEventOnce("first_scenario_created", { source: "default" });
+    trackProductEventOnce("second_scenario_created", { source: "default" });
+    const result = document.getElementById("result");
+    if (!result || !("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      trackProductEventOnce("analysis_completed");
+      observer.disconnect();
+    }, { threshold: 0.25 });
+    observer.observe(result);
+    return () => observer.disconnect();
+  }, []);
 
   const loadCloudHistory = useCallback(async () => {
     if (!supabaseConfigured) return;
@@ -611,6 +645,7 @@ export function OfferAnalyzer() {
       }
       setHistory(next);
       setSaveMessage(t.saved);
+      trackProductEvent("saved_comparison", { storage: "device", scenarios: scenarios.length });
     };
 
     if (supabaseConfigured && authUser) {
@@ -634,6 +669,7 @@ export function OfferAnalyzer() {
         }
         if (isComparisonRecord(data?.record)) setHistory((current) => [data.record, ...current].slice(0, LOCAL_HISTORY_LIMIT));
         setSaveMessage(t.saved);
+        trackProductEvent("saved_comparison", { storage: "account", scenarios: scenarios.length });
       } catch {
         setSaveMessage(t.saveError);
       } finally {
@@ -683,6 +719,7 @@ export function OfferAnalyzer() {
       setAiGenerationLanguage(language);
       setAiAnalysisSignature(currentAnalysisSignature);
       setFollowUpQuestion("");
+      trackProductEvent("ai_recommendation_viewed", { cached: data.generation.cached, followUp: Boolean(question) });
     } catch {
       setAiError(t.aiError);
     } finally {
@@ -737,6 +774,41 @@ export function OfferAnalyzer() {
     if (scenarios.length <= 2) return;
     setScenarios((current) => current.filter((scenario) => scenario.id !== id));
     if (whatIfScenarioId === id) setWhatIfScenarioId(scenarios.find((scenario) => scenario.id !== id)?.id ?? scenarios[0].id);
+  };
+
+  const createShare = async () => {
+    if (shareLoading) return;
+    trackProductEvent("share_clicked", { action: "create", scenarios: scenarios.length });
+    setShareLoading(true);
+    setShareUrl(null);
+    setSaveMessage(null);
+    try {
+      const response = await fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language, analysis: currentAnalysis }),
+      });
+      const data: unknown = await response.json().catch(() => null);
+      const path = data && typeof data === "object" && !Array.isArray(data) ? (data as { path?: unknown }).path : null;
+      if (!response.ok || typeof path !== "string" || !/^\/share\/[A-Za-z0-9_-]{16}$/.test(path)) throw new Error("SHARE_CREATE_FAILED");
+      setShareUrl(`${window.location.origin}${path}`);
+      setSaveMessage(t.shareCreated);
+    } catch {
+      setSaveMessage(t.shareError);
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const copyShare = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setSaveMessage(t.shareCopied);
+      trackProductEvent("share_clicked", { action: "copy" });
+    } catch {
+      setSaveMessage(t.shareError);
+    }
   };
 
   const renderResultCard = (score: ScenarioScore) => {
@@ -889,6 +961,10 @@ export function OfferAnalyzer() {
               ))}
             </div>
           )}
+          <div id="share" className="oa-share-panel">
+            <div><strong>{t.shareTitle}</strong><p>{t.shareNote}</p></div>
+            {activeEntitlements.canShareResults ? <div className="oa-share-actions"><button className="secondary-button" type="button" onClick={() => void createShare()} disabled={shareLoading || !authUser}>{shareLoading ? t.creatingShare : t.createShare}</button>{shareUrl && <><input aria-label={t.shareTitle} readOnly value={shareUrl} /><button className="text-button" type="button" onClick={() => void copyShare()}>{t.copyShare}</button></>}</div> : <p className="oa-pro-note">{t.proRequired} <Link href="/pricing">{t.upgrade} →</Link></p>}
+          </div>
         </section>
 
         <section id="ai" className="oa-section oa-ai-section" aria-busy={aiLoading}>

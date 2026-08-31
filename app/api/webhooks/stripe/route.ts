@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
+import { recordProductEvent } from "../../../../lib/analytics/server";
 import { getStripeClient, getStripeWebhookSecret, isStripeWebhookConfigured } from "../../../../lib/billing/stripe-server";
 import { supabaseAdminRestRequest } from "../../../../lib/supabase-server";
 
@@ -79,10 +80,35 @@ export async function POST(request: Request) {
       const session = event.data.object as Stripe.Checkout.Session;
       const subscriptionId = objectId(session.subscription);
       if (session.mode === "subscription" && subscriptionId) {
-        await syncSubscription(await getStripeClient().subscriptions.retrieve(subscriptionId), event.created);
+        const subscription = await getStripeClient().subscriptions.retrieve(subscriptionId);
+        await syncSubscription(subscription, event.created);
+        const userId = subscription.metadata.lifeatlas_user_id;
+        const interval = subscription.items.data[0]?.price.recurring?.interval;
+        if (UUID_PATTERN.test(userId)) {
+          try {
+            await recordProductEvent({
+              eventName: "subscription_completed",
+              userId,
+              pathname: "/pricing",
+              properties: { interval: interval === "year" ? "year" : "month" },
+              sourceEventId: `stripe:${event.id}`,
+            });
+          } catch (analyticsError) {
+            console.error(JSON.stringify({ event: "subscription_analytics_failed", stripeEventId: event.id, errorName: analyticsError instanceof Error ? analyticsError.name : "UnknownError" }));
+          }
+        }
       }
     } else {
-      await syncSubscription(event.data.object as Stripe.Subscription, event.created);
+      const subscription = event.data.object as Stripe.Subscription;
+      await syncSubscription(subscription, event.created);
+      const userId = subscription.metadata.lifeatlas_user_id;
+      if (event.type === "customer.subscription.deleted" && UUID_PATTERN.test(userId)) {
+        try {
+          await recordProductEvent({ eventName: "subscription_canceled", userId, pathname: "/account", sourceEventId: `stripe:${event.id}` });
+        } catch (analyticsError) {
+          console.error(JSON.stringify({ event: "churn_analytics_failed", stripeEventId: event.id, errorName: analyticsError instanceof Error ? analyticsError.name : "UnknownError" }));
+        }
+      }
     }
     return NextResponse.json({ received: true });
   } catch (error) {

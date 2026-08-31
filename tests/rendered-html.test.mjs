@@ -128,6 +128,66 @@ test("renders configurable Free and Pro pricing plus a private account page", as
   assert.match(await account.text(), /アカウントと契約/);
 });
 
+test("renders high-quality city and curated comparison SEO pages", async () => {
+  const city = await fetch(`${baseUrl}/cities/tokyo`);
+  assert.equal(city.status, 200);
+  const cityHtml = await city.text();
+  assert.match(cityHtml, /東京で暮らす数字を、先に見る/);
+  assert.match(cityHtml, /給与と生活費の基準シナリオ/);
+  assert.match(cityHtml, /データ信頼度/);
+  assert.match(cityHtml, /出典と更新範囲/);
+
+  const englishCity = await fetch(`${baseUrl}/cities/tokyo?lang=en`);
+  assert.equal(englishCity.status, 200);
+  assert.match(await englishCity.text(), /See the numbers behind living in Tokyo/);
+
+  const comparison = await fetch(`${baseUrl}/compare/tokyo-vs-vancouver`);
+  assert.equal(comparison.status, 200);
+  const comparisonHtml = await comparison.text();
+  assert.match(comparisonHtml, /東京/);
+  assert.match(comparisonHtml, /バンクーバー/);
+  assert.match(comparisonHtml, /LifeAtlas Scoreは財務45%/);
+
+  const thinPage = await fetch(`${baseUrl}/compare/tokyo-vs-paris`);
+  assert.equal(thinPage.status, 404);
+});
+
+test("publishes sitemap coverage without indexing account or API routes", async () => {
+  const sitemap = await fetch(`${baseUrl}/sitemap.xml`);
+  assert.equal(sitemap.status, 200);
+  const sitemapXml = await sitemap.text();
+  assert.match(sitemapXml, /\/cities\/tokyo/);
+  assert.match(sitemapXml, /\/cities\/bogota/);
+  assert.match(sitemapXml, /\/compare\/tokyo-vs-vancouver/);
+  assert.doesNotMatch(sitemapXml, /\/account/);
+
+  const robots = await fetch(`${baseUrl}/robots.txt`);
+  assert.equal(robots.status, 200);
+  const robotsText = await robots.text();
+  assert.match(robotsText, /Disallow: \/account/);
+  assert.match(robotsText, /Disallow: \/api\//);
+});
+
+test("keeps analytics and public sharing safe when services are unconfigured", async () => {
+  const analytics = await fetch(`${baseUrl}/api/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event: "analyzer_started", anonymousId: "d65df160-2af9-47ce-9508-f81399bc01c0", pathname: "/analyze", properties: {} }),
+  });
+  assert.equal(analytics.status, 202);
+  assert.deepEqual(await analytics.json(), { accepted: false, configured: false });
+
+  const invalidShare = await fetch(`${baseUrl}/api/share`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "https://attacker.invalid" },
+    body: "{}",
+  });
+  assert.equal(invalidShare.status, 403);
+
+  const missingShare = await fetch(`${baseUrl}/share/1234567890abcdef`);
+  assert.equal(missingShare.status, 404);
+});
+
 test("reports transparent official-data coverage for all comparison cities", async () => {
   const response = await fetch(`${baseUrl}/api/data-refresh`);
   assert.equal(response.status, 200);

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { trackProductEvent, trackProductEventOnce } from "../../lib/analytics/client";
 import { PUBLIC_BILLING_PLANS } from "../../lib/billing/plans";
 import type { BillingInterval } from "../../types/billing";
 
@@ -68,6 +69,7 @@ export function PricingClient({ canceled = false }: { canceled?: boolean }) {
   const t = copy[language];
 
   useEffect(() => {
+    trackProductEventOnce("pricing_viewed");
     let active = true;
     void fetch("/api/auth/me", { cache: "no-store" })
       .then((response) => {
@@ -80,6 +82,7 @@ export function PricingClient({ canceled = false }: { canceled?: boolean }) {
   }, []);
 
   async function startCheckout(interval: BillingInterval) {
+    trackProductEvent("upgrade_clicked", { interval });
     setMessage("");
     setLoadingInterval(interval);
     try {

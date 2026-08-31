@@ -4,6 +4,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import Link from "next/link";
 import { cities, cityOrder } from "../data/cities";
 import { FALLBACK_FX_TO_JPY } from "../data/currencies";
+import { trackProductEvent } from "../lib/analytics/client";
 import { isComparisonRecord, isSavedAnalyzerInput, LOCAL_HISTORY_LIMIT, localHistoryId, queueAnalyzerRestore, readLocalHistory, writeLocalHistory } from "../lib/comparison-history";
 import type { City, CityId, CurrencyCode, DataSource } from "../types/city";
 import type { ComparisonRecord as HistoryRecord } from "../types/comparison";
@@ -1057,7 +1058,7 @@ export default function Home() {
           <span>Life Atlas</span>
         </a>
         <nav className="desktop-nav" aria-label={language === "ja" ? "主要メニュー" : "Main menu"}>
-          <Link href="/analyze">Offer Analyzer</Link>
+          <Link href="/analyze" onClick={() => trackProductEvent("landing_to_analyzer", { placement: "navigation" })}>Offer Analyzer</Link>
           <Link href="/pricing">Pricing</Link>
           <a href="#compare">{t.navCompare}</a>
           <a href="#recommendations">{language === "ja" ? "おすすめ" : "Matches"}</a>
@@ -1083,7 +1084,7 @@ export default function Home() {
               <span>{t.pillCities}</span><span>{t.pillCurrencies}</span><span>{t.pillDeductions}</span>
             </div>
             <div className="hero-cta-row">
-              <Link className="hero-cta" href="/analyze">{language === "ja" ? "オファーを比較する" : "Compare my offers"}<span>→</span></Link>
+              <Link className="hero-cta" href="/analyze" onClick={() => trackProductEvent("landing_to_analyzer", { placement: "hero" })}>{language === "ja" ? "オファーを比較する" : "Compare my offers"}<span>→</span></Link>
               <a className="hero-secondary-cta" href="#compare">{language === "ja" ? "都市を比較する" : "Explore cities"}</a>
             </div>
           </div>

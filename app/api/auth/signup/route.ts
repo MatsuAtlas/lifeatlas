@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordProductEvent } from "../../../../lib/analytics/server";
 import { isSupabaseNotConfiguredError, setSessionCookies, supabaseAuthRequest } from "../../../../lib/supabase-server";
 
 const MAX_BODY_LENGTH = 4_096;
@@ -31,6 +32,13 @@ export async function POST(request: Request) {
 
     const output = NextResponse.json({ user: data.user ? { id: data.user.id, email: data.user.email } : null, needsEmailConfirmation: !data.access_token });
     if (data.access_token) setSessionCookies(output, data);
+    if (typeof data.user?.id === "string") {
+      try {
+        await recordProductEvent({ eventName: "signup_completed", userId: data.user.id, pathname: "/" });
+      } catch (analyticsError) {
+        console.error(JSON.stringify({ event: "signup_analytics_failed", errorName: analyticsError instanceof Error ? analyticsError.name : "UnknownError" }));
+      }
+    }
     return output;
   } catch (error) {
     if (isSupabaseNotConfiguredError(error)) return NextResponse.json({ error: "Supabaseの接続設定がまだありません。", configured: false }, { status: 503 });
