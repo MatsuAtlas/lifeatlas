@@ -433,7 +433,7 @@ function makeScenario(index: number): ScenarioInput {
   };
 }
 
-export function OfferAnalyzer() {
+export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } = {}) {
   const [language, setLanguage] = useState<Language>("ja");
   const [darkMode, setDarkMode] = useState(true);
   const [scenarios, setScenarios] = useState<ScenarioInput[]>(initialScenarios);
@@ -593,8 +593,8 @@ export function OfferAnalyzer() {
   const currentAnalysisSignature = JSON.stringify(currentAnalysis);
   const visibleAIGeneration = aiGenerationLanguage === language && aiAnalysisSignature === currentAnalysisSignature ? aiGeneration : null;
 
-  const applySavedInput = useCallback((saved: SavedAnalyzerInput) => {
-    if (saved.scenarios.length > activeEntitlements.maxScenarios) {
+  const applySavedInput = useCallback((saved: SavedAnalyzerInput, maxScenarios = activeEntitlements.maxScenarios) => {
+    if (saved.scenarios.length > maxScenarios) {
       setSaveMessage(t.scenarioLimit);
       return;
     }
@@ -616,6 +616,29 @@ export function OfferAnalyzer() {
     const frame = requestAnimationFrame(() => applySavedInput(queued.input as SavedAnalyzerInput));
     return () => cancelAnimationFrame(frame);
   }, [applySavedInput]);
+
+  useEffect(() => {
+    if (!initialRecordId) return;
+    let active = true;
+    void Promise.all([
+      fetch(`/api/history?id=${encodeURIComponent(initialRecordId)}`, { cache: "no-store" }),
+      fetch("/api/billing/status", { cache: "no-store" }),
+    ]).then(async ([historyResponse, billingResponse]) => {
+      const historyData = await historyResponse.json().catch(() => null);
+      const billingData = await billingResponse.json().catch(() => null);
+      if (!active) return;
+      const record = historyData?.record;
+      if (!historyResponse.ok || !isComparisonRecord(record) || !isSavedAnalyzerInput(record.input)) {
+        setSaveMessage(t.invalidSavedAnalysis);
+        return;
+      }
+      const maxScenarios = billingResponse.ok && typeof billingData?.entitlements?.maxScenarios === "number"
+        ? billingData.entitlements.maxScenarios
+        : FREE_ENTITLEMENTS.maxScenarios;
+      applySavedInput(record.input, maxScenarios);
+    }).catch(() => { if (active) setSaveMessage(t.saveError); });
+    return () => { active = false; };
+  }, [applySavedInput, initialRecordId, t.invalidSavedAnalysis, t.saveError]);
 
   const saveCurrentAnalysis = async () => {
     if (historyLoading) return;

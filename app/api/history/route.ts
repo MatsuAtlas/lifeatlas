@@ -9,7 +9,7 @@ import { isSavedAnalyzerInput } from "../../../lib/comparison-history";
 
 export const dynamic = "force-dynamic";
 
-const HISTORY_COLUMNS = "id,title,origin_city,destination_city,input,result,created_at";
+const HISTORY_COLUMNS = "id,title,origin_city,destination_city,input,result,created_at,updated_at";
 const HISTORY_LIMIT = 50;
 const MAX_BODY_LENGTH = 64_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -59,13 +59,16 @@ function unavailableResponse(error: unknown) {
   return NextResponse.json({ error: "比較履歴を処理できませんでした。" }, { status: 500 });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const current = await requireUser();
     if (!current) return NextResponse.json({ error: "ログインしてください。" }, { status: 401 });
     if (!UUID_PATTERN.test(current.user.id)) return NextResponse.json({ error: "ユーザー情報を確認できませんでした。" }, { status: 401 });
 
-    const query = `comparison_history?select=${HISTORY_COLUMNS}&user_id=eq.${encodeURIComponent(current.user.id)}&order=created_at.desc&limit=${HISTORY_LIMIT}`;
+    const requestedId = new URL(request.url).searchParams.get("id");
+    if (requestedId && !UUID_PATTERN.test(requestedId)) return NextResponse.json({ error: "履歴IDが正しくありません。" }, { status: 400 });
+    const idFilter = requestedId ? `&id=eq.${encodeURIComponent(requestedId)}` : "";
+    const query = `comparison_history?select=${HISTORY_COLUMNS}&user_id=eq.${encodeURIComponent(current.user.id)}${idFilter}&order=created_at.desc&limit=${requestedId ? 1 : HISTORY_LIMIT}`;
     const response = await supabaseRestRequest(query, {}, current.accessToken);
     if (!response.ok) {
       return NextResponse.json(
@@ -75,7 +78,8 @@ export async function GET() {
     }
 
     const history = await response.json();
-    return NextResponse.json({ history: Array.isArray(history) ? history : [] });
+    const records = Array.isArray(history) ? history : [];
+    return requestedId ? NextResponse.json({ record: records[0] ?? null }) : NextResponse.json({ history: records });
   } catch (error) {
     return unavailableResponse(error);
   }
@@ -142,6 +146,47 @@ export async function POST(request: Request) {
     const record = Array.isArray(records) ? records[0] : null;
     if (!record) return NextResponse.json({ error: "保存結果を確認できませんでした。" }, { status: 502 });
     return NextResponse.json({ record }, { status: 201 });
+  } catch (error) {
+    return unavailableResponse(error);
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const origin = request.headers.get("origin");
+    if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "許可されていない送信元です。" }, { status: 403 });
+    if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return NextResponse.json({ error: "更新内容の形式が正しくありません。" }, { status: 415 });
+    const current = await requireUser();
+    if (!current || !UUID_PATTERN.test(current.user.id)) return NextResponse.json({ error: "ログインしてください。" }, { status: 401 });
+    const id = new URL(request.url).searchParams.get("id");
+    if (!id || !UUID_PATTERN.test(id)) return NextResponse.json({ error: "履歴IDが正しくありません。" }, { status: 400 });
+
+    const text = await request.text();
+    if (text.length > MAX_BODY_LENGTH) return NextResponse.json({ error: "更新内容が大きすぎます。" }, { status: 413 });
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return NextResponse.json({ error: "更新内容の形式が正しくありません。" }, { status: 400 });
+    }
+    if (!isObject(parsed) || typeof parsed.title !== "string" || parsed.title.trim().length === 0 || parsed.title.trim().length > 120) {
+      return NextResponse.json({ error: "タイトルは1〜120文字で入力してください。" }, { status: 400 });
+    }
+
+    const response = await supabaseRestRequest(
+      `comparison_history?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(current.user.id)}&select=${HISTORY_COLUMNS}`,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ title: parsed.title.trim(), updated_at: new Date().toISOString() }),
+      },
+      current.accessToken,
+    );
+    if (!response.ok) return NextResponse.json({ error: "比較名を更新できませんでした。" }, { status: 502 });
+    const records = await response.json();
+    const record = Array.isArray(records) ? records[0] : null;
+    if (!record) return NextResponse.json({ error: "対象の比較が見つかりません。" }, { status: 404 });
+    return NextResponse.json({ record });
   } catch (error) {
     return unavailableResponse(error);
   }

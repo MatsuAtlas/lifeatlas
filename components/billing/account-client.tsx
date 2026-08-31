@@ -55,7 +55,7 @@ export function AccountClient({ checkoutReturned = false }: { checkoutReturned?:
 
   return (
     <main className="billing-page">
-      <header className="billing-header"><Link href="/">✦ Life Atlas</Link><div><Link href="/analyze">Offer Analyzer</Link><Link href="/pricing">Pricing</Link><button type="button" onClick={() => setLanguage((value) => value === "ja" ? "en" : "ja")}>{ja ? "English" : "日本語"}</button></div></header>
+      <header className="billing-header"><Link href="/">✦ Life Atlas</Link><div><Link href="/analyze">Offer Analyzer</Link><Link href="/dashboard">Dashboard</Link><Link href="/pricing">Pricing</Link><button type="button" onClick={() => setLanguage((value) => value === "ja" ? "en" : "ja")}>{ja ? "English" : "日本語"}</button></div></header>
       <section className="billing-hero account-hero">
         <p className="eyebrow">LIFEATLAS ACCOUNT</p>
         <h1>{ja ? "アカウントと契約" : "Account and billing"}</h1>
@@ -73,6 +73,7 @@ export function AccountClient({ checkoutReturned = false }: { checkoutReturned?:
           <div className="account-actions">
             {billing?.subscription.tier === "pro" ? <button className="primary-button" type="button" onClick={() => void openPortal()} disabled={loading}>{ja ? "契約を管理" : "Manage subscription"}</button> : <Link className="primary-button" href="/pricing">{ja ? "Proを見る" : "View Pro"}</Link>}
             <Link className="secondary-button" href="/analyze">Offer Analyzer</Link>
+            <Link className="secondary-button" href="/dashboard">Dashboard</Link>
           </div>
           {message && <p className="billing-error" role="alert">{message}</p>}
         </>}

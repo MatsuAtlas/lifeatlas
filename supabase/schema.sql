@@ -6,8 +6,12 @@ create table if not exists public.comparison_history (
   destination_city text not null,
   input jsonb not null,
   result jsonb not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
+
+alter table public.comparison_history
+  add column if not exists updated_at timestamptz not null default now();
 
 do $$
 begin
@@ -40,6 +44,7 @@ revoke all on table public.comparison_history from authenticated;
 grant select, delete on table public.comparison_history to authenticated;
 grant insert (user_id, title, origin_city, destination_city, input, result)
   on table public.comparison_history to authenticated;
+grant update (title, updated_at) on table public.comparison_history to authenticated;
 
 drop policy if exists "Users can read their own comparison history" on public.comparison_history;
 create policy "Users can read their own comparison history"
@@ -55,6 +60,12 @@ drop policy if exists "Users can delete their own comparison history" on public.
 create policy "Users can delete their own comparison history"
   on public.comparison_history for delete to authenticated
   using (auth.uid() = user_id);
+
+drop policy if exists "Users can rename their own comparison history" on public.comparison_history;
+create policy "Users can rename their own comparison history"
+  on public.comparison_history for update to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 create table if not exists public.ai_recommendations (
   id uuid primary key default gen_random_uuid(),

@@ -113,7 +113,7 @@ test("renders the Offer Analyzer as a separate deterministic decision flow", asy
   assert.match(html, /href="\/pricing"/);
 });
 
-test("renders configurable Free and Pro pricing plus a private account page", async () => {
+test("renders configurable pricing plus private account and dashboard pages", async () => {
   const pricing = await fetch(`${baseUrl}/pricing`);
   assert.equal(pricing.status, 200);
   const pricingHtml = await pricing.text();
@@ -126,6 +126,16 @@ test("renders configurable Free and Pro pricing plus a private account page", as
   const account = await fetch(`${baseUrl}/account`);
   assert.equal(account.status, 200);
   assert.match(await account.text(), /アカウントと契約/);
+
+  const dashboard = await fetch(`${baseUrl}/dashboard`);
+  assert.equal(dashboard.status, 200);
+  const dashboardHtml = await dashboard.text();
+  assert.match(dashboardHtml, /保存した意思決定/);
+  assert.match(dashboardHtml, /name="robots" content="noindex, nofollow"/);
+
+  const savedAnalysis = await fetch(`${baseUrl}/analyze/62af15f9-5704-4aad-ae7c-b0861bf28334`);
+  assert.equal(savedAnalysis.status, 200);
+  assert.match(await savedAnalysis.text(), /name="robots" content="noindex, nofollow"/);
 });
 
 test("renders high-quality city and curated comparison SEO pages", async () => {
@@ -183,6 +193,13 @@ test("keeps analytics and public sharing safe when services are unconfigured", a
     body: "{}",
   });
   assert.equal(invalidShare.status, 403);
+
+  const invalidRename = await fetch(`${baseUrl}/api/history?id=62af15f9-5704-4aad-ae7c-b0861bf28334`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Origin: "https://attacker.invalid" },
+    body: JSON.stringify({ title: "Changed" }),
+  });
+  assert.equal(invalidRename.status, 403);
 
   const missingShare = await fetch(`${baseUrl}/share/1234567890abcdef`);
   assert.equal(missingShare.status, 404);

@@ -10,6 +10,7 @@ export type ComparisonRecord = {
   input: Record<string, unknown>;
   result: Record<string, unknown>;
   created_at: string;
+  updated_at?: string;
 };
 
 export type SavedAnalyzerInput = {
