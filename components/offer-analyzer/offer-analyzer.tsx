@@ -7,6 +7,7 @@ import { cities, cityOrder } from "../../data/cities";
 import { DEFAULT_PRIORITIES } from "../../lib/scoring/life-atlas-score";
 import { trackProductEvent, trackProductEventOnce } from "../../lib/analytics/client";
 import { simulateWhatIf } from "../../lib/calculations/what-if";
+import { isUserProfile } from "../../lib/user-profile";
 import { validateAIRecommendation } from "../../lib/ai/recommendation";
 import { canCreateScenario, FREE_ENTITLEMENTS } from "../../lib/billing/entitlements";
 import {
@@ -25,6 +26,7 @@ import type { RecommendationGeneration } from "../../types/ai";
 import type { BillingStatusResponse, Entitlements } from "../../types/billing";
 import type { ComparisonRecord, SavedAnalyzerInput, SavedAnalyzerResult } from "../../types/comparison";
 import type { HousingType, LifestyleType } from "../../types/finance";
+import type { UserProfile } from "../../types/profile";
 import type { PriorityKey, ScenarioHousehold, ScenarioInput, ScenarioResult, ScenarioScore, UserPriorities } from "../../types/scenario";
 import type { WhatIfChange } from "../../types/what-if";
 
@@ -136,6 +138,9 @@ const copy = {
     savingsTarget: "貯蓄目標（任意）",
     priorities: "何を重視しますか？",
     prioritiesNote: "0は評価に使わず、5は最重要です。未整備の気候データなどはスコアに捏造せず、評価対象外として表示します。",
+    applyProfile: "保存プロフィールを適用",
+    profileApplied: "保存プロフィールの世帯条件・現在都市・優先軸を適用しました。",
+    setProfile: "プロフィールを設定",
     result: "決定結果",
     bestFit: "最適候補",
     score: "LifeAtlas Score",
@@ -264,6 +269,9 @@ const copy = {
     savingsTarget: "Savings target (optional)",
     priorities: "What matters most?",
     prioritiesNote: "Zero excludes a priority; five makes it critical. Missing climate or other source data is shown as omitted rather than fabricated.",
+    applyProfile: "Apply saved profile",
+    profileApplied: "Saved household details, current city and priorities applied.",
+    setProfile: "Set up profile",
     result: "Decision result",
     bestFit: "Best fit",
     score: "LifeAtlas Score",
@@ -446,6 +454,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
   const [breakEvenMetric, setBreakEvenMetric] = useState<BreakEvenMetric>("disposableIncome");
   const [authUser, setAuthUser] = useState<{ id: string; email?: string } | null>(null);
   const [entitlements, setEntitlements] = useState<Entitlements>({ ...FREE_ENTITLEMENTS });
+  const [profileDefaults, setProfileDefaults] = useState<UserProfile | null>(null);
   const [history, setHistory] = useState<ComparisonRecord[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -526,6 +535,12 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
             .then(async (billingResponse) => ({ billingResponse, billingData: await billingResponse.json().catch(() => null) }))
             .then(({ billingResponse, billingData }) => {
               if (billingResponse.ok && billingData?.entitlements) setEntitlements((billingData as BillingStatusResponse).entitlements);
+            })
+            .catch(() => undefined);
+          void fetch("/api/profile", { cache: "no-store" })
+            .then(async (profileResponse) => ({ profileResponse, profileData: await profileResponse.json().catch(() => null) }))
+            .then(({ profileResponse, profileData }) => {
+              if (profileResponse.ok && isUserProfile(profileData?.profile)) setProfileDefaults(profileData.profile);
             })
             .catch(() => undefined);
           void loadCloudHistory();
@@ -799,6 +814,27 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
     if (whatIfScenarioId === id) setWhatIfScenarioId(scenarios.find((scenario) => scenario.id !== id)?.id ?? scenarios[0].id);
   };
 
+  const applyProfileDefaults = () => {
+    if (!profileDefaults) return;
+    const currentCity = cities[profileDefaults.currentCity];
+    setScenarios((current) => current.map((scenario, index) => index === 0 ? {
+      ...scenario,
+      cityId: profileDefaults.currentCity,
+      annualSalary: currentCity.averageAnnualIncome,
+      salaryCurrency: currentCity.currency,
+      age: profileDefaults.age,
+      householdType: profileDefaults.householdType,
+      children: profileDefaults.children,
+    } : {
+      ...scenario,
+      age: profileDefaults.age,
+      householdType: profileDefaults.householdType,
+      children: profileDefaults.children,
+    }));
+    setPriorities({ ...profileDefaults.priorities });
+    setSaveMessage(t.profileApplied);
+  };
+
   const createShare = async () => {
     if (shareLoading) return;
     trackProductEvent("share_clicked", { action: "create", scenarios: scenarios.length });
@@ -930,6 +966,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
 
         <section className="oa-section oa-priority-section">
           <div className="oa-section-heading"><div><p className="eyebrow">02 / PRIORITIES</p><h2>{t.priorities}</h2></div><p>{t.prioritiesNote}</p></div>
+          {authUser && <div className="oa-profile-defaults">{profileDefaults ? <button className="secondary-button" type="button" onClick={applyProfileDefaults}>{t.applyProfile}</button> : <Link className="inline-link" href="/account">{t.setProfile} →</Link>}</div>}
           <div className="oa-priority-grid">{priorityOrder.map((priority) => <label className="oa-priority" key={priority}><span>{priorityLabels[priority][language]}<strong>{priorities[priority]}/5</strong></span><input type="range" min="0" max="5" step="1" value={priorities[priority]} onChange={(event) => setPriorities((current) => ({ ...current, [priority]: Number(event.target.value) }))} /></label>)}</div>
         </section>
 

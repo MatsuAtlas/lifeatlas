@@ -301,6 +301,8 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
 .oa-priority-section { margin-top: 94px; padding: 38px; border: 1px solid var(--line); border-radius: 24px; background: var(--panel); }
 .oa-priority-section .oa-section-heading { margin-bottom: 30px; }
 .oa-priority-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px 34px; }
+.oa-profile-defaults { display: flex; justify-content: flex-end; margin: -12px 0 22px; }
+.oa-profile-defaults .inline-link { color: var(--green); font-size: 10px; font-weight: 800; }
 .oa-priority { gap: 11px; }
 .oa-priority span { display: flex; justify-content: space-between; color: var(--ink); }
 .oa-priority span strong { color: var(--green); }
@@ -486,6 +488,17 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
 .account-row span { color: var(--faint); font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
 .account-row strong { overflow-wrap: anywhere; font-size: 12px; }
 .account-actions { display: flex; gap: 10px; margin-top: 28px; flex-wrap: wrap; }
+.profile-form { display: grid; gap: 24px; margin-top: 36px; padding-top: 32px; border-top: 1px solid var(--line); }
+.profile-form-heading { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: end; }
+.profile-form-heading h2 { margin: 0; font-size: 28px; }
+.profile-form-heading p:last-child { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.7; }
+.profile-form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.profile-city-field { grid-column: span 2; }
+.profile-priority-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
+.profile-priority-grid label { display: grid; gap: 8px; }
+.profile-priority-grid label span { display: flex; justify-content: space-between; color: var(--muted); font-size: 9px; }
+.profile-priority-grid label strong { color: var(--green); }
+.profile-form > .primary-button { justify-self: start; }
 
 @media (max-width: 700px) {
   .billing-header { min-height: 66px; padding: 0 14px; }
@@ -500,6 +513,9 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
   .account-panel { margin: 0 12px; padding: 24px 18px; }
   .account-row { grid-template-columns: 1fr; gap: 7px; }
   .account-actions { display: grid; }
+  .profile-form-heading, .profile-form-grid, .profile-priority-grid { grid-template-columns: 1fr; }
+  .profile-city-field { grid-column: auto; }
+  .profile-form > .primary-button { width: 100%; }
 }
 
 /* Growth: public shares and high-quality SEO templates */

@@ -201,6 +201,13 @@ test("keeps analytics and public sharing safe when services are unconfigured", a
   });
   assert.equal(invalidRename.status, 403);
 
+  const invalidProfile = await fetch(`${baseUrl}/api/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Origin: "https://attacker.invalid" },
+    body: JSON.stringify({}),
+  });
+  assert.equal(invalidProfile.status, 403);
+
   const missingShare = await fetch(`${baseUrl}/share/1234567890abcdef`);
   assert.equal(missingShare.status, 404);
 });

@@ -67,6 +67,42 @@ create policy "Users can rename their own comparison history"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+create table if not exists public.user_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  age smallint not null,
+  household_type text not null,
+  children smallint not null default 0,
+  base_currency text not null,
+  current_city text not null,
+  priorities jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint user_profiles_age check (age between 18 and 100),
+  constraint user_profiles_household check (household_type in ('single', 'couple')),
+  constraint user_profiles_children check (children between 0 and 10),
+  constraint user_profiles_currency_format check (base_currency ~ '^[A-Z]{3}$'),
+  constraint user_profiles_city_length check (char_length(current_city) between 1 and 64),
+  constraint user_profiles_priorities_object check (jsonb_typeof(priorities) = 'object')
+);
+
+alter table public.user_profiles enable row level security;
+alter table public.user_profiles force row level security;
+
+revoke all on table public.user_profiles from anon;
+revoke all on table public.user_profiles from authenticated;
+grant select on table public.user_profiles to authenticated;
+grant insert (user_id, age, household_type, children, base_currency, current_city, priorities, updated_at) on table public.user_profiles to authenticated;
+grant update (age, household_type, children, base_currency, current_city, priorities, updated_at) on table public.user_profiles to authenticated;
+
+drop policy if exists "Users can read their own profile" on public.user_profiles;
+create policy "Users can read their own profile" on public.user_profiles for select to authenticated using (auth.uid() = user_id);
+
+drop policy if exists "Users can create their own profile" on public.user_profiles;
+create policy "Users can create their own profile" on public.user_profiles for insert to authenticated with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update their own profile" on public.user_profiles;
+create policy "Users can update their own profile" on public.user_profiles for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
 create table if not exists public.ai_recommendations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
