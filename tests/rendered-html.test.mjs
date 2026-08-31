@@ -262,6 +262,52 @@ test("reports transparent official-data coverage for all comparison cities", asy
   assert.match(payload.sources[1].name, /European Central Bank/);
 });
 
+test("exposes validated deterministic decision APIs without duplicating the calculation engine", async () => {
+  const tokyo = { id: "api-tokyo", cityId: "tokyo", annualSalary: 7_000_000, salaryCurrency: "JPY", age: 29, householdType: "single", children: 0, housing: "onebed", lifestyle: "balanced" };
+  const vancouver = { id: "api-vancouver", cityId: "vancouver", annualSalary: 90_000, salaryCurrency: "CAD", age: 29, householdType: "single", children: 0, housing: "onebed", lifestyle: "balanced" };
+  const priorities = { savings: 3, purchasingPower: 3, qualityOfLife: 3, entrepreneurship: 0, fire: 2, family: 0, safety: 3, climate: 0, career: 2, remoteWork: 0 };
+
+  const calculation = await fetch(`${baseUrl}/api/calculate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scenario: tokyo }) });
+  assert.equal(calculation.status, 200);
+  const calculationPayload = await calculation.json();
+  assert.equal(calculationPayload.result.scenarioId, "api-tokyo");
+  assert.equal(calculationPayload.result.assumptions.calculationVersion, "2026.08-v2.1");
+
+  const comparison = await fetch(`${baseUrl}/api/compare`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scenarios: [tokyo, vancouver], priorities }) });
+  assert.equal(comparison.status, 200);
+  const comparisonPayload = await comparison.json();
+  assert.equal(comparisonPayload.results.length, 2);
+  assert.deepEqual(comparisonPayload.scores.map((score) => score.rank), [1, 2]);
+
+  const breakEven = await fetch(`${baseUrl}/api/break-even`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference: tokyo, candidate: vancouver, metric: "disposableIncome", priorities }) });
+  assert.equal(breakEven.status, 200);
+  const breakEvenPayload = await breakEven.json();
+  assert.equal(breakEvenPayload.result.status, "matched");
+  assert.equal(breakEvenPayload.result.candidateScenarioId, "api-vancouver");
+
+  const crossOrigin = await fetch(`${baseUrl}/api/calculate`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://attacker.invalid" }, body: JSON.stringify({ scenario: tokyo }) });
+  assert.equal(crossOrigin.status, 403);
+});
+
+test("publishes typed city catalog APIs with coverage and source metadata", async () => {
+  const catalog = await fetch(`${baseUrl}/api/cities`);
+  assert.equal(catalog.status, 200);
+  const catalogPayload = await catalog.json();
+  assert.equal(catalogPayload.coverage.cityCount, 50);
+  assert.equal(catalogPayload.cities.length, 50);
+  assert.equal(catalogPayload.cities.filter((city) => city.calculationStatus === "unavailable").length, 25);
+
+  const city = await fetch(`${baseUrl}/api/cities/los-angeles`);
+  assert.equal(city.status, 200);
+  const cityPayload = await city.json();
+  assert.equal(cityPayload.city.names.en, "Los Angeles");
+  assert.ok(Array.isArray(cityPayload.city.sources));
+  assert.ok(cityPayload.city.sources.length > 0);
+
+  const missing = await fetch(`${baseUrl}/api/cities/not-a-city`);
+  assert.equal(missing.status, 404);
+});
+
 test("reports an unconfigured Supabase server consistently", async () => {
   for (const pathname of ["/api/auth/me", "/api/history"]) {
     const response = await fetch(`${baseUrl}${pathname}`);

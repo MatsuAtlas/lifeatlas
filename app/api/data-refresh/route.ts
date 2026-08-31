@@ -1,3 +1,5 @@
+import { logOperationsEvent } from "../../../lib/observability/operations";
+
 type WorldBankObservation = {
   date: string;
   value: number | null;
@@ -94,6 +96,7 @@ export async function GET() {
   const automaticItemCount = automaticCountryCount + automaticCurrencyCount;
   const expectedItemCount = countries.length + currencies.length;
   const sourceStatus = automaticItemCount === expectedItemCount ? "live" : automaticItemCount > 0 ? "partial" : "fallback";
+  if (warnings.length > 0) logOperationsEvent("warn", "external_data_source_missing", { endpoint: "data-refresh", warningCount: warnings.length, sourceStatus });
 
   return Response.json({
     sourceStatus,

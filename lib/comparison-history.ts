@@ -23,7 +23,7 @@ function isOptionalFiniteInRange(value: unknown, min: number, max: number) {
   return value === undefined || isFiniteInRange(value, min, max);
 }
 
-function isScenario(value: unknown): value is ScenarioInput {
+export function isScenarioInput(value: unknown): value is ScenarioInput {
   if (!isObject(value)) return false;
   return typeof value.id === "string"
     && value.id.trim().length > 0
@@ -49,6 +49,10 @@ function isScenario(value: unknown): value is ScenarioInput {
     && isOptionalFiniteInRange(value.annualReturnRate, -0.5, 0.5);
 }
 
+export function isUserPriorities(value: unknown): value is Record<PriorityKey, number> {
+  return isObject(value) && priorityKeys.every((key) => isFiniteInRange(value[key], 0, 5));
+}
+
 export function isComparisonRecord(value: unknown): value is ComparisonRecord {
   if (!isObject(value)) return false;
   return typeof value.id === "string"
@@ -62,12 +66,10 @@ export function isComparisonRecord(value: unknown): value is ComparisonRecord {
 
 export function isSavedAnalyzerInput(value: unknown): value is SavedAnalyzerInput {
   if (!isObject(value) || value.kind !== "offer-analyzer" || value.version !== 1) return false;
-  if (!Array.isArray(value.scenarios) || value.scenarios.length < 2 || value.scenarios.length > 5 || !value.scenarios.every(isScenario)) return false;
+  if (!Array.isArray(value.scenarios) || value.scenarios.length < 2 || value.scenarios.length > 5 || !value.scenarios.every(isScenarioInput)) return false;
   const scenarioIds = value.scenarios.map((scenario) => scenario.id);
   if (new Set(scenarioIds).size !== scenarioIds.length) return false;
-  if (!isObject(value.priorities)) return false;
-  const priorities = value.priorities;
-  if (!priorityKeys.every((key) => isFiniteInRange(priorities[key], 0, 5))) return false;
+  if (!isUserPriorities(value.priorities)) return false;
   if (!isObject(value.whatIf)
     || typeof value.whatIf.scenarioId !== "string"
     || !scenarioIds.includes(value.whatIf.scenarioId)
