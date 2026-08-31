@@ -103,12 +103,29 @@ test("renders the Offer Analyzer as a separate deterministic decision flow", asy
   assert.match(html, /What-If シミュレーター/);
   assert.match(html, /逆転に必要な給与/);
   assert.match(html, /分析を保存する/);
-  assert.match(html, /Supabase未設定の環境では、この端末だけに最大50件保存します/);
+  assert.match(html, /Freeは1件、Proは無制限にアカウント保存できます/);
   assert.match(html, /href="\/#account"/);
   assert.match(html, /AIに結果を説明してもらう/);
   assert.match(html, /計算は固定、説明だけAI/);
   assert.match(html, /氏名やメールアドレスは送りません/);
   assert.match(html, /税務・金融・移住助言ではありません/);
+  assert.match(html, /Freeは2件、Proは最大5件/);
+  assert.match(html, /href="\/pricing"/);
+});
+
+test("renders configurable Free and Pro pricing plus a private account page", async () => {
+  const pricing = await fetch(`${baseUrl}/pricing`);
+  assert.equal(pricing.status, 200);
+  const pricingHtml = await pricing.text();
+  assert.match(pricingHtml, /大きな意思決定を、数字で確かめる/);
+  assert.match(pricingHtml, /\$12 \/ month/);
+  assert.match(pricingHtml, /\$79 \/ year/);
+  assert.match(pricingHtml, /Stripeの安全な購入画面/);
+  assert.doesNotMatch(pricingHtml, /sk_(test|live)_/);
+
+  const account = await fetch(`${baseUrl}/account`);
+  assert.equal(account.status, 200);
+  assert.match(await account.text(), /アカウントと契約/);
 });
 
 test("reports transparent official-data coverage for all comparison cities", async () => {
@@ -149,6 +166,29 @@ test("keeps AI optional when its authenticated persistence is unconfigured", asy
   });
   assert.equal(response.status, 503);
   assert.equal((await response.json()).configured, false);
+});
+
+test("keeps billing safe when Stripe and Supabase are unconfigured", async () => {
+  const status = await fetch(`${baseUrl}/api/billing/status`);
+  assert.equal(status.status, 503);
+  assert.equal((await status.json()).configured, false);
+
+  const invalidCheckout = await fetch(`${baseUrl}/api/billing/checkout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ interval: "lifetime" }),
+  });
+  assert.equal(invalidCheckout.status, 400);
+
+  const crossOrigin = await fetch(`${baseUrl}/api/billing/checkout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "https://attacker.invalid" },
+    body: JSON.stringify({ interval: "month" }),
+  });
+  assert.equal(crossOrigin.status, 403);
+
+  const webhook = await fetch(`${baseUrl}/api/webhooks/stripe`, { method: "POST", body: "{}" });
+  assert.equal(webhook.status, 503);
 });
 
 test("clears the local session even when Supabase is unconfigured", async () => {

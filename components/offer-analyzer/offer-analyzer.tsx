@@ -7,6 +7,7 @@ import { cities, cityOrder } from "../../data/cities";
 import { DEFAULT_PRIORITIES } from "../../lib/scoring/life-atlas-score";
 import { simulateWhatIf } from "../../lib/calculations/what-if";
 import { validateAIRecommendation } from "../../lib/ai/recommendation";
+import { canCreateScenario, FREE_ENTITLEMENTS } from "../../lib/billing/entitlements";
 import {
   consumeQueuedAnalyzerRestore,
   isComparisonRecord,
@@ -20,6 +21,7 @@ import {
 import type { City, CityId, CurrencyCode } from "../../types/city";
 import type { BreakEvenMetric } from "../../types/break-even";
 import type { RecommendationGeneration } from "../../types/ai";
+import type { BillingStatusResponse, Entitlements } from "../../types/billing";
 import type { ComparisonRecord, SavedAnalyzerInput, SavedAnalyzerResult } from "../../types/comparison";
 import type { HousingType, LifestyleType } from "../../types/finance";
 import type { PriorityKey, ScenarioHousehold, ScenarioInput, ScenarioResult, ScenarioScore, UserPriorities } from "../../types/scenario";
@@ -181,7 +183,7 @@ const copy = {
     unreachable: "設定上限内では到達できません",
     calculationUnavailable: "この組み合わせは税・保険計算が未対応です",
     saveTitle: "分析を保存する",
-    saveNote: "ログイン中はアカウントに保存します。Supabase未設定の環境では、この端末だけに最大50件保存します。",
+    saveNote: "Freeは1件、Proは無制限にアカウント保存できます。Supabase未設定時だけ、この端末へ最大50件保存します。",
     saveAnalysis: "現在の分析を保存",
     savedAnalyses: "保存済みの分析",
     noSavedAnalyses: "保存済みのOffer Analyzer分析はありません。",
@@ -204,7 +206,7 @@ const copy = {
     generatingAI: "説明を生成中…",
     aiAccountRequired: "AI説明はログイン後に利用できます。",
     aiUnavailable: "AI説明は現在準備中です。決定結果・What-If・逆転給与はそのまま利用できます。",
-    aiLimit: "無料AI説明の24時間上限に達しました。",
+    aiLimit: "AI説明の24時間上限に達しました。",
     aiError: "AI説明を生成できませんでした。計算結果はそのまま利用できます。",
     aiPrivacy: "生成時には、この分析の給与・世帯・都市・計算結果だけをAIサービスへ送信します。氏名やメールアドレスは送りません。",
     aiCached: "同じ条件の保存済み説明を再利用しました",
@@ -219,6 +221,10 @@ const copy = {
     followUpPlaceholder: "例：家賃が10%上がる場合、どの注意点が重要ですか？",
     askAI: "質問を送る",
     aiDisclaimer: "AIはLifeAtlasの構造化された計算結果のみを説明します。未計算の税率・控除・移住条件を推測せず、専門的な税務・金融・移住助言を提供しません。",
+    proRequired: "この機能はLifeAtlas Proで利用できます。",
+    upgrade: "Proの機能を見る",
+    scenarioLimit: "Freeは2件、Proは最大5件のオファーを比較できます。",
+    longTermPro: "長期資産・FIREはProで表示",
     disclaimer: "比較結果は公開情報と保存した参考値に基づく概算です。個別の控除、在留資格、雇用条件、医療保険等を完全には反映せず、税務・金融・移住助言ではありません。重要な判断では専門家と最新の公式情報をご確認ください。",
   },
   en: {
@@ -297,7 +303,7 @@ const copy = {
     unreachable: "The target is unreachable within the search limit",
     calculationUnavailable: "Tax and insurance calculations are unavailable for this option",
     saveTitle: "Save this analysis",
-    saveNote: "Signed-in analyses are saved to your account. If Supabase is not configured, up to 50 analyses stay on this device only.",
+    saveNote: "Free saves 1 analysis; Pro saves unlimited analyses. Only unconfigured environments use up to 50 on-device records.",
     saveAnalysis: "Save current analysis",
     savedAnalyses: "Saved analyses",
     noSavedAnalyses: "No saved Offer Analyzer analyses yet.",
@@ -320,7 +326,7 @@ const copy = {
     generatingAI: "Generating explanation…",
     aiAccountRequired: "Sign in to use AI explanations.",
     aiUnavailable: "AI explanations are not configured yet. Your decision result, What-If and break-even salary remain available.",
-    aiLimit: "You have reached the free AI explanation limit for the last 24 hours.",
+    aiLimit: "You have reached the AI explanation limit for the last 24 hours.",
     aiError: "The AI explanation could not be generated. Your calculated results remain available.",
     aiPrivacy: "Generation sends only this analysis's salary, household, cities and calculated results to the AI service. Your name and email are not sent.",
     aiCached: "Reused the saved explanation for these conditions",
@@ -335,6 +341,10 @@ const copy = {
     followUpPlaceholder: "Example: Which risk matters most if rent rises by 10%?",
     askAI: "Send question",
     aiDisclaimer: "AI only explains LifeAtlas's structured calculation result. It does not guess missing tax rates, deductions or immigration rules, and it does not provide professional tax, financial or immigration advice.",
+    proRequired: "This feature is available with LifeAtlas Pro.",
+    upgrade: "See Pro features",
+    scenarioLimit: "Free compares 2 offers; Pro compares up to 5.",
+    longTermPro: "Long-term wealth and FIRE are included with Pro",
     disclaimer: "Results are estimates based on public sources and saved reference values. They do not fully reflect individual deductions, immigration status, employment terms or health coverage, and are not tax, financial or immigration advice. Confirm important decisions with professionals and current official sources.",
   },
 } as const;
@@ -418,6 +428,7 @@ export function OfferAnalyzer() {
   const [breakEvenCandidateId, setBreakEvenCandidateId] = useState(initialScenarios[1].id);
   const [breakEvenMetric, setBreakEvenMetric] = useState<BreakEvenMetric>("disposableIncome");
   const [authUser, setAuthUser] = useState<{ id: string; email?: string } | null>(null);
+  const [entitlements, setEntitlements] = useState<Entitlements>({ ...FREE_ENTITLEMENTS });
   const [history, setHistory] = useState<ComparisonRecord[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -430,6 +441,7 @@ export function OfferAnalyzer() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [followUpQuestion, setFollowUpQuestion] = useState("");
   const t = copy[language];
+  const activeEntitlements = authUser ? entitlements : FREE_ENTITLEMENTS;
 
   const loadCloudHistory = useCallback(async () => {
     if (!supabaseConfigured) return;
@@ -474,7 +486,14 @@ export function OfferAnalyzer() {
           return;
         }
         if (data?.user) {
+          setEntitlements({ ...FREE_ENTITLEMENTS });
           setAuthUser(data.user);
+          void fetch("/api/billing/status", { cache: "no-store" })
+            .then(async (billingResponse) => ({ billingResponse, billingData: await billingResponse.json().catch(() => null) }))
+            .then(({ billingResponse, billingData }) => {
+              if (billingResponse.ok && billingData?.entitlements) setEntitlements((billingData as BillingStatusResponse).entitlements);
+            })
+            .catch(() => undefined);
           void loadCloudHistory();
         }
       })
@@ -541,6 +560,10 @@ export function OfferAnalyzer() {
   const visibleAIGeneration = aiGenerationLanguage === language && aiAnalysisSignature === currentAnalysisSignature ? aiGeneration : null;
 
   const applySavedInput = useCallback((saved: SavedAnalyzerInput) => {
+    if (saved.scenarios.length > activeEntitlements.maxScenarios) {
+      setSaveMessage(t.scenarioLimit);
+      return;
+    }
     setScenarios(saved.scenarios.map((scenario) => ({ ...scenario })));
     setPriorities({ ...saved.priorities });
     setWhatIfScenarioId(saved.whatIf.scenarioId);
@@ -551,7 +574,7 @@ export function OfferAnalyzer() {
     setBreakEvenMetric(saved.breakEven.metric);
     setSaveMessage(t.restored);
     requestAnimationFrame(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }, [t.restored]);
+  }, [activeEntitlements.maxScenarios, t.restored, t.scenarioLimit]);
 
   useEffect(() => {
     const queued = consumeQueuedAnalyzerRestore();
@@ -738,9 +761,9 @@ export function OfferAnalyzer() {
           <div><span>{t.livingCost}</span><strong>{formatMoney(result.totalLivingCostMonthly, result.currency, language)}</strong></div>
           <div><span>{t.savings}</span><strong>{formatMoney(result.annualSavings, result.currency, language)}</strong></div>
           <div><span>{t.savingsRate}</span><strong>{formatPercent(result.savingsRate)}</strong></div>
-          <div><span>{t.wealth10}</span><strong>{formatMoney(result.projectedSavings10Years, result.currency, language)}</strong></div>
+          <div title={!activeEntitlements.canUseLongTermProjections ? t.longTermPro : undefined}><span>{t.wealth10}</span><strong>{activeEntitlements.canUseLongTermProjections ? formatMoney(result.projectedSavings10Years, result.currency, language) : "Pro"}</strong></div>
           <div><span>{t.rentBurden}</span><strong>{formatPercent(result.rentBurden)}</strong></div>
-          <div><span>{t.fire}</span><strong>{fireLabel}</strong></div>
+          <div title={!activeEntitlements.canUseLongTermProjections ? t.longTermPro : undefined}><span>{t.fire}</span><strong>{activeEntitlements.canUseLongTermProjections ? fireLabel : "Pro"}</strong></div>
         </div>
         <div className="oa-score-breakdown" aria-label={language === "ja" ? "スコア内訳" : "Score breakdown"}>
           <span>{language === "ja" ? "財務" : "Financial"}<strong>{score.contributions.financial}</strong></span>
@@ -769,7 +792,7 @@ export function OfferAnalyzer() {
       <header className="site-header oa-header">
         <Link className="brand" href="/" aria-label="Life Atlas"><span className="brand-mark" aria-hidden="true">✦</span><span>Life Atlas</span></Link>
         <nav className="desktop-nav" aria-label={language === "ja" ? "Offer Analyzerメニュー" : "Offer Analyzer navigation"}>
-          <a href="#offers">{t.scenarios}</a><a href="#result">{t.result}</a><a href="#what-if">What-If</a><a href="#break-even">Break-even</a><a href="#save">{language === "ja" ? "保存" : "Save"}</a><a href="#ai">AI</a>
+          <a href="#offers">{t.scenarios}</a><a href="#result">{t.result}</a><a href="#what-if">What-If</a><a href="#break-even">Break-even</a><a href="#save">{language === "ja" ? "保存" : "Save"}</a><a href="#ai">AI</a><Link href="/pricing">Pro</Link>
         </nav>
         <div className="header-actions"><Link className="oa-back-link" href="/">← {t.back}</Link><button className="language-button" type="button" onClick={() => setLanguage((current) => current === "ja" ? "en" : "ja")}>{t.language}</button><button className="theme-button" type="button" onClick={() => setDarkMode((current) => !current)}>{t.theme}</button></div>
       </header>
@@ -777,7 +800,7 @@ export function OfferAnalyzer() {
       <div className="page-wrap oa-wrap">
         <section className="oa-hero">
           <div><p className="eyebrow"><span className="eyebrow-dot" />{t.eyebrow}</p><h1>{t.title}</h1><p>{t.intro}</p></div>
-          <div className="oa-hero-proof"><span><strong>2–5</strong>{language === "ja" ? "オファー" : "offers"}</span><span><strong>50</strong>{t.coverage}</span><span><strong>0</strong>{language === "ja" ? "AIによる数値生成" : "AI-made numbers"}</span></div>
+          <div className="oa-hero-proof"><span><strong>2–{activeEntitlements.maxScenarios}</strong>{language === "ja" ? "オファー" : "offers"}</span><span><strong>50</strong>{t.coverage}</span><span><strong>0</strong>{language === "ja" ? "AIによる数値生成" : "AI-made numbers"}</span></div>
           <div className="oa-live-badge"><i />{t.live}</div>
         </section>
 
@@ -799,14 +822,15 @@ export function OfferAnalyzer() {
                   <label>{t.children}<input type="number" min="0" max="10" value={scenario.children} onChange={(event) => updateScenario(scenario.id, { children: Number(event.target.value) })} /></label>
                   <label>{t.housing}<select value={scenario.housing} onChange={(event) => updateScenario(scenario.id, { housing: event.target.value as HousingType })}><option value="shared">{language === "ja" ? "シェア" : "Shared"}</option><option value="studio">{language === "ja" ? "ワンルーム" : "Studio"}</option><option value="onebed">{language === "ja" ? "1ベッド" : "1 bedroom"}</option><option value="condo">{language === "ja" ? "コンドミニアム" : "Condo"}</option><option value="twobed">{language === "ja" ? "2ベッド" : "2 bedrooms"}</option><option value="house">{language === "ja" ? "戸建て" : "House"}</option></select></label>
                   <label>{t.lifestyle}<select value={scenario.lifestyle} onChange={(event) => updateScenario(scenario.id, { lifestyle: event.target.value as LifestyleType })}><option value="lean">{language === "ja" ? "節約" : "Lean"}</option><option value="balanced">{language === "ja" ? "標準" : "Balanced"}</option><option value="comfortable">{language === "ja" ? "ゆとり" : "Comfortable"}</option></select></label>
-                  <label>{t.customRent}<div className="input-with-unit"><input type="number" min="0" value={optionalNumber(scenario.customRent)} placeholder={language === "ja" ? "都市基準を使用" : "Use city baseline"} onChange={(event) => updateScenario(scenario.id, { customRent: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
-                  <label>{t.customSpending}<div className="input-with-unit"><input type="number" min="0" value={optionalNumber(scenario.customMonthlySpending)} placeholder={language === "ja" ? "都市基準を使用" : "Use city baseline"} onChange={(event) => updateScenario(scenario.id, { customMonthlySpending: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
-                  <label>{t.savingsTarget}<div className="input-with-unit"><input type="number" min="0" value={optionalNumber(scenario.customSavingsTarget)} placeholder="—" onChange={(event) => updateScenario(scenario.id, { customSavingsTarget: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
+                  <label>{t.customRent}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customRent)} placeholder={language === "ja" ? "Proでカスタム設定" : "Custom with Pro"} onChange={(event) => updateScenario(scenario.id, { customRent: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
+                  <label>{t.customSpending}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customMonthlySpending)} placeholder={language === "ja" ? "Proでカスタム設定" : "Custom with Pro"} onChange={(event) => updateScenario(scenario.id, { customMonthlySpending: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
+                  <label>{t.savingsTarget}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customSavingsTarget)} placeholder={language === "ja" ? "Proで設定" : "Set with Pro"} onChange={(event) => updateScenario(scenario.id, { customSavingsTarget: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
                 </div>
               </article>;
             })}
           </div>
-          <button className="oa-add-button" type="button" disabled={scenarios.length >= 5} onClick={() => setScenarios((current) => [...current, makeScenario(current.length)])}>＋ {t.add}<small>{scenarios.length}/5</small></button>
+          <button className="oa-add-button" type="button" disabled={!canCreateScenario(activeEntitlements, scenarios.length)} onClick={() => setScenarios((current) => [...current, makeScenario(current.length)])}>＋ {t.add}<small>{scenarios.length}/{activeEntitlements.maxScenarios}</small></button>
+          {!canCreateScenario(activeEntitlements, scenarios.length) && activeEntitlements.tier === "free" && <p className="oa-pro-note">{t.scenarioLimit} <Link href="/pricing">{t.upgrade} →</Link></p>}
         </section>
 
         <section className="oa-section oa-priority-section">
@@ -821,7 +845,7 @@ export function OfferAnalyzer() {
 
         <section id="what-if" className="oa-section oa-what-if-section">
           <div className="oa-section-heading"><div><p className="eyebrow">04 / SIMULATE</p><h2>{t.whatIf}</h2></div><p>{t.whatIfNote}</p></div>
-          <div className="oa-what-if-controls">
+          <fieldset className="oa-pro-fieldset" disabled={!activeEntitlements.canUseWhatIf}><div className="oa-what-if-controls">
             <label>{t.target}<select value={activeWhatIfScenario.id} onChange={(event) => setWhatIfScenarioId(event.target.value)}>{scenarios.map((scenario) => <option value={scenario.id} key={scenario.id}>{cityName(cities[scenario.cityId], language)}</option>)}</select></label>
             <label>{t.salaryChange}<div className="input-with-unit"><input type="number" min="-100" max="1000" value={salaryPercent} onChange={(event) => setSalaryPercent(Number(event.target.value))} /><span>%</span></div></label>
             <label>{t.rentChange}<div className="input-with-unit"><input type="number" min="-100" max="1000" value={rentPercent} onChange={(event) => setRentPercent(Number(event.target.value))} /><span>%</span></div></label>
@@ -832,12 +856,13 @@ export function OfferAnalyzer() {
             const result = resultById.get(delta.scenarioId) as ScenarioResult;
             const city = cities[result.cityId];
             return <article key={delta.scenarioId} className={delta.scenarioId === activeWhatIfScenario.id ? "is-target" : ""}><span>{cityName(city, language)}</span><div><small>{t.rankChange}</small><strong>{formatSigned(delta.rankChange, (value) => Math.abs(value).toFixed(0))}</strong></div><div><small>{t.scoreChange}</small><strong>{formatSigned(delta.score, (value) => Math.abs(value).toFixed(1))}</strong></div><div><small>{t.savingsChange}</small><strong>{formatSigned(delta.annualSavings, (value) => formatMoney(Math.abs(value), result.currency, language))}</strong></div><div><small>{t.wealthChange}</small><strong>{formatSigned(delta.projectedSavings10Years, (value) => formatMoney(Math.abs(value), result.currency, language))}</strong></div></article>;
-          })}</div>
+          })}</div></fieldset>
+          {!activeEntitlements.canUseWhatIf && <p className="oa-pro-note">{t.proRequired} <Link href="/pricing">{t.upgrade} →</Link></p>}
         </section>
 
         <section id="break-even" className="oa-section oa-break-even-section">
           <div className="oa-section-heading"><div><p className="eyebrow">05 / BREAK-EVEN</p><h2>{t.breakEven}</h2></div><p>{t.breakEvenNote}</p></div>
-          <div className="oa-break-even-grid"><label>{t.candidate}<select value={activeBreakEvenCandidateId} onChange={(event) => setBreakEvenCandidateId(event.target.value)}>{candidateOptions.map((scenario) => <option value={scenario.id} key={scenario.id}>{cityName(cities[scenario.cityId], language)}</option>)}</select></label><label>{t.metric}<select value={breakEvenMetric} onChange={(event) => setBreakEvenMetric(event.target.value as BreakEvenMetric)}><option value="disposableIncome">{t.metricIncome}</option><option value="savingsRate">{t.metricSavings}</option><option value="lifeAtlasScore">{t.metricScore}</option></select></label><div className="oa-break-even-result"><span>{t.requiredSalary}</span><strong>{breakEven?.status === "matched" ? formatMoney(breakEven.requiredAnnualSalary, breakEven.salaryCurrency, language) : "—"}</strong><small>{breakEven?.status === "unreachable" ? t.unreachable : breakEven?.status === "calculation-unavailable" ? t.calculationUnavailable : `${cityName(winnerCity, language)} · ${breakEvenMetric === "disposableIncome" ? t.metricIncome : breakEvenMetric === "savingsRate" ? t.metricSavings : t.metricScore}`}</small></div></div>
+          {activeEntitlements.canUseBreakEven ? <div className="oa-break-even-grid"><label>{t.candidate}<select value={activeBreakEvenCandidateId} onChange={(event) => setBreakEvenCandidateId(event.target.value)}>{candidateOptions.map((scenario) => <option value={scenario.id} key={scenario.id}>{cityName(cities[scenario.cityId], language)}</option>)}</select></label><label>{t.metric}<select value={breakEvenMetric} onChange={(event) => setBreakEvenMetric(event.target.value as BreakEvenMetric)}><option value="disposableIncome">{t.metricIncome}</option><option value="savingsRate">{t.metricSavings}</option><option value="lifeAtlasScore">{t.metricScore}</option></select></label><div className="oa-break-even-result"><span>{t.requiredSalary}</span><strong>{breakEven?.status === "matched" ? formatMoney(breakEven.requiredAnnualSalary, breakEven.salaryCurrency, language) : "—"}</strong><small>{breakEven?.status === "unreachable" ? t.unreachable : breakEven?.status === "calculation-unavailable" ? t.calculationUnavailable : `${cityName(winnerCity, language)} · ${breakEvenMetric === "disposableIncome" ? t.metricIncome : breakEvenMetric === "savingsRate" ? t.metricSavings : t.metricScore}`}</small></div></div> : <p className="oa-pro-note oa-pro-note-large">{t.proRequired} <Link href="/pricing">{t.upgrade} →</Link></p>}
         </section>
 
         <section id="save" className="oa-section oa-save-section">

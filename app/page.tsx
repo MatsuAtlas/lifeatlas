@@ -1058,6 +1058,7 @@ export default function Home() {
         </a>
         <nav className="desktop-nav" aria-label={language === "ja" ? "主要メニュー" : "Main menu"}>
           <Link href="/analyze">Offer Analyzer</Link>
+          <Link href="/pricing">Pricing</Link>
           <a href="#compare">{t.navCompare}</a>
           <a href="#recommendations">{language === "ja" ? "おすすめ" : "Matches"}</a>
           <a href="#profile">{t.navProfile}</a>
@@ -1447,7 +1448,7 @@ export default function Home() {
 
         {detailsOpen && <section id="method" className="method-panel section-anchor"><div className="section-heading"><div><p className="eyebrow">{t.methodEyebrow}</p><h2>{t.methodTitle}</h2></div><button className="close-button" onClick={() => setDetailsOpen(false)}>{t.close}</button></div><div className="method-grid"><div><span>{t.dataStatus}</span><strong>{dataLoading ? t.dataLoading : selectedFxAutomatic ? t.dataLiveMethod : t.dataFallbackMethod}</strong><p>{language === "ja" ? "都市人口は各統計の公表時点を保存し、国人口はWorld Bank、対応通貨の為替はECBから自動取得します。更新操作で都市人口の基準日は書き換えません。" : "City population keeps its published statistical baseline. Country population comes from the World Bank and supported FX rates come from the ECB. Refreshing does not rewrite a city-population date."} {t.retrievedAt}{officialData ? new Date(officialData.retrievedAt).toLocaleString(language === "ja" ? "ja-JP" : "en-US") : language === "ja" ? "未取得" : "Not available"}</p></div><div><span>{t.cityCosts}</span><strong>{t.cityCostsStrong}</strong><p>{t.cityCostsText}</p></div><div><span>{t.taxes}</span><strong>{t.taxesStrong}</strong><p>{t.taxesText}</p></div><div><span>{t.formula}</span><strong>{t.formulaStrong}</strong><p>{t.formulaText}</p></div></div>{officialData && <div className="source-list"><span>{t.autoSources}</span>{officialData.sources.map((source) => <a key={source.name} href={source.url} target="_blank" rel="noreferrer">{source.name} <small>（{sourceScope(source.scope, language)}）</small> ↗</a>)}</div>}<div className="source-list"><span>{t.citySources}</span>{citySourceLinks.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.source} <small>（{sourceItem(source.item, language)} / {sourceLevel(source.level, language)} / {sourcePeriod(source.period, language)}）</small> ↗</a>)}</div></section>}
 
-        <footer className="site-footer"><div className="footer-brand"><span className="brand-mark">✦</span><strong>Life Atlas</strong><p>{t.footerText}</p></div><div className="footer-meta"><span>{t.footerCities}</span><span>{t.footerDeductions}</span><span>© 2026 Life Atlas</span></div></footer>
+        <footer className="site-footer"><div className="footer-brand"><span className="brand-mark">✦</span><strong>Life Atlas</strong><p>{t.footerText}</p></div><div className="footer-meta"><Link href="/pricing">Pricing</Link><span>{t.footerCities}</span><span>{t.footerDeductions}</span><span>© 2026 Life Atlas</span></div></footer>
       </div>
     </main>
   );

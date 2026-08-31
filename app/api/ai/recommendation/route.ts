@@ -15,6 +15,8 @@ import {
   supabaseRestRequest,
 } from "../../../../lib/supabase-server";
 import type { AIRecommendation, AIUsage, RecommendationGeneration, RecommendationLanguage } from "../../../../types/ai";
+import { canUseAI } from "../../../../lib/billing/entitlements";
+import { billingResponse, readBillingRecord } from "../../../../lib/billing/subscription-server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 35;
@@ -36,9 +38,10 @@ type GenerationRecord = {
   created_at: string;
 };
 
-function dailyLimit() {
-  const configured = Number(process.env.LIFEATLAS_FREE_AI_DAILY_LIMIT ?? DEFAULT_DAILY_LIMIT);
-  return Number.isInteger(configured) && configured >= 1 && configured <= 100 ? configured : DEFAULT_DAILY_LIMIT;
+function dailyLimit(tier: "free" | "pro", entitlementLimit: number) {
+  const environmentValue = tier === "pro" ? process.env.LIFEATLAS_PRO_AI_DAILY_LIMIT : process.env.LIFEATLAS_FREE_AI_DAILY_LIMIT;
+  const configured = Number(environmentValue ?? entitlementLimit ?? DEFAULT_DAILY_LIMIT);
+  return Number.isInteger(configured) && configured >= 1 && configured <= 1_000 ? configured : entitlementLimit;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -97,9 +100,8 @@ async function cachedGeneration(userId: string, accessToken: string, contextHash
     : null;
 }
 
-async function recentGenerationCount(userId: string, accessToken: string) {
+async function recentGenerationCount(userId: string, accessToken: string, limit: number) {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1_000).toISOString();
-  const limit = dailyLimit();
   const query = `ai_recommendations?select=id&user_id=eq.${encodeURIComponent(userId)}&created_at=gte.${encodeURIComponent(since)}&limit=${limit}`;
   const response = await supabaseRestRequest(query, {}, accessToken);
   if (!response.ok) throw new Error("AI_RATE_LIMIT_READ_FAILED");
@@ -174,12 +176,18 @@ export async function POST(request: Request) {
     if (!isObject(body.value)) return NextResponse.json({ error: "送信形式が正しくありません。" }, { status: 400 });
     current = await getCurrentUser();
     if (!current || !UUID_PATTERN.test(current.user.id)) return NextResponse.json({ error: "AI説明を利用するにはログインしてください。" }, { status: 401 });
+    const billing = billingResponse(await readBillingRecord(current.user.id, current.accessToken), true);
+    if (!canUseAI(billing.entitlements)) return NextResponse.json({ error: "このプランではAI説明を利用できません。", upgradeRequired: true }, { status: 403 });
+    const generationLimit = dailyLimit(billing.subscription.tier, billing.entitlements.aiDailyLimit);
     if (!process.env.AI_GATEWAY_API_KEY?.trim() && !process.env.VERCEL_OIDC_TOKEN?.trim()) {
       return NextResponse.json({ error: "AI説明は現在準備中です。計算結果はそのまま利用できます。", aiConfigured: false }, { status: 503 });
     }
     const language = body.value.language;
     if (language !== "ja" && language !== "en") return NextResponse.json({ error: "言語設定が正しくありません。" }, { status: 400 });
     if (!isSavedAnalyzerInput(body.value.analysis)) return NextResponse.json({ error: "分析条件を確認できませんでした。" }, { status: 400 });
+    if (body.value.analysis.scenarios.length > billing.entitlements.maxScenarios) {
+      return NextResponse.json({ error: "このシナリオ数のAI説明にはProが必要です。", upgradeRequired: true }, { status: 403 });
+    }
     const followUpQuestion = normalizeFollowUpQuestion(body.value.followUpQuestion);
     if (followUpQuestion === null) return NextResponse.json({ error: "質問は400文字以内で入力してください。" }, { status: 400 });
 
@@ -188,8 +196,8 @@ export async function POST(request: Request) {
     const contextHash = await sha256Hex(stableRecommendationKey(input, model, AI_PROMPT_VERSION));
     const cached = await cachedGeneration(current.user.id, current.accessToken, contextHash, input);
     if (cached) return NextResponse.json({ generation: cached });
-    if (await recentGenerationCount(current.user.id, current.accessToken) >= dailyLimit()) {
-      return NextResponse.json({ error: "無料AI説明の24時間上限に達しました。", limit: dailyLimit() }, { status: 429 });
+    if (await recentGenerationCount(current.user.id, current.accessToken, generationLimit) >= generationLimit) {
+      return NextResponse.json({ error: "AI説明の24時間上限に達しました。", limit: generationLimit }, { status: 429 });
     }
 
     const pending = await createPendingGeneration(current.user.id, current.accessToken, contextHash, model, language, followUpQuestion);

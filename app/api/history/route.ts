@@ -4,6 +4,8 @@ import {
   isSupabaseNotConfiguredError,
   supabaseRestRequest,
 } from "../../../lib/supabase-server";
+import { billingResponse, readBillingRecord } from "../../../lib/billing/subscription-server";
+import { isSavedAnalyzerInput } from "../../../lib/comparison-history";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +107,23 @@ export async function POST(request: Request) {
 
     const payload = parsePayload(input);
     if (!payload) return NextResponse.json({ error: "保存内容の形式が正しくありません。" }, { status: 400 });
+
+    const billing = billingResponse(await readBillingRecord(current.user.id, current.accessToken), true);
+    if (isSavedAnalyzerInput(payload.input) && payload.input.scenarios.length > billing.entitlements.maxScenarios) {
+      return NextResponse.json({ error: "3件以上のOffer Analyzer分析を保存するにはProが必要です。", upgradeRequired: true }, { status: 403 });
+    }
+    if (billing.entitlements.maxSavedComparisons !== null) {
+      const existingResponse = await supabaseRestRequest(
+        `comparison_history?select=id&user_id=eq.${encodeURIComponent(current.user.id)}&limit=${billing.entitlements.maxSavedComparisons}`,
+        {},
+        current.accessToken,
+      );
+      if (!existingResponse.ok) return NextResponse.json({ error: "保存件数を確認できませんでした。" }, { status: 502 });
+      const existing: unknown = await existingResponse.json();
+      if (Array.isArray(existing) && existing.length >= billing.entitlements.maxSavedComparisons) {
+        return NextResponse.json({ error: "Freeプランの保存上限は1件です。Proでは無制限に保存できます。", upgradeRequired: true }, { status: 403 });
+      }
+    }
 
     const response = await supabaseRestRequest(
       `comparison_history?select=${HISTORY_COLUMNS}`,

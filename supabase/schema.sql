@@ -115,6 +115,41 @@ create policy "Users can update their own AI recommendations"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+create table if not exists public.billing_subscriptions (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  stripe_customer_id text not null unique,
+  stripe_subscription_id text not null unique,
+  status text not null,
+  price_id text not null,
+  interval text,
+  cancel_at_period_end boolean not null default false,
+  current_period_end timestamptz,
+  last_event_created bigint not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint billing_customer_id_format check (stripe_customer_id ~ '^cus_[A-Za-z0-9]+$'),
+  constraint billing_subscription_id_format check (stripe_subscription_id ~ '^sub_[A-Za-z0-9]+$'),
+  constraint billing_price_id_format check (price_id ~ '^price_[A-Za-z0-9]+$'),
+  constraint billing_status check (status in ('trialing', 'active', 'past_due', 'canceled', 'unpaid', 'incomplete', 'incomplete_expired', 'paused')),
+  constraint billing_interval check (interval is null or interval in ('month', 'year')),
+  constraint billing_event_created check (last_event_created >= 0)
+);
+
+create index if not exists billing_subscriptions_customer_idx
+  on public.billing_subscriptions (stripe_customer_id);
+
+alter table public.billing_subscriptions enable row level security;
+alter table public.billing_subscriptions force row level security;
+
+revoke all on table public.billing_subscriptions from anon;
+revoke all on table public.billing_subscriptions from authenticated;
+grant select on table public.billing_subscriptions to authenticated;
+
+drop policy if exists "Users can read their own billing subscription" on public.billing_subscriptions;
+create policy "Users can read their own billing subscription"
+  on public.billing_subscriptions for select to authenticated
+  using (auth.uid() = user_id);
+
 -- Supabase may install this internal SECURITY DEFINER helper in the public schema.
 -- Keep it available to its owner while preventing API roles from invoking it.
 do $$

@@ -89,6 +89,23 @@ export async function supabaseRestRequest(path: string, init: RequestInit = {}, 
   });
 }
 
+export async function supabaseAdminRestRequest(path: string, init: RequestInit = {}) {
+  const { url } = getConfig();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!serviceRoleKey) throw new SupabaseNotConfiguredError();
+  const headers = new Headers(init.headers);
+  headers.set("apikey", serviceRoleKey);
+  headers.set("Authorization", `Bearer ${serviceRoleKey}`);
+  headers.set("Accept", "application/json");
+  if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  return fetch(new URL(`rest/v1/${path.replace(/^\/+/, "")}`, `${url}/`), {
+    ...init,
+    headers,
+    cache: "no-store",
+    signal: init.signal ?? AbortSignal.timeout(10_000),
+  });
+}
+
 export async function getAccessToken() {
   const cookieStore = await cookies();
   return cookieStore.get(ACCESS_TOKEN_COOKIE)?.value ?? null;
