@@ -38,6 +38,16 @@ test("calculates a complete Offer Analyzer result from the existing engine", () 
   assert.equal(result.socialInsuranceAnnual, (result.taxBreakdown?.totalInsuranceMonthly ?? 0) * 12);
   assert.equal(result.netAnnual, (result.netMonthly ?? 0) * 12);
   assert.equal(result.annualSavings, ((result.netMonthly ?? 0) - result.totalLivingCostMonthly) * 12);
+  assert.equal(result.costBreakdownMonthly.source, "city-baseline");
+  assertClose(
+    (result.costBreakdownMonthly.food ?? 0)
+      + (result.costBreakdownMonthly.utilities ?? 0)
+      + (result.costBreakdownMonthly.internet ?? 0)
+      + (result.costBreakdownMonthly.transportation ?? 0)
+      + (result.costBreakdownMonthly.healthcare ?? 0)
+      + (result.costBreakdownMonthly.leisure ?? 0),
+    result.baselineSpendingMonthly,
+  );
   assertClose(result.projectedSavings5Years, 1_000_000 + (result.annualSavings ?? 0) * 5);
   assertClose(result.projectedSavings10Years, 1_000_000 + (result.annualSavings ?? 0) * 10);
   assert.equal(result.fire?.targetWealth, result.totalLivingCostAnnual * 25);
@@ -50,6 +60,9 @@ test("keeps custom-spending deficits visible instead of clamping them to zero", 
 
   assert.equal(result.rentMonthly, 300_000);
   assert.equal(result.baselineSpendingMonthly, 500_000);
+  assert.equal(result.costBreakdownMonthly.source, "custom-total");
+  assert.equal(result.costBreakdownMonthly.customOther, 500_000);
+  assert.equal(result.costBreakdownMonthly.food, null);
   assert.ok((result.monthlySurplus ?? 0) < 0);
   assert.ok((result.annualSavings ?? 0) < 0);
   assert.ok((result.projectedSavings5Years ?? 0) < 0);

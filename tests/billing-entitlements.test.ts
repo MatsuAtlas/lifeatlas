@@ -8,6 +8,7 @@ import {
   isProStatus,
   tierForStatus,
 } from "../lib/billing/entitlements.ts";
+import { PUBLIC_BILLING_PLANS, PUBLIC_ONE_TIME_PRODUCTS } from "../lib/billing/plans.ts";
 
 test("keeps Free and Pro feature limits in one entitlement contract", () => {
   const free = entitlementsForTier("free");
@@ -33,4 +34,12 @@ test("grants Pro only for active or trialing server-verified subscriptions", () 
   assert.equal(isProStatus("canceled"), false);
   assert.equal(tierForStatus("active"), "pro");
   assert.equal(tierForStatus("unpaid"), "free");
+});
+
+test("keeps subscription pricing configurable and prepares the one-time report separately", () => {
+  assert.equal(PUBLIC_BILLING_PLANS.month.amountUsd, 12);
+  assert.equal(PUBLIC_BILLING_PLANS.year.amountUsd, 79);
+  assert.equal(PUBLIC_ONE_TIME_PRODUCTS.decisionReport.kind, "one-time");
+  assert.equal(PUBLIC_ONE_TIME_PRODUCTS.decisionReport.availability, "planned");
+  assert.deepEqual(PUBLIC_ONE_TIME_PRODUCTS.decisionReport.targetAmountUsd, [39, 49]);
 });

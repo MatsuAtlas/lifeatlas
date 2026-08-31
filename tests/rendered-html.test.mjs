@@ -103,8 +103,13 @@ test("renders the Offer Analyzer as a separate deterministic decision flow", asy
   assert.match(html, /2〜5件の仕事・移住案/);
   assert.match(html, /AIに数字を作らせず/);
   assert.match(html, /What-If シミュレーター/);
+  assert.match(html, /収入・控除・生活費の全明細/);
+  assert.match(html, /月間生活費の内訳/);
+  assert.match(html, /変更後の世帯/);
+  assert.match(html, /変更後の貯蓄目標/);
   assert.match(html, /逆転に必要な給与/);
   assert.match(html, /分析を保存する/);
+  assert.match(html, /計算結果をダウンロードする/);
   assert.match(html, /Freeは1件、Proは無制限にアカウント保存できます/);
   assert.match(html, /href="\/#account"/);
   assert.match(html, /AIに結果を説明してもらう/);
@@ -184,6 +189,8 @@ test("publishes sitemap coverage without indexing account or API routes", async 
   assert.equal(robots.status, 200);
   const robotsText = await robots.text();
   assert.match(robotsText, /Disallow: \/account/);
+  assert.match(robotsText, /Disallow: \/dashboard/);
+  assert.match(robotsText, /Disallow: \/analyze\//);
   assert.match(robotsText, /Disallow: \/api\//);
 });
 

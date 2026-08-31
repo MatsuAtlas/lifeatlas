@@ -39,6 +39,18 @@ const savedAnalyzer: SavedAnalyzerInput = {
 
 test("accepts a complete saved Offer Analyzer input", () => {
   assert.equal(isSavedAnalyzerInput(savedAnalyzer), true);
+  assert.equal(isSavedAnalyzerInput({
+    ...savedAnalyzer,
+    whatIf: {
+      ...savedAnalyzer.whatIf,
+      householdType: "couple",
+      children: 2,
+      customMonthlySpending: 3_000,
+      customSavingsTarget: 250_000,
+      retirementAge: 62,
+      annualReturnRatePercent: 4,
+    },
+  }), true);
 });
 
 test("rejects malformed or unsafe saved Offer Analyzer inputs", () => {
@@ -47,6 +59,8 @@ test("rejects malformed or unsafe saved Offer Analyzer inputs", () => {
   assert.equal(isSavedAnalyzerInput({ ...savedAnalyzer, scenarios: [{ ...savedAnalyzer.scenarios[0], cityId: "unknown" }, savedAnalyzer.scenarios[1]] }), false);
   assert.equal(isSavedAnalyzerInput({ ...savedAnalyzer, priorities: { ...savedAnalyzer.priorities, savings: 6 } }), false);
   assert.equal(isSavedAnalyzerInput({ ...savedAnalyzer, whatIf: { ...savedAnalyzer.whatIf, exchangePercent: -100 } }), false);
+  assert.equal(isSavedAnalyzerInput({ ...savedAnalyzer, whatIf: { ...savedAnalyzer.whatIf, children: 11 } }), false);
+  assert.equal(isSavedAnalyzerInput({ ...savedAnalyzer, whatIf: { ...savedAnalyzer.whatIf, annualReturnRatePercent: 51 } }), false);
   assert.equal(isSavedAnalyzerInput({ ...savedAnalyzer, breakEven: { ...savedAnalyzer.breakEven, metric: "madeUp" } }), false);
 });
 

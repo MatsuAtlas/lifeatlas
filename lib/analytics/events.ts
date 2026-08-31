@@ -13,6 +13,7 @@ export const PRODUCT_EVENTS = [
   "saved_comparison",
   "share_clicked",
   "share_viewed",
+  "analysis_downloaded",
 ] as const;
 
 export type ProductEventName = typeof PRODUCT_EVENTS[number];

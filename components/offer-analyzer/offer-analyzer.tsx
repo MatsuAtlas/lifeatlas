@@ -11,6 +11,7 @@ import { simulateWhatIf } from "../../lib/calculations/what-if";
 import { isUserProfile } from "../../lib/user-profile";
 import { validateAIRecommendation } from "../../lib/ai/recommendation";
 import { canCreateScenario, FREE_ENTITLEMENTS } from "../../lib/billing/entitlements";
+import { buildAnalysisCsv } from "../../lib/reports/analysis-csv";
 import {
   consumeQueuedAnalyzerRestore,
   isComparisonRecord,
@@ -146,13 +147,32 @@ const copy = {
     bestFit: "最適候補",
     score: "LifeAtlas Score",
     gross: "年収",
+    grossMonthly: "月収（総額）",
+    taxAnnual: "年間税額",
+    insuranceAnnual: "年間社会保険",
     takeHome: "年間手取り",
+    takeHomeMonthly: "月間手取り",
     livingCost: "月間生活費",
+    rent: "月額家賃",
+    otherSpending: "家賃以外の月額支出",
+    monthlySurplus: "月間余剰",
     savings: "年間貯蓄",
     savingsRate: "貯蓄率",
     wealth10: "10年後資産",
+    wealth5: "5年後資産",
     rentBurden: "家賃負担率",
+    livingCostBurden: "生活費負担率",
+    purchasingPower: "購買力指数",
     fire: "FIRE目安",
+    fullBreakdown: "収入・控除・生活費の全明細",
+    costBreakdown: "月間生活費の内訳",
+    food: "食費",
+    utilities: "光熱費",
+    internet: "通信費",
+    transportation: "交通費",
+    healthcare: "医療費目安",
+    leisure: "その他生活費",
+    customOther: "カスタム支出合計",
     unavailable: "計算対象外",
     years: "年",
     strongest: "強み",
@@ -166,12 +186,19 @@ const copy = {
     taxUnavailable: "税・保険未対応",
     sourceRange: "データ範囲",
     whatIf: "What-If シミュレーター",
-    whatIfNote: "元のオファーを変更せず、給与・家賃・為替の変化後を即時比較します。",
+    whatIfNote: "元のオファーを変更せず、給与・家賃・為替・世帯・支出・長期条件の変化後を即時比較します。",
     target: "変更するオファー",
     salaryChange: "給与変化",
     rentChange: "家賃変化",
     fxChange: "為替変化",
     fxBase: "JPYは比較の基準通貨のため固定",
+    unchanged: "変更なし",
+    whatIfHousehold: "変更後の世帯",
+    whatIfChildren: "変更後の子ども",
+    whatIfSpending: "変更後の月額支出",
+    whatIfSavingsTarget: "変更後の貯蓄目標",
+    whatIfRetirementAge: "変更後の退職年齢",
+    whatIfReturnRate: "変更後の年利",
     reset: "変化をリセット",
     impact: "変化後の影響",
     rankChange: "順位変化",
@@ -215,6 +242,11 @@ const copy = {
     shareCreated: "公開リンクを作成しました。",
     shareCopied: "公開リンクをコピーしました。",
     shareError: "公開リンクを作成できませんでした。",
+    downloadTitle: "計算結果をダウンロードする",
+    downloadNote: "Proでは、表示中の計算結果・スコア・逆転給与・データ範囲を日本語または英語のCSVに保存できます。AIは使いません。",
+    downloadCsv: "CSVをダウンロード",
+    downloaded: "計算結果のCSVをダウンロードしました。",
+    downloadError: "CSVを作成できませんでした。",
     aiTitle: "AIに結果を説明してもらう",
     aiNote: "順位・金額はLifeAtlasの計算結果を固定したまま、AIが理由・トレードオフ・不確実性を読みやすく整理します。",
     generateAI: "構造化AI説明を生成",
@@ -277,13 +309,32 @@ const copy = {
     bestFit: "Best fit",
     score: "LifeAtlas Score",
     gross: "Gross income",
+    grossMonthly: "Gross monthly income",
+    taxAnnual: "Annual tax",
+    insuranceAnnual: "Annual social insurance",
     takeHome: "Annual take-home",
+    takeHomeMonthly: "Monthly take-home",
     livingCost: "Monthly living cost",
+    rent: "Monthly rent",
+    otherSpending: "Other monthly spending",
+    monthlySurplus: "Monthly surplus",
     savings: "Annual savings",
     savingsRate: "Savings rate",
     wealth10: "Wealth after 10 years",
+    wealth5: "Wealth after 5 years",
     rentBurden: "Rent burden",
+    livingCostBurden: "Living-cost burden",
+    purchasingPower: "Purchasing power index",
     fire: "FIRE estimate",
+    fullBreakdown: "Full income, deduction and cost details",
+    costBreakdown: "Monthly living-cost breakdown",
+    food: "Food",
+    utilities: "Utilities",
+    internet: "Internet",
+    transportation: "Transportation",
+    healthcare: "Healthcare estimate",
+    leisure: "Other living costs",
+    customOther: "Custom spending total",
     unavailable: "Unavailable",
     years: "years",
     strongest: "Strengths",
@@ -297,12 +348,19 @@ const copy = {
     taxUnavailable: "Tax calculation unavailable",
     sourceRange: "Data scope",
     whatIf: "What-If simulator",
-    whatIfNote: "Test salary, rent and exchange-rate changes without overwriting the original offers.",
+    whatIfNote: "Test salary, rent, exchange-rate, household, spending and long-term changes without overwriting the original offers.",
     target: "Offer to change",
     salaryChange: "Salary change",
     rentChange: "Rent change",
     fxChange: "Exchange-rate change",
     fxBase: "JPY stays fixed as the comparison base",
+    unchanged: "No change",
+    whatIfHousehold: "Household after change",
+    whatIfChildren: "Children after change",
+    whatIfSpending: "Monthly spending after change",
+    whatIfSavingsTarget: "Savings target after change",
+    whatIfRetirementAge: "Retirement age after change",
+    whatIfReturnRate: "Annual return after change",
     reset: "Reset changes",
     impact: "Impact after change",
     rankChange: "Rank change",
@@ -346,6 +404,11 @@ const copy = {
     shareCreated: "Public link created.",
     shareCopied: "Public link copied.",
     shareError: "The public link could not be created.",
+    downloadTitle: "Download the calculated result",
+    downloadNote: "Pro saves the visible calculations, scores, break-even salary and data scope as a Japanese or English CSV. It does not use AI.",
+    downloadCsv: "Download CSV",
+    downloaded: "The calculated CSV has been downloaded.",
+    downloadError: "The CSV could not be created.",
     aiTitle: "Ask AI to explain the result",
     aiNote: "LifeAtlas keeps every rank and number fixed while AI organizes the reasons, trade-offs and uncertainty into plain language.",
     generateAI: "Generate structured AI explanation",
@@ -451,6 +514,12 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
   const [salaryPercent, setSalaryPercent] = useState(0);
   const [rentPercent, setRentPercent] = useState(0);
   const [exchangePercent, setExchangePercent] = useState(0);
+  const [whatIfHousehold, setWhatIfHousehold] = useState<ScenarioHousehold | null>(null);
+  const [whatIfChildren, setWhatIfChildren] = useState<number | null>(null);
+  const [whatIfSpending, setWhatIfSpending] = useState<number | null>(null);
+  const [whatIfSavingsTarget, setWhatIfSavingsTarget] = useState<number | null>(null);
+  const [whatIfRetirementAge, setWhatIfRetirementAge] = useState<number | null>(null);
+  const [whatIfReturnRatePercent, setWhatIfReturnRatePercent] = useState<number | null>(null);
   const [breakEvenCandidateId, setBreakEvenCandidateId] = useState(initialScenarios[1].id);
   const [breakEvenMetric, setBreakEvenMetric] = useState<BreakEvenMetric>("disposableIncome");
   const [authUser, setAuthUser] = useState<{ id: string; email?: string } | null>(null);
@@ -471,6 +540,12 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
   const [followUpQuestion, setFollowUpQuestion] = useState("");
   const t = copy[language];
   const activeEntitlements = authUser ? entitlements : FREE_ENTITLEMENTS;
+
+  useEffect(() => {
+    const previousLanguage = document.documentElement.lang;
+    document.documentElement.lang = language;
+    return () => { document.documentElement.lang = previousLanguage; };
+  }, [language]);
 
   useEffect(() => {
     trackProductEventOnce("analyzer_started");
@@ -561,8 +636,14 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
     if (rentPercent !== 0) changes.push({ type: "rentPercent", scenarioId: activeWhatIfScenario.id, percent: rentPercent });
     const currency = cities[activeWhatIfScenario.cityId].currency;
     if (exchangePercent !== 0 && currency !== "JPY") changes.push({ type: "exchangeRatePercent", currency, percent: exchangePercent });
+    if (whatIfHousehold !== null) changes.push({ type: "household", scenarioId: activeWhatIfScenario.id, householdType: whatIfHousehold });
+    if (whatIfChildren !== null) changes.push({ type: "children", scenarioId: activeWhatIfScenario.id, value: whatIfChildren });
+    if (whatIfSpending !== null) changes.push({ type: "customMonthlySpending", scenarioId: activeWhatIfScenario.id, value: whatIfSpending });
+    if (whatIfSavingsTarget !== null) changes.push({ type: "customSavingsTarget", scenarioId: activeWhatIfScenario.id, value: whatIfSavingsTarget });
+    if (whatIfRetirementAge !== null && whatIfRetirementAge >= activeWhatIfScenario.age) changes.push({ type: "retirementAge", scenarioId: activeWhatIfScenario.id, value: whatIfRetirementAge });
+    if (whatIfReturnRatePercent !== null) changes.push({ type: "annualReturnRate", scenarioId: activeWhatIfScenario.id, value: whatIfReturnRatePercent / 100 });
     return changes;
-  }, [activeWhatIfScenario, exchangePercent, rentPercent, salaryPercent]);
+  }, [activeWhatIfScenario, exchangePercent, rentPercent, salaryPercent, whatIfChildren, whatIfHousehold, whatIfRetirementAge, whatIfReturnRatePercent, whatIfSavingsTarget, whatIfSpending]);
 
   const preview = useMemo(() => simulateWhatIf({ scenarios, changes: whatIfChanges, priorities }), [priorities, scenarios, whatIfChanges]);
   const winnerId = preview.after.scores[0].scenarioId;
@@ -600,6 +681,12 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
       salaryPercent,
       rentPercent,
       exchangePercent,
+      householdType: whatIfHousehold,
+      children: whatIfChildren,
+      customMonthlySpending: whatIfSpending,
+      customSavingsTarget: whatIfSavingsTarget,
+      retirementAge: whatIfRetirementAge,
+      annualReturnRatePercent: whatIfReturnRatePercent,
     },
     breakEven: {
       candidateScenarioId: activeBreakEvenCandidateId ?? scenarios[0].id,
@@ -620,6 +707,12 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
     setSalaryPercent(saved.whatIf.salaryPercent);
     setRentPercent(saved.whatIf.rentPercent);
     setExchangePercent(saved.whatIf.exchangePercent);
+    setWhatIfHousehold(saved.whatIf.householdType ?? null);
+    setWhatIfChildren(saved.whatIf.children ?? null);
+    setWhatIfSpending(saved.whatIf.customMonthlySpending ?? null);
+    setWhatIfSavingsTarget(saved.whatIf.customSavingsTarget ?? null);
+    setWhatIfRetirementAge(saved.whatIf.retirementAge ?? null);
+    setWhatIfReturnRatePercent(saved.whatIf.annualReturnRatePercent ?? null);
     setBreakEvenCandidateId(saved.breakEven.candidateScenarioId);
     setBreakEvenMetric(saved.breakEven.metric);
     setSaveMessage(t.restored);
@@ -860,6 +953,25 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
     }
   };
 
+  const downloadAnalysis = () => {
+    try {
+      const csv = buildAnalysisCsv(language, currentAnalysis, simulation.after);
+      const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `lifeatlas-analysis-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setSaveMessage(t.downloaded);
+      trackProductEvent("analysis_downloaded", { language, scenarios: scenarios.length });
+    } catch {
+      setSaveMessage(t.downloadError);
+    }
+  };
+
   const copyShare = async () => {
     if (!shareUrl) return;
     try {
@@ -903,6 +1015,34 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           <span>{language === "ja" ? "優先軸" : "Priorities"}<strong>{score.contributions.preference}</strong></span>
           <span>{language === "ja" ? "信頼度" : "Confidence"}<strong>{score.contributions.confidence}</strong></span>
         </div>
+        <details className="oa-result-details">
+          <summary>{t.fullBreakdown}</summary>
+          <div className="oa-detail-metrics">
+            <div><span>{t.grossMonthly}</span><strong>{formatMoney(result.grossMonthly, result.currency, language)}</strong></div>
+            <div><span>{t.taxAnnual}</span><strong>{formatMoney(result.taxAnnual, result.currency, language)}</strong></div>
+            <div><span>{t.insuranceAnnual}</span><strong>{formatMoney(result.socialInsuranceAnnual, result.currency, language)}</strong></div>
+            <div><span>{t.takeHomeMonthly}</span><strong>{formatMoney(result.netMonthly, result.currency, language)}</strong></div>
+            <div><span>{t.rent}</span><strong>{formatMoney(result.rentMonthly, result.currency, language)}</strong></div>
+            <div><span>{t.otherSpending}</span><strong>{formatMoney(result.baselineSpendingMonthly, result.currency, language)}</strong></div>
+            <div><span>{t.monthlySurplus}</span><strong>{formatMoney(result.monthlySurplus, result.currency, language)}</strong></div>
+            <div><span>{t.livingCostBurden}</span><strong>{formatPercent(result.livingCostBurden)}</strong></div>
+            <div><span>{t.purchasingPower}</span><strong>{result.purchasingPowerIndex ?? "—"}</strong></div>
+            <div><span>{t.wealth5}</span><strong>{activeEntitlements.canUseLongTermProjections ? formatMoney(result.projectedSavings5Years, result.currency, language) : "Pro"}</strong></div>
+          </div>
+          <h4>{t.costBreakdown}</h4>
+          <div className="oa-cost-breakdown">
+            {(result.costBreakdownMonthly.source === "custom-total" ? [
+              [t.customOther, result.costBreakdownMonthly.customOther],
+            ] : [
+              [t.food, result.costBreakdownMonthly.food],
+              [t.utilities, result.costBreakdownMonthly.utilities],
+              [t.internet, result.costBreakdownMonthly.internet],
+              [t.transportation, result.costBreakdownMonthly.transportation],
+              [t.healthcare, result.costBreakdownMonthly.healthcare],
+              [t.leisure, result.costBreakdownMonthly.leisure],
+            ]).map(([label, value]) => <div key={String(label)}><span>{label}</span><strong>{formatMoney(value as number | null, result.currency, language)}</strong></div>)}
+          </div>
+        </details>
         <div className="oa-factors">
           <div><span>{t.strongest}</span><ul>{score.strongestFactors.map((factor) => <li key={factor}>{factorLabels[factor]?.[language] ?? factor}</li>)}</ul></div>
           <div><span>{t.weakest}</span><ul>{score.riskFlags.length > 0 ? score.riskFlags.map((risk) => <li key={risk}>{riskLabels[risk]?.[language] ?? risk}</li>) : score.weakestFactors.slice(0, 2).map((factor) => <li key={factor}>{factorLabels[factor]?.[language] ?? factor}</li>)}</ul></div>
@@ -983,8 +1123,14 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
             <label>{t.salaryChange}<div className="input-with-unit"><input type="number" min="-100" max="1000" value={salaryPercent} onChange={(event) => setSalaryPercent(Number(event.target.value))} /><span>%</span></div></label>
             <label>{t.rentChange}<div className="input-with-unit"><input type="number" min="-100" max="1000" value={rentPercent} onChange={(event) => setRentPercent(Number(event.target.value))} /><span>%</span></div></label>
             <label>{t.fxChange}<div className="input-with-unit"><input type="number" min="-99" max="1000" value={exchangePercent} disabled={cities[activeWhatIfScenario.cityId].currency === "JPY"} onChange={(event) => setExchangePercent(Number(event.target.value))} /><span>%</span></div><small>{cities[activeWhatIfScenario.cityId].currency === "JPY" ? t.fxBase : cities[activeWhatIfScenario.cityId].currency}</small></label>
+            <label>{t.whatIfHousehold}<select value={whatIfHousehold ?? ""} onChange={(event) => setWhatIfHousehold(event.target.value === "" ? null : event.target.value as ScenarioHousehold)}><option value="">{t.unchanged}</option><option value="single">{t.single}</option><option value="couple">{t.couple}</option></select></label>
+            <label>{t.whatIfChildren}<input type="number" min="0" max="10" step="1" placeholder={t.unchanged} value={whatIfChildren ?? ""} onChange={(event) => setWhatIfChildren(event.target.value === "" ? null : Number(event.target.value))} /></label>
+            <label>{t.whatIfSpending}<div className="input-with-unit"><input type="number" min="0" placeholder={t.unchanged} value={whatIfSpending ?? ""} onChange={(event) => setWhatIfSpending(event.target.value === "" ? null : Number(event.target.value))} /><span>{activeWhatIfScenario.salaryCurrency}</span></div></label>
+            <label>{t.whatIfSavingsTarget}<div className="input-with-unit"><input type="number" min="0" placeholder={t.unchanged} value={whatIfSavingsTarget ?? ""} onChange={(event) => setWhatIfSavingsTarget(event.target.value === "" ? null : Number(event.target.value))} /><span>{activeWhatIfScenario.salaryCurrency}</span></div></label>
+            <label>{t.whatIfRetirementAge}<input type="number" min={activeWhatIfScenario.age} max="100" step="1" placeholder={t.unchanged} value={whatIfRetirementAge ?? ""} onChange={(event) => setWhatIfRetirementAge(event.target.value === "" ? null : Number(event.target.value))} /></label>
+            <label>{t.whatIfReturnRate}<div className="input-with-unit"><input type="number" min="-50" max="50" step="0.1" placeholder={t.unchanged} value={whatIfReturnRatePercent ?? ""} onChange={(event) => setWhatIfReturnRatePercent(event.target.value === "" ? null : Number(event.target.value))} /><span>%</span></div></label>
           </div>
-          <button className="secondary-button" type="button" onClick={() => { setSalaryPercent(0); setRentPercent(0); setExchangePercent(0); }}>{t.reset}</button>
+          <button className="secondary-button" type="button" onClick={() => { setSalaryPercent(0); setRentPercent(0); setExchangePercent(0); setWhatIfHousehold(null); setWhatIfChildren(null); setWhatIfSpending(null); setWhatIfSavingsTarget(null); setWhatIfRetirementAge(null); setWhatIfReturnRatePercent(null); }}>{t.reset}</button>
           <div className="oa-impact-grid">{simulation.deltas.map((delta) => {
             const result = resultById.get(delta.scenarioId) as ScenarioResult;
             const city = cities[result.cityId];
@@ -1025,6 +1171,10 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           <div id="share" className="oa-share-panel">
             <div><strong>{t.shareTitle}</strong><p>{t.shareNote}</p></div>
             {activeEntitlements.canShareResults ? <div className="oa-share-actions"><button className="secondary-button" type="button" onClick={() => void createShare()} disabled={shareLoading || !authUser}>{shareLoading ? t.creatingShare : t.createShare}</button>{shareUrl && <><input aria-label={t.shareTitle} readOnly value={shareUrl} /><button className="text-button" type="button" onClick={() => void copyShare()}>{t.copyShare}</button></>}</div> : <p className="oa-pro-note">{t.proRequired} <Link href="/pricing">{t.upgrade} →</Link></p>}
+          </div>
+          <div id="download" className="oa-share-panel">
+            <div><strong>{t.downloadTitle}</strong><p>{t.downloadNote}</p></div>
+            {activeEntitlements.canDownloadResults ? <div className="oa-download-actions"><button className="secondary-button" type="button" onClick={downloadAnalysis}>{t.downloadCsv}</button></div> : <p className="oa-pro-note">{t.proRequired} <Link href="/pricing">{t.upgrade} →</Link></p>}
           </div>
         </section>
 

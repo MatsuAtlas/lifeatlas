@@ -2,7 +2,7 @@ import { cities } from "../../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../../data/currencies.ts";
 import type { AgeBand, HouseholdType } from "../../types/finance";
 import type { DataConfidence, ScenarioCalculationOptions, ScenarioInput, ScenarioResult } from "../../types/scenario";
-import { calculateCity } from "./legacy-engine.ts";
+import { calculateCity, householdMultipliers, lifestyleMultipliers } from "./legacy-engine.ts";
 
 export const CALCULATION_VERSION = "2026.08-v2.1";
 
@@ -97,6 +97,26 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
   const legacy = calculateCity(city, grossAnnual, householdModel, input.housing, input.lifestyle, ageBand);
   const rentMonthly = input.customRent ?? legacy.rent;
   const baselineSpendingMonthly = input.customMonthlySpending ?? legacy.livingCosts;
+  const spendingMultiplier = householdMultipliers[householdModel] * lifestyleMultipliers[input.lifestyle];
+  const costBreakdownMonthly = input.customMonthlySpending === undefined ? {
+    source: "city-baseline" as const,
+    food: city.costs.food * spendingMultiplier,
+    utilities: city.costs.utilities * spendingMultiplier,
+    internet: city.costs.internet * spendingMultiplier,
+    transportation: city.costs.transport * spendingMultiplier,
+    healthcare: city.costs.medical * spendingMultiplier,
+    leisure: city.costs.leisure * spendingMultiplier,
+    customOther: 0,
+  } : {
+    source: "custom-total" as const,
+    food: null,
+    utilities: null,
+    internet: null,
+    transportation: null,
+    healthcare: null,
+    leisure: null,
+    customOther: input.customMonthlySpending,
+  };
   const totalLivingCostMonthly = rentMonthly + baselineSpendingMonthly;
   const totalLivingCostAnnual = totalLivingCostMonthly * 12;
   const netMonthly = legacy.netMonthly;
@@ -131,6 +151,7 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
     netMonthly,
     rentMonthly,
     baselineSpendingMonthly,
+    costBreakdownMonthly,
     totalLivingCostMonthly,
     totalLivingCostAnnual,
     monthlySurplus,

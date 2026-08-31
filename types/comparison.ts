@@ -1,5 +1,5 @@
 import type { BreakEvenMetric } from "./break-even";
-import type { ScenarioInput, UserPriorities } from "./scenario";
+import type { ScenarioHousehold, ScenarioInput, UserPriorities } from "./scenario";
 import type { WhatIfDelta, WhatIfSnapshot } from "./what-if";
 
 export type ComparisonRecord = {
@@ -23,6 +23,12 @@ export type SavedAnalyzerInput = {
     salaryPercent: number;
     rentPercent: number;
     exchangePercent: number;
+    householdType?: ScenarioHousehold | null;
+    children?: number | null;
+    customMonthlySpending?: number | null;
+    customSavingsTarget?: number | null;
+    retirementAge?: number | null;
+    annualReturnRatePercent?: number | null;
   };
   breakEven: {
     candidateScenarioId: string;

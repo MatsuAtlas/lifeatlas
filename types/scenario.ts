@@ -65,6 +65,16 @@ export type ScenarioResult = {
   netMonthly: number | null;
   rentMonthly: number;
   baselineSpendingMonthly: number;
+  costBreakdownMonthly: {
+    source: "city-baseline" | "custom-total";
+    food: number | null;
+    utilities: number | null;
+    internet: number | null;
+    transportation: number | null;
+    healthcare: number | null;
+    leisure: number | null;
+    customOther: number;
+  };
   totalLivingCostMonthly: number;
   totalLivingCostAnnual: number;
   monthlySurplus: number | null;

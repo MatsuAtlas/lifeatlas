@@ -75,7 +75,13 @@ export function isSavedAnalyzerInput(value: unknown): value is SavedAnalyzerInpu
     || !scenarioIds.includes(value.whatIf.scenarioId)
     || !isFiniteInRange(value.whatIf.salaryPercent, -100, 1_000)
     || !isFiniteInRange(value.whatIf.rentPercent, -100, 1_000)
-    || !isFiniteInRange(value.whatIf.exchangePercent, -99, 1_000)) return false;
+    || !isFiniteInRange(value.whatIf.exchangePercent, -99, 1_000)
+    || (value.whatIf.householdType !== undefined && value.whatIf.householdType !== null && value.whatIf.householdType !== "single" && value.whatIf.householdType !== "couple")
+    || (value.whatIf.children !== undefined && value.whatIf.children !== null && (!Number.isInteger(value.whatIf.children) || !isFiniteInRange(value.whatIf.children, 0, 10)))
+    || (value.whatIf.customMonthlySpending !== undefined && value.whatIf.customMonthlySpending !== null && !isFiniteInRange(value.whatIf.customMonthlySpending, 0, 1_000_000_000_000))
+    || (value.whatIf.customSavingsTarget !== undefined && value.whatIf.customSavingsTarget !== null && !isFiniteInRange(value.whatIf.customSavingsTarget, 0, 10_000_000_000_000))
+    || (value.whatIf.retirementAge !== undefined && value.whatIf.retirementAge !== null && !isFiniteInRange(value.whatIf.retirementAge, 18, 100))
+    || (value.whatIf.annualReturnRatePercent !== undefined && value.whatIf.annualReturnRatePercent !== null && !isFiniteInRange(value.whatIf.annualReturnRatePercent, -50, 50))) return false;
   return isObject(value.breakEven)
     && typeof value.breakEven.candidateScenarioId === "string"
     && scenarioIds.includes(value.breakEven.candidateScenarioId)
