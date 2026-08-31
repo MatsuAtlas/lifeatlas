@@ -77,6 +77,11 @@ h1 em { color: var(--green); font-style: normal; }
 .section-anchor { scroll-margin-top: 20px; }
 .account-card { margin-top: 16px; padding: 27px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel); box-shadow: 0 24px 65px rgba(0,0,0,.12); }
 .account-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 22px; align-items: end; }
+.oauth-button { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 12px 20px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--panel-soft); font-size: 12px; font-weight: 800; text-decoration: none; }
+.oauth-button:hover { border-color: var(--green); transform: translateY(-1px); }
+.account-grid > .oauth-button, .auth-divider { grid-column: 1 / -1; }
+.auth-divider { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 9px; text-align: center; }
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .account-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
 .account-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: 12px; }
 .account-status strong { color: var(--ink); }

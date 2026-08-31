@@ -69,6 +69,8 @@ test("renders the account and comparison history interface", async () => {
   const html = await response.text();
   assert.match(html, /Life Atlas/);
   assert.match(html, /登録と比較履歴/);
+  assert.match(html, /href="\/api\/auth\/oauth\/google\?next=\/dashboard"/);
+  assert.match(html, /Googleで続ける/);
   assert.match(html, /登録後はSupabase（オンライン保存サービス）に保存されます/);
   assert.doesNotMatch(html, /Supabase未設定時の確認用として、この端末にのみ保存します/);
   assert.match(html, /現在のデータ範囲/);
@@ -125,7 +127,12 @@ test("renders configurable pricing plus private account and dashboard pages", as
 
   const account = await fetch(`${baseUrl}/account`);
   assert.equal(account.status, 200);
-  assert.match(await account.text(), /アカウントと契約/);
+  const accountHtml = await account.text();
+  assert.match(accountHtml, /アカウントと契約/);
+
+  const failedOauth = await fetch(`${baseUrl}/account?auth=error`);
+  assert.equal(failedOauth.status, 200);
+  assert.match(await failedOauth.text(), /Googleログインを完了できませんでした/);
 
   const dashboard = await fetch(`${baseUrl}/dashboard`);
   assert.equal(dashboard.status, 200);
@@ -240,6 +247,20 @@ test("reports an unconfigured Supabase server consistently", async () => {
   });
   assert.equal(login.status, 503);
   assert.equal((await login.json()).configured, false);
+
+  const oauth = await fetch(`${baseUrl}/api/auth/oauth/google?next=/account`, { redirect: "manual" });
+  assert.equal(oauth.status, 307);
+  const oauthLocation = new URL(oauth.headers.get("location"));
+  assert.equal(oauthLocation.pathname, "/account");
+  assert.equal(oauthLocation.search, "?auth=unavailable");
+  assert.ok(["localhost", "127.0.0.1"].includes(oauthLocation.hostname));
+
+  const callback = await fetch(`${baseUrl}/api/auth/callback`, { redirect: "manual" });
+  assert.equal(callback.status, 307);
+  const callbackLocation = new URL(callback.headers.get("location"));
+  assert.equal(callbackLocation.pathname, "/account");
+  assert.equal(callbackLocation.search, "?auth=error");
+  assert.match(callback.headers.get("set-cookie") ?? "", /life_atlas_oauth_verifier=/);
 });
 
 test("keeps AI optional when its authenticated persistence is unconfigured", async () => {

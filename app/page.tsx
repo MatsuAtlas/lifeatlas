@@ -144,6 +144,8 @@ const translations = {
     password: "パスワード（8文字以上）",
     register: "新規登録",
     login: "ログイン",
+    googleLogin: "Googleで続ける",
+    orEmail: "またはメールアドレスで続ける",
     logout: "ログアウト",
     loggedInAs: "ログイン中：",
     saveComparison: "この比較を保存",
@@ -361,6 +363,8 @@ const translations = {
     password: "Password (8+ characters)",
     register: "Create account",
     login: "Log in",
+    googleLogin: "Continue with Google",
+    orEmail: "or continue with email",
     logout: "Log out",
     loggedInAs: "Logged in as: ",
     saveComparison: "Save this comparison",
@@ -1105,6 +1109,8 @@ export default function Home() {
 
           {!authUser ? (
             <form className="account-grid" onSubmit={authSubmit}>
+              <a className="oauth-button" href="/api/auth/oauth/google?next=/dashboard">{t.googleLogin}</a>
+              <div className="auth-divider"><span>{t.orEmail}</span></div>
               <label>{t.email}
                 <input type="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} autoComplete="email" required />
               </label>

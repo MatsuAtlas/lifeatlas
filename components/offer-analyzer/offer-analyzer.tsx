@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { cities, cityOrder } from "../../data/cities";
 import { DEFAULT_PRIORITIES } from "../../lib/scoring/life-atlas-score";
+import { localizedCity } from "../../lib/cities/localization";
 import { trackProductEvent, trackProductEventOnce } from "../../lib/analytics/client";
 import { simulateWhatIf } from "../../lib/calculations/what-if";
 import { isUserProfile } from "../../lib/user-profile";
@@ -375,11 +376,11 @@ const copy = {
 } as const;
 
 function cityName(city: City, language: Language) {
-  return language === "ja" ? city.name : city.englishName ?? city.name;
+  return localizedCity(city, language).name;
 }
 
 function countryName(city: City, language: Language) {
-  return language === "ja" ? city.country : city.englishCountry ?? city.country;
+  return localizedCity(city, language).country;
 }
 
 function formatMoney(value: number | null, currency: CurrencyCode, language: Language) {

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function AccountPage({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ billing?: string; auth?: string }> }) {
   const params = await searchParams;
-  return <AccountClient checkoutReturned={params.billing === "success"} />;
+  return <AccountClient checkoutReturned={params.billing === "success"} authStatus={params.auth} />;
 }

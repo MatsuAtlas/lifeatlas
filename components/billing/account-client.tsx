@@ -20,7 +20,7 @@ const priorityLabels: Record<PriorityKey, { ja: string; en: string }> = {
   family: { ja: "家族", en: "Family" }, safety: { ja: "安全性", en: "Safety" }, climate: { ja: "気候", en: "Climate" }, remoteWork: { ja: "リモート", en: "Remote work" },
 };
 
-export function AccountClient({ checkoutReturned = false }: { checkoutReturned?: boolean }) {
+export function AccountClient({ checkoutReturned = false, authStatus }: { checkoutReturned?: boolean; authStatus?: string }) {
   const [language, setLanguage] = useState<"ja" | "en">("ja");
   const [user, setUser] = useState<User | null>(null);
   const [billing, setBilling] = useState<BillingStatusResponse | null>(null);
@@ -101,10 +101,12 @@ export function AccountClient({ checkoutReturned = false }: { checkoutReturned?:
         <h1>{ja ? "アカウントと契約" : "Account and billing"}</h1>
         <p>{ja ? "保存した分析とPro契約を、同じアカウントで管理します。" : "Manage saved analyses and your Pro subscription in one account."}</p>
         {checkoutReturned && <p className="billing-notice" role="status">{ja ? "Stripeでの処理結果を確認中です。反映に数秒かかる場合があります。" : "Checking the Stripe result. Updates can take a few seconds."}</p>}
+        {authStatus === "error" && <p className="billing-error" role="alert">{ja ? "Googleログインを完了できませんでした。もう一度お試しください。" : "Google sign-in could not be completed. Please try again."}</p>}
+        {authStatus === "unavailable" && <p className="billing-notice" role="status">{ja ? "Googleログインは現在準備中です。メールアドレスでログインできます。" : "Google sign-in is not configured yet. You can still use email sign-in."}</p>}
       </section>
       <section className="account-panel">
         {loading && <p>{ja ? "確認中…" : "Loading…"}</p>}
-        {!loading && !user && <><h2>{ja ? "ログインが必要です" : "Sign in required"}</h2><p>{ja ? "LifeAtlasトップのアカウント欄からログインしてください。" : "Sign in from the account section on the LifeAtlas home page."}</p><Link className="primary-button" href="/#account">{ja ? "ログインへ" : "Go to sign in"}</Link></>}
+        {!loading && !user && <><h2>{ja ? "ログインが必要です" : "Sign in required"}</h2><p>{ja ? "Googleまたはメールアドレスでログインしてください。" : "Sign in with Google or your email address."}</p><div className="account-actions"><a className="oauth-button" href="/api/auth/oauth/google?next=/account">{ja ? "Googleで続ける" : "Continue with Google"}</a><Link className="secondary-button" href="/#account">{ja ? "メールでログイン" : "Use email"}</Link></div></>}
         {!loading && user && <>
           <div className="account-row"><span>{ja ? "メール" : "Email"}</span><strong>{user.email ?? user.id}</strong></div>
           <div className="account-row"><span>{ja ? "プラン" : "Plan"}</span><strong>{billing?.subscription.tier === "pro" ? "LifeAtlas Pro" : "Free"}</strong></div>

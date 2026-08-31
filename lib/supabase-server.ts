@@ -60,6 +60,11 @@ function getConfig() {
   return { url: url.toString().replace(/\/$/, ""), key };
 }
 
+export function supabaseAuthUrl(path: string) {
+  const { url } = getConfig();
+  return new URL(`auth/v1/${path.replace(/^\/+/, "")}`, `${url}/`);
+}
+
 export async function supabaseAuthRequest(path: string, init: RequestInit = {}) {
   const { url, key } = getConfig();
   const headers = new Headers(init.headers);
