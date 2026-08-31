@@ -176,6 +176,8 @@ test("publishes sitemap coverage without indexing account or API routes", async 
   assert.match(sitemapXml, /\/cities\/tokyo/);
   assert.match(sitemapXml, /\/cities\/bogota/);
   assert.match(sitemapXml, /\/compare\/tokyo-vs-vancouver/);
+  assert.match(sitemapXml, /\/methodology/);
+  assert.match(sitemapXml, /\/data/);
   assert.doesNotMatch(sitemapXml, /\/account/);
 
   const robots = await fetch(`${baseUrl}/robots.txt`);
@@ -183,6 +185,33 @@ test("publishes sitemap coverage without indexing account or API routes", async 
   const robotsText = await robots.text();
   assert.match(robotsText, /Disallow: \/account/);
   assert.match(robotsText, /Disallow: \/api\//);
+});
+
+test("renders bilingual methodology and transparent 50-city data pages", async () => {
+  const methodology = await fetch(`${baseUrl}/methodology`);
+  assert.equal(methodology.status, 200);
+  const methodologyHtml = await methodology.text();
+  assert.match(methodologyHtml, /数字が先に決め、AIは後から説明します/);
+  assert.match(methodologyHtml, /財務/);
+  assert.match(methodologyHtml, />45(?:<!-- -->)?%/);
+  assert.match(methodologyHtml, /税モデル45%/);
+
+  const englishMethodology = await fetch(`${baseUrl}/methodology?lang=en`);
+  assert.equal(englishMethodology.status, 200);
+  assert.match(await englishMethodology.text(), /The numbers decide first/);
+
+  const data = await fetch(`${baseUrl}/data`);
+  assert.equal(data.status, 200);
+  const dataHtml = await data.text();
+  assert.match(dataHtml, /その数字が、どこまで言えるか/);
+  assert.match(dataHtml, />50<\/strong>/);
+  assert.match(dataHtml, />25<\/strong>/);
+  assert.match(dataHtml, /保存推定値を含む/);
+  assert.match(dataHtml, /金額計算は未対応/);
+
+  const compare = await fetch(`${baseUrl}/compare`, { redirect: "manual" });
+  assert.equal(compare.status, 307);
+  assert.match(compare.headers.get("location") ?? "", /\/#compare$/);
 });
 
 test("keeps analytics and public sharing safe when services are unconfigured", async () => {

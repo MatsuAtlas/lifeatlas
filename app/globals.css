@@ -629,3 +629,39 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
   .growth-cta { align-items: stretch; flex-direction: column; padding: 24px 19px; }
   .growth-cta .primary-button { text-align: center; }
 }
+
+/* Calculation methodology and 50-city data coverage */
+.reference-page { overflow: visible; }
+.reference-hero { padding-bottom: 58px; }
+.reference-step-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+.reference-step-grid h2 { margin-bottom: 13px; font-size: 22px; }
+.reference-step-grid p, .reference-two-column p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.8; }
+.reference-weight-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.reference-weight-grid div { position: relative; display: grid; gap: 7px; overflow: hidden; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.reference-weight-grid span { color: var(--muted); font-size: 9px; font-weight: 800; }
+.reference-weight-grid strong { font-family: Georgia, serif; font-size: 34px; font-weight: 400; }
+.reference-weight-grid i { position: absolute; bottom: 0; left: 0; height: 3px; background: var(--green); }
+.reference-two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.reference-warning { margin-top: 42px; }
+.reference-actions { display: flex; gap: 9px; flex-wrap: wrap; }
+.reference-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 50px; }
+.reference-summary-grid div { display: grid; gap: 7px; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.reference-summary-grid strong { color: var(--green); font-family: Georgia, serif; font-size: 38px; font-weight: 400; }
+.reference-summary-grid span { color: var(--muted); font-size: 9px; line-height: 1.5; }
+.reference-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); }
+.reference-table { width: 100%; min-width: 900px; border-collapse: collapse; }
+.reference-table th, .reference-table td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; font-size: 9px; }
+.reference-table th { color: var(--faint); background: var(--panel-light); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.reference-table td > strong, .reference-table td a strong { display: block; color: var(--ink); font-size: 11px; }
+.reference-table td small, .reference-table td a small { display: block; margin-top: 4px; color: var(--faint); font-size: 8px; }
+.reference-table td a:hover strong { color: var(--green); }
+.reference-badge { display: inline-block; padding: 6px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); white-space: nowrap; }
+.reference-badge.is-unavailable { color: var(--danger); border-color: rgba(255,158,147,.28); }
+.reference-badge.is-official-scenario { color: var(--green); border-color: rgba(139,224,189,.3); }
+
+@media (max-width: 760px) {
+  .reference-step-grid, .reference-weight-grid, .reference-two-column, .reference-summary-grid { grid-template-columns: 1fr; }
+  .reference-summary-grid { margin-top: 32px; }
+  .reference-actions { display: grid; width: 100%; }
+  .reference-actions a { text-align: center; }
+}
