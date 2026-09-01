@@ -12,6 +12,7 @@ import { isUserProfile } from "../../lib/user-profile";
 import { validateAIRecommendation } from "../../lib/ai/recommendation";
 import { canCreateScenario, FREE_ENTITLEMENTS } from "../../lib/billing/entitlements";
 import { buildAnalysisCsv } from "../../lib/reports/analysis-csv";
+import { StandardDisclaimer } from "../financial/standard-disclaimer";
 import {
   consumeQueuedAnalyzerRestore,
   isComparisonRecord,
@@ -272,7 +273,6 @@ const copy = {
     upgrade: "Proの機能を見る",
     scenarioLimit: "Freeは2件、Proは最大5件のオファーを比較できます。",
     longTermPro: "長期資産・FIREはProで表示",
-    disclaimer: "比較結果は公開情報と保存した参考値に基づく概算です。個別の控除、在留資格、雇用条件、医療保険等を完全には反映せず、税務・金融・移住助言ではありません。重要な判断では専門家と最新の公式情報をご確認ください。",
   },
   en: {
     back: "Back to city comparison",
@@ -434,7 +434,6 @@ const copy = {
     upgrade: "See Pro features",
     scenarioLimit: "Free compares 2 offers; Pro compares up to 5.",
     longTermPro: "Long-term wealth and FIRE are included with Pro",
-    disclaimer: "Results are estimates based on public sources and saved reference values. They do not fully reflect individual deductions, immigration status, employment terms or health coverage, and are not tax, financial or immigration advice. Confirm important decisions with professionals and current official sources.",
   },
 } as const;
 
@@ -1202,7 +1201,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           )}
         </section>
 
-        <aside className="oa-disclaimer" role="note"><strong>{language === "ja" ? "重要な前提" : "Important assumptions"}</strong><p>{t.disclaimer}</p></aside>
+        <StandardDisclaimer language={language} />
         <footer className="site-footer"><div className="footer-brand"><span className="brand-mark">✦</span><strong>Life Atlas</strong><p>The AI decision engine for where to live, work, and build wealth.</p></div><div className="footer-meta"><span>CALCULATION 2026.08-v2.1</span><Link href="/">{t.back}</Link></div></footer>
       </div>
     </main>

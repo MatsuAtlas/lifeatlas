@@ -227,10 +227,15 @@ create table if not exists public.analytics_events (
   properties jsonb not null default '{}'::jsonb,
   source_event_id text unique,
   created_at timestamptz not null default now(),
-  constraint analytics_events_name check (event_name in ('landing_to_analyzer', 'analyzer_started', 'first_scenario_created', 'second_scenario_created', 'analysis_completed', 'ai_recommendation_viewed', 'pricing_viewed', 'upgrade_clicked', 'subscription_completed', 'subscription_canceled', 'signup_completed', 'saved_comparison', 'share_clicked', 'share_viewed')),
+  constraint analytics_events_name check (event_name in ('landing_to_analyzer', 'analyzer_started', 'first_scenario_created', 'second_scenario_created', 'analysis_completed', 'ai_recommendation_viewed', 'pricing_viewed', 'upgrade_clicked', 'subscription_completed', 'subscription_canceled', 'signup_completed', 'saved_comparison', 'share_clicked', 'share_viewed', 'analysis_downloaded')),
   constraint analytics_events_path_length check (pathname is null or char_length(pathname) between 1 and 200),
   constraint analytics_events_source_length check (source_event_id is null or char_length(source_event_id) between 1 and 120),
   constraint analytics_events_properties_object check (jsonb_typeof(properties) = 'object')
+);
+
+alter table public.analytics_events drop constraint if exists analytics_events_name;
+alter table public.analytics_events add constraint analytics_events_name check (
+  event_name in ('landing_to_analyzer', 'analyzer_started', 'first_scenario_created', 'second_scenario_created', 'analysis_completed', 'ai_recommendation_viewed', 'pricing_viewed', 'upgrade_clicked', 'subscription_completed', 'subscription_canceled', 'signup_completed', 'saved_comparison', 'share_clicked', 'share_viewed', 'analysis_downloaded')
 );
 
 create index if not exists analytics_events_name_created_idx

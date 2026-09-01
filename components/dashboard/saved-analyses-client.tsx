@@ -116,9 +116,9 @@ export function SavedAnalysesClient() {
     try {
       const response = await fetch("/api/share", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: record.title, language, analysis: record.input }) });
       const data: unknown = await response.json().catch(() => null);
-      const url = data && typeof data === "object" ? (data as { url?: unknown }).url : null;
-      if (!response.ok || typeof url !== "string") throw new Error("SHARE_FAILED");
-      await navigator.clipboard.writeText(new URL(url, window.location.origin).toString());
+      const path = data && typeof data === "object" ? (data as { path?: unknown }).path : null;
+      if (!response.ok || typeof path !== "string" || !/^\/share\/[A-Za-z0-9_-]{16}$/.test(path)) throw new Error("SHARE_FAILED");
+      await navigator.clipboard.writeText(new URL(path, window.location.origin).toString());
       setMessage(ja ? "公開リンクをコピーしました。" : "Public link copied.");
     } catch {
       setMessage(ja ? "共有リンクを作成できませんでした。共有はPro限定です。" : "Could not create a share link. Sharing requires Pro.");

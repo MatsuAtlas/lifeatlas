@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
@@ -41,6 +42,11 @@ test("keeps acquisition, conversion and churn events in the server allowlist", (
     assert.ok(PRODUCT_EVENTS.includes(eventName));
   }
   assert.equal(isProductEventName("arbitrary_event"), false);
+});
+
+test("keeps every product event compatible with the Supabase event constraint", () => {
+  const schema = readFileSync(new URL("../supabase/schema.sql", import.meta.url), "utf8");
+  for (const eventName of PRODUCT_EVENTS) assert.match(schema, new RegExp(`'${eventName}'`));
 });
 
 test("builds a deterministic public snapshot without private scenario fields", () => {
