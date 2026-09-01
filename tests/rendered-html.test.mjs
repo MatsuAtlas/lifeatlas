@@ -68,6 +68,7 @@ test("renders the account and comparison history interface", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Life Atlas/);
+  assert.match(html, /<link rel="icon" href="\/favicon\.svg" type="image\/svg\+xml"/);
   assert.match(html, /登録と比較履歴/);
   assert.match(html, /href="\/api\/auth\/oauth\/google\?next=\/dashboard"/);
   assert.match(html, /Googleで続ける/);
