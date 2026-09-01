@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 
+import { applySupabaseAdminAuthHeaders } from "./supabase-admin-auth";
+
 type SupabaseSession = {
   access_token: string;
   refresh_token?: string;
@@ -99,8 +101,7 @@ export async function supabaseAdminRestRequest(path: string, init: RequestInit =
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!serviceRoleKey) throw new SupabaseNotConfiguredError();
   const headers = new Headers(init.headers);
-  headers.set("apikey", serviceRoleKey);
-  headers.set("Authorization", `Bearer ${serviceRoleKey}`);
+  applySupabaseAdminAuthHeaders(headers, serviceRoleKey);
   headers.set("Accept", "application/json");
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   return fetch(new URL(`rest/v1/${path.replace(/^\/+/, "")}`, `${url}/`), {
