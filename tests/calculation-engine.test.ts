@@ -165,3 +165,18 @@ test("Ireland 2026 payroll tax applies bands, credits, USC and time-weighted PRS
   close(calculateIrelandPayrollTax(20_000).prsi, (20_000 / 52 * 0.042375 - (12 - (20_000 / 52 - 352) / 6)) * 52);
   assert.equal(taxCalculationStatus(cities.dublin), "official-rate-estimate");
 });
+
+test("Massachusetts, Illinois and DC 2026 state income tax is added to the federal tax", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  const incomeTax = (cityId: "boston" | "chicago" | "washingtonDc", gross: number) => (calculateCity(cities[cityId], gross, "single", "onebed", "balanced", "under40").taxBreakdown?.incomeTaxMonthly ?? 0) * 12;
+  // 連邦（$100,000・標準控除$16,100）：1,240+4,560+7,370=13,170
+  close(incomeTax("boston", 100_000), 13_170 + (100_000 - 4_400) * 0.05);
+  close(incomeTax("chicago", 100_000), 13_170 + (100_000 - 2_925) * 0.0495);
+  close(incomeTax("washingtonDc", 100_000), 13_170 + 400 + 1_800 + 1_300 + 23_900 * 0.085);
+  // イリノイは連邦AGI$250,000超で控除なし。マサチューセッツは課税所得$1,107,750超に4%加算。
+  const federal300k = incomeTax("chicago", 300_000) - 300_000 * 0.0495;
+  close(incomeTax("boston", 300_000) - federal300k, (300_000 - 4_400) * 0.05);
+  const federal2m = incomeTax("chicago", 2_000_000) - 2_000_000 * 0.0495;
+  close(incomeTax("boston", 2_000_000) - federal2m, 1_995_600 * 0.05 + (1_995_600 - 1_107_750) * 0.04);
+  for (const cityId of ["boston", "chicago", "washingtonDc"] as const) assert.equal(taxCalculationStatus(cities[cityId]), "official-rate-estimate");
+});
