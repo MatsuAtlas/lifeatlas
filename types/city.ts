@@ -25,7 +25,7 @@ export type City = {
   climate: string;
   language: string;
   population: string;
-  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia" | "singapore" | "uae" | "hongKong" | "ireland" | "germany" | "thailand" | "estimate";
+  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia" | "singapore" | "uae" | "hongKong" | "ireland" | "germany" | "thailand" | "china" | "estimate";
   taxRegion: string;
   insurance: InsuranceConfig;
   averageAnnualIncome: number;

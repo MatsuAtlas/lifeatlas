@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -241,4 +241,21 @@ test("Thailand 2026 caps social security at 875 baht a month and applies the pro
   // 月給฿10,000は上限未満：社会保険は5%
   assert.equal(calculateThailandPayroll(120_000).socialSecurity, 6_000);
   assert.equal(taxCalculationStatus(cities.bangkok), "official-rate-estimate");
+});
+
+test("China 2026 uses city contribution bases (time-weighted) and the comprehensive income tax table", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 北京¥600,000（上限超）：(35,811×10.5%+3)×6 + (36,348×10.5%+3)×6 = 45,496.17
+  const beijing = calculateChinaPayroll(600_000, "beijing");
+  close(beijing.socialInsurance, 45_496.17);
+  // 課税所得494,503.83：1,080+10,800+31,200+30,000+74,503.83×30%
+  close(beijing.incomeTax, 95_431.149);
+  // 上海¥120,000（月¥10,000は上下限内）：社会保険12,600、課税所得47,400 → 1,080+1,140
+  const shanghai = calculateChinaPayroll(120_000, "shanghai");
+  close(shanghai.socialInsurance, 12_600);
+  close(shanghai.incomeTax, 2_220);
+  // 下限未満は下限の基数で計算
+  close(calculateChinaPayroll(60_000, "shanghai").socialInsurance, 7_460 * 0.105 * 6 + 7_546 * 0.105 * 6);
+  assert.equal(taxCalculationStatus(cities.beijing), "official-rate-estimate");
+  assert.equal(taxCalculationStatus(cities.shanghai), "official-rate-estimate");
 });

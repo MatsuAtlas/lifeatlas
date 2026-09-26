@@ -279,8 +279,31 @@ export function calculateThailandPayroll(grossAnnual: number) {
   return { incomeTax, socialSecurity };
 }
 
+// 中国・2026年（居住者の総合所得、単身）。個人所得税は3〜45%の7段階、基本控除¥60,000。
+// 社会保険（従業員）：年金8%・医療2%・失業0.5%。月額の基数は都市ごとの上下限の間に収め、2026年は1〜6月を
+// 2025年度、7〜12月を2026年度の上下限で按分します。北京は医療の大額互助金として月¥3を加えます。
+// 住宅積立金（勤務先により5〜12%）、専項付加控除、外国人の非課税手当は未反映です。
+const chinaContributionBases = {
+  beijing: [{ months: 6, lower: 7_162, upper: 35_811 }, { months: 6, lower: 7_270, upper: 36_348 }],
+  shanghai: [{ months: 6, lower: 7_460, upper: 37_302 }, { months: 6, lower: 7_546, upper: 37_731 }],
+} as const;
+
+export function calculateChinaPayroll(grossAnnual: number, region: keyof typeof chinaContributionBases) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  const socialInsurance = chinaContributionBases[region].reduce((total, period) => {
+    const base = Math.min(Math.max(monthly, period.lower), period.upper);
+    return total + (base * (0.08 + 0.02 + 0.005) + (region === "beijing" ? 3 : 0)) * period.months;
+  }, 0);
+  const incomeTax = taxFromAnnualBrackets(Math.max(0, grossAnnual - 60_000 - socialInsurance), [
+    { limit: 36_000, rate: 0.03 }, { limit: 144_000, rate: 0.1 }, { limit: 300_000, rate: 0.2 }, { limit: 420_000, rate: 0.25 },
+    { limit: 660_000, rate: 0.3 }, { limit: 960_000, rate: 0.35 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 },
+  ]);
+  return { incomeTax, socialInsurance };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
+  if (city.taxSystem === "china" && !["beijing", "shanghai"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "canada" && !["britishColumbia", "ontario", "alberta", "quebec"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington", "massachusetts", "illinois", "districtOfColumbia"].includes(city.taxRegion)) return "unavailable";
   if (["singapore", "uae"].includes(city.taxSystem)) return "official-scenario";
@@ -306,6 +329,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
   }
   if (city.taxSystem === "uae") return emptyTaxBreakdown();
+  if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
+    const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
   if (city.taxSystem === "thailand") {
     const { incomeTax, socialSecurity } = calculateThailandPayroll(grossAnnual);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (incomeTax + socialSecurity) / 12 };
