@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -164,6 +164,50 @@ test("Ireland 2026 payroll tax applies bands, credits, USC and time-weighted PRS
   // €20,000（週€384.62）はPRSIクレジットが一部残る
   close(calculateIrelandPayrollTax(20_000).prsi, (20_000 / 52 * 0.042375 - (12 - (20_000 / 52 - 352) / 6)) * 52);
   assert.equal(taxCalculationStatus(cities.dublin), "official-rate-estimate");
+});
+
+test("Netherlands 2026 Box 1 applies bands and both tax credits, and stays unavailable where the official table is unverified", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // €60,000：Box 1 38,883×35.75%＋21,117×37.56%＝21,832.22、一般控除 3,115−30,264×6.398%＝1,178.71、
+  // 労働控除 5,685−14,408×6.51%＝4,747.04 → 15,906.47
+  const middle = calculateNetherlandsPayroll(60_000);
+  assert.ok(middle);
+  close(middle.box1, 21_832.2177);
+  close(middle.generalCredit, 1_178.70928);
+  close(middle.labourCredit, 4_747.0392);
+  close(middle.box1AfterCredits, 15_906.46922);
+  // €100,000：49.50%帯、€78,426以上で一般控除0、労働控除 5,685−54,408×6.51%＝2,143.04
+  const high = calculateNetherlandsPayroll(100_000);
+  assert.ok(high);
+  close(high.box1, 39_432.1533);
+  assert.equal(high.generalCredit, 0);
+  close(high.labourCredit, 2_143.0392);
+  close(high.box1AfterCredits, 37_289.1141);
+  // 労働控除は負にならない（€140,000では0）
+  assert.equal(calculateNetherlandsPayroll(140_000)?.labourCredit, 0);
+  // €45,592ちょうどは労働控除が最大€5,685、それ未満は積み上げ区間が未確認のためnull
+  const boundary = calculateNetherlandsPayroll(45_592);
+  assert.ok(boundary);
+  assert.equal(boundary.labourCredit, 5_685);
+  close(boundary.generalCredit, 2_100.53312);
+  close(boundary.box1AfterCredits, 16_420.5729 - 2_100.53312 - 5_685);
+  assert.equal(calculateNetherlandsPayroll(45_591), null);
+
+  const amsterdam = cities.amsterdam;
+  assert.equal(taxCalculationStatus(amsterdam), "official-rate-estimate");
+  const result = calculateCity(amsterdam, 60_000, "single", "onebed", "balanced", "under40");
+  close(result.taxMonthly ?? Number.NaN, 15_906.46922 / 12);
+  close(result.netMonthly ?? Number.NaN, (60_000 - 15_906.46922) / 12);
+  assert.equal(result.calculationUnavailableReason, null);
+  // 未確認の給与帯とAOW年齢の可能性がある65歳以上は、推測せず計算不能にします。
+  for (const unavailable of [calculateCity(amsterdam, 30_000, "single", "onebed", "balanced", "under40"), calculateCity(amsterdam, 60_000, "single", "onebed", "balanced", "65plus")]) {
+    assert.equal(unavailable.taxBreakdown, null);
+    assert.equal(unavailable.netMonthly, null);
+    assert.equal(unavailable.taxCalculationStatus, "unavailable");
+    assert.equal(unavailable.calculationUnavailableReason, "tax");
+  }
+  assert.ok(amsterdam.dataSources.some((item) => /Life Atlas保存参考値/.test(item.source)));
+  assert.ok(amsterdam.dataSources.some((item) => item.url.includes("tabel-arbeidskorting-2026")));
 });
 
 test("Massachusetts, Illinois and DC 2026 state income tax is added to the federal tax", () => {

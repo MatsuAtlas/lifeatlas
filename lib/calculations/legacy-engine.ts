@@ -266,6 +266,26 @@ export function calculateGermanyPayroll(grossAnnual: number, household: keyof ty
   return { incomeTax, solidarity, pension, unemployment, health, care };
 }
 
+// オランダ・2026年（AOW年齢未満の居住者、給与所得者）。Box 1は€38,883まで35.75%（所得税8.10%＋国民保険27.65%）、
+// €78,426まで37.56%、それを超える部分は49.50%。ここから一般税額控除（最大€3,115、€29,736超で超過分の6.398%ずつ減り
+// €78,426以上で0）と労働税額控除（最大€5,685、€45,592超で超過分の6.51%ずつ減る）を差し引きます。
+// 労働税額控除の€45,592以下の積み上げ区間は公式表の原文を確認できていないため、この範囲の給与ではnull（計算不能）を返します。
+// 30%ルール（外国人専門職の非課税手当）と年金基金の掛金は未反映。基礎医療保険の定額保険料は生活費側で扱います。
+export const NETHERLANDS_MIN_VERIFIED_LABOR_INCOME = 45_592;
+
+export function calculateNetherlandsPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  if (gross < NETHERLANDS_MIN_VERIFIED_LABOR_INCOME) return null;
+  const box1 = taxFromAnnualBrackets(gross, [
+    { limit: 38_883, rate: 0.3575 }, { limit: 78_426, rate: 0.3756 }, { limit: Number.POSITIVE_INFINITY, rate: 0.495 },
+  ]);
+  const generalCredit = gross >= 78_426 ? 0 : Math.max(0, 3_115 - Math.max(0, gross - 29_736) * 0.06398);
+  const labourCredit = Math.max(0, 5_685 - (gross - NETHERLANDS_MIN_VERIFIED_LABOR_INCOME) * 0.0651);
+  // 税額控除はBox 1の税額（所得税＋国民保険料）を超えて還付されません。
+  const box1AfterCredits = Math.max(0, box1 - generalCredit - labourCredit);
+  return { box1, generalCredit, labourCredit, box1AfterCredits };
+}
+
 // タイ・2026課税年度（居住者・単身）。社会保険（第33条）は賃金の5%で、2026年1月から月額上限は賃金฿17,500（最大฿875）。
 // 課税所得＝給与−給与所得控除（50%・上限฿100,000）−基礎控除฿60,000−社会保険料。配偶者・子どもの控除は未反映。
 export function calculateThailandPayroll(grossAnnual: number) {
@@ -438,6 +458,14 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     const { incomeTax, usc, prsi } = calculateIrelandPayrollTax(grossAnnual);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: usc / 12, pensionMonthly: prsi / 12, totalTaxMonthly: (incomeTax + usc) / 12, totalInsuranceMonthly: prsi / 12, totalDeductionsMonthly: (incomeTax + usc + prsi) / 12 };
   }
+  if (city.taxSystem === "netherlands") {
+    // 未確認の区間（労働所得€45,592未満）とAOW年齢の可能性がある65歳以上は計算しません。
+    const payroll = ageBand === "65plus" ? null : calculateNetherlandsPayroll(grossAnnual);
+    if (payroll === null) return null;
+    // Box 1は所得税と国民保険料を一体で課税し、税額控除も合算額から差し引くため、1行の税額として示します。
+    const levy = payroll.box1AfterCredits;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: levy / 12, totalTaxMonthly: levy / 12, totalDeductionsMonthly: levy / 12 };
+  }
   if (city.taxSystem === "hongKong") {
     const { salariesTax, mpf } = calculateHongKongSalariesTax(grossAnnual, household);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: salariesTax / 12, pensionMonthly: mpf / 12, totalTaxMonthly: salariesTax / 12, totalInsuranceMonthly: mpf / 12, totalDeductionsMonthly: (salariesTax + mpf) / 12 };
@@ -538,9 +566,10 @@ export function calculateCity<TCity extends City>(city: TCity, grossAnnual: numb
   const housingMultiplier = housingMultipliers[housing];
   const lifestyleMultiplier = lifestyleMultipliers[lifestyle];
   const grossMonthly = grossAnnual === null ? null : grossAnnual / 12;
-  const calculationStatus = taxCalculationStatus(city);
-  const calculationUnavailableReason = grossAnnual === null ? "salary" : calculationStatus === "unavailable" ? "tax" : null;
   const taxBreakdown = grossAnnual === null ? null : estimateTaxBreakdown(city, grossAnnual, ageBand, household);
+  // 税制度は対応していても、公式値を確認できていない給与帯・年齢では計算不能として扱います。
+  const calculationStatus = grossAnnual !== null && taxBreakdown === null ? "unavailable" : taxCalculationStatus(city);
+  const calculationUnavailableReason = grossAnnual === null ? "salary" : calculationStatus === "unavailable" ? "tax" : null;
   const rent = city.costs.rent * housingMultiplier;
   const livingCosts = (city.costs.food + city.costs.utilities + city.costs.internet + city.costs.transport + city.costs.medical + city.costs.leisure) * householdMultiplier * lifestyleMultiplier;
   const totalMonthlyCosts = rent + livingCosts;
