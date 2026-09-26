@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { cities, cityOrder } from "../data/cities.ts";
+import { officialSalaryBenchmarkSource, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+
 import { assessCatalogFreshness, buildCatalogCoverage } from "../lib/data/catalog-coverage.ts";
 
 test("reports deterministic coverage for all 50 cities without inflating unsupported calculations", () => {
@@ -19,4 +22,15 @@ test("separates current, review-due, stale and unknown catalog dates", () => {
   assert.equal(assessCatalogFreshness("2026-01-01", now).status, "review");
   assert.equal(assessCatalogFreshness("2025-01-01", now).status, "stale");
   assert.equal(assessCatalogFreshness("unknown", now).status, "unknown");
+});
+
+test("calculable cities never cite an unsupported tax source, and saved-estimate salaries are not official benchmarks", () => {
+  for (const cityId of cityOrder) {
+    const city = cities[cityId];
+    if (taxCalculationStatus(city) === "unavailable") continue;
+    assert.equal(city.dataSources.some((item) => /未対応/.test(`${item.period}${item.source}`)), false, `${cityId} cites an unsupported tax source`);
+  }
+  for (const cityId of ["sapporo", "fukuoka", "sydney", "brisbane", "perth", "dallas", "sanFrancisco", "miami", "seattle"] as const) {
+    assert.equal(officialSalaryBenchmarkSource(cities[cityId]), null, `${cityId} must not expose an official salary benchmark`);
+  }
 });
