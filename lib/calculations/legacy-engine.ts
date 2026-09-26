@@ -143,6 +143,21 @@ function calculateUsIncomeTax(city: City, grossAnnual: number) {
     ]);
     return federalTax + stateTax + cityTax;
   }
+  // 2026課税年度・単身。マサチューセッツ：5%（控除$4,400、課税所得$1,107,750超に4%加算）。
+  // イリノイ：4.95%（控除$2,925、連邦AGI$250,000超は控除なし）。DC：4%〜10.75%の7段階（標準控除$16,100）。
+  if (city.taxRegion === "massachusetts") {
+    const taxable = Math.max(0, grossAnnual - 4_400);
+    return federalTax + taxable * 0.05 + Math.max(0, taxable - 1_107_750) * 0.04;
+  }
+  if (city.taxRegion === "illinois") {
+    const exemption = grossAnnual > 250_000 ? 0 : 2_925;
+    return federalTax + Math.max(0, grossAnnual - exemption) * 0.0495;
+  }
+  if (city.taxRegion === "districtOfColumbia") {
+    return federalTax + taxFromAnnualBrackets(Math.max(0, grossAnnual - 16_100), [
+      { limit: 10_000, rate: 0.04 }, { limit: 40_000, rate: 0.06 }, { limit: 60_000, rate: 0.065 }, { limit: 250_000, rate: 0.085 }, { limit: 500_000, rate: 0.0925 }, { limit: 1_000_000, rate: 0.0975 }, { limit: Number.POSITIVE_INFINITY, rate: 0.1075 },
+    ]);
+  }
   return federalTax;
 }
 
@@ -199,7 +214,7 @@ export function calculateIrelandPayrollTax(grossAnnual: number) {
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "canada" && !["britishColumbia", "ontario"].includes(city.taxRegion)) return "unavailable";
-  if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington"].includes(city.taxRegion)) return "unavailable";
+  if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington", "massachusetts", "illinois", "districtOfColumbia"].includes(city.taxRegion)) return "unavailable";
   if (["singapore", "uae"].includes(city.taxSystem)) return "official-scenario";
   return "official-rate-estimate";
 }
