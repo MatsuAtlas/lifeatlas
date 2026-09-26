@@ -316,6 +316,42 @@ export function calculatePhilippinesPayroll(grossAnnual: number) {
   return { incomeTax, socialInsurance };
 }
 
+// ベトナム・2026年（居住者・単身、ホーチミン市＝地域I）。所得税は法律109/2025/QH15の5段階（月額、2026年1月から）、
+// 本人控除は月₫15,500,000。社会保険（従業員）：年金等8%＋医療1.5%（上限は基本給の20倍：1〜6月₫46.8百万、7〜12月₫50.6百万）、
+// 失業1%（上限は地域I最低賃金₫5.31百万の20倍）。扶養控除と外国人の失業保険対象外は未反映です。
+export function calculateVietnamPayroll(grossAnnual: number) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  let incomeTax = 0;
+  let socialInsurance = 0;
+  for (const cap of [46_800_000, 50_600_000]) {
+    const insurance = Math.min(monthly, cap) * 0.095 + Math.min(monthly, 106_200_000) * 0.01;
+    const tax = taxFromAnnualBrackets(Math.max(0, monthly - insurance - 15_500_000), [
+      { limit: 10_000_000, rate: 0.05 }, { limit: 30_000_000, rate: 0.15 }, { limit: 60_000_000, rate: 0.25 }, { limit: 100_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
+    ]);
+    incomeTax += tax * 6;
+    socialInsurance += insurance * 6;
+  }
+  return { incomeTax, socialInsurance };
+}
+
+// ブラジル・2026年（月給×12、13か月目の給与は未反映）。INSS（従業員）は7.5/9/12/14%の累進、上限R$8,475.55。
+// 所得税の基礎＝月給−max(INSS, 簡易控除R$607.20)。月額累進表（R$2,428.80まで非課税〜27.5%）の税額から、
+// 法律15.270/2025の減額（月収R$5,000以下は最大R$312.89、R$7,350以下はR$978.62−0.133145×月収）を差し引きます。
+export function calculateBrazilPayroll(grossAnnual: number) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  const inss = taxFromAnnualBrackets(Math.min(monthly, 8_475.55), [
+    { limit: 1_621, rate: 0.075 }, { limit: 2_902.84, rate: 0.09 }, { limit: 4_354.27, rate: 0.12 }, { limit: 8_475.55, rate: 0.14 },
+  ]);
+  const base = Math.max(0, monthly - Math.max(inss, 607.2));
+  const tableTax = taxFromAnnualBrackets(base, [
+    { limit: 2_428.8, rate: 0 }, { limit: 2_826.65, rate: 0.075 }, { limit: 3_751.05, rate: 0.15 }, { limit: 4_664.68, rate: 0.225 }, { limit: Number.POSITIVE_INFINITY, rate: 0.275 },
+  ]);
+  const reduction = monthly <= 5_000 ? 312.89 : monthly <= 7_350 ? Math.max(0, 978.62 - 0.133145 * monthly) : 0;
+  // 源泉徴収はセンターボ単位のため、月額税額を1センターボ単位に丸めます。
+  const incomeTax = Math.round(Math.max(0, tableTax - reduction) * 100) / 100;
+  return { incomeTax: incomeTax * 12, socialInsurance: inss * 12 };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "china" && !["beijing", "shanghai"].includes(city.taxRegion)) return "unavailable";
@@ -346,6 +382,14 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "uae") return emptyTaxBreakdown();
   if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
     const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "brazil") {
+    const { incomeTax, socialInsurance } = calculateBrazilPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "vietnam") {
+    const { incomeTax, socialInsurance } = calculateVietnamPayroll(grossAnnual);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
   }
   if (city.taxSystem === "philippines") {
