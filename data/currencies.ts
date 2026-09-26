@@ -24,6 +24,9 @@ export const FALLBACK_FX_TO_JPY: Record<CurrencyCode, number> = {
   ARS: 0.13,
   CLP: 0.15,
   COP: 0.035,
+  INR: 1.65,
+  // サウジリヤルは米ドルに固定（1米ドル=3.75リヤル）のため、米ドルの参考レートから換算します。
+  SAR: 145 / 3.75,
 };
 
 export function convertCurrency(

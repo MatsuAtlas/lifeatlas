@@ -6,13 +6,13 @@ import { officialSalaryBenchmarkSource, taxCalculationStatus } from "../lib/calc
 
 import { assessCatalogFreshness, buildCatalogCoverage } from "../lib/data/catalog-coverage.ts";
 
-test("reports deterministic coverage for all 50 cities without inflating unsupported calculations", () => {
+test("reports deterministic coverage for all 69 cities without inflating unsupported calculations", () => {
   const coverage = buildCatalogCoverage(new Date("2026-08-31T00:00:00Z"));
-  assert.equal(coverage.summary.cityCount, 50);
-  assert.equal(coverage.summary.calculationAvailable, 39);
+  assert.equal(coverage.summary.cityCount, 69);
+  assert.equal(coverage.summary.calculationAvailable, 58);
   assert.equal(coverage.summary.calculationUnavailable, 11);
-  assert.equal(coverage.summary.highConfidence + coverage.summary.mediumConfidence + coverage.summary.lowConfidence, 50);
-  assert.equal(coverage.summary.containsSavedEstimate, 36);
+  assert.equal(coverage.summary.highConfidence + coverage.summary.mediumConfidence + coverage.summary.lowConfidence, 69);
+  assert.equal(coverage.summary.containsSavedEstimate, 55);
   assert.equal(coverage.rows.filter((row) => row.calculationStatus === "unavailable").every((row) => row.confidenceLevel === "low"), true);
 });
 
@@ -30,7 +30,7 @@ test("calculable cities never cite an unsupported tax source, and saved-estimate
     if (taxCalculationStatus(city) === "unavailable") continue;
     assert.equal(city.dataSources.some((item) => /未対応/.test(`${item.period}${item.source}`)), false, `${cityId} cites an unsupported tax source`);
   }
-  for (const cityId of ["sapporo", "fukuoka", "sydney", "brisbane", "perth", "dallas", "sanFrancisco", "miami", "seattle"] as const) {
+  for (const cityId of ["sapporo", "fukuoka", "sydney", "brisbane", "perth", "dallas", "sanFrancisco", "miami", "seattle", "yokohama", "nagoya", "kyoto", "ottawa", "edmonton", "austin", "houston", "sanJose", "sanDiego", "manchester", "munich", "frankfurt", "hamburg", "lyon", "adelaide", "canberra", "abuDhabi", "riyadh", "bangalore"] as const) {
     assert.equal(officialSalaryBenchmarkSource(cities[cityId]), null, `${cityId} must not expose an official salary benchmark`);
   }
 });

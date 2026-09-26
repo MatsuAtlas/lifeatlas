@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { trackProductEvent, trackProductEventOnce } from "../../lib/analytics/client";
+import { cityOrder } from "../../data/cities";
 import { PUBLIC_BILLING_PLANS } from "../../lib/billing/plans";
 import type { BillingInterval } from "../../types/billing";
+
+const CITY_COUNT = cityOrder.length;
 
 type Language = "ja" | "en";
 type AuthState = "loading" | "signed-out" | "signed-in";
@@ -32,7 +35,7 @@ const copy = {
     stripeNote: "支払い情報はLifeAtlasに保存せず、Stripeの安全な購入画面で処理します。いつでも契約管理画面から変更・解約できます。",
     canceled: "購入は行われませんでした。プランは変更されていません。",
     error: "購入画面を開始できませんでした。時間をおいて再度お試しください。",
-    freeFeatures: ["世界50都市の基本比較", "2シナリオまで", "限定AI説明", "保存1件"],
+    freeFeatures: [`世界${CITY_COUNT}都市の基本比較`, "2シナリオまで", "限定AI説明", "保存1件"],
     proFeatures: ["最大5シナリオ", "What-Ifと逆転給与", "5年・10年資産とFIRE", "AI説明と追質問", "保存・共有・ダウンロード", "家族・カスタム条件"],
   },
   en: {
@@ -56,7 +59,7 @@ const copy = {
     stripeNote: "LifeAtlas never stores payment details. Stripe processes them on its secure checkout, and you can change or cancel from the billing portal.",
     canceled: "No purchase was made. Your plan has not changed.",
     error: "Checkout could not be started. Please try again shortly.",
-    freeFeatures: ["Basic comparison across 50 cities", "Up to 2 scenarios", "Limited AI explanations", "1 saved analysis"],
+    freeFeatures: [`Basic comparison across ${CITY_COUNT} cities`, "Up to 2 scenarios", "Limited AI explanations", "1 saved analysis"],
     proFeatures: ["Up to 5 scenarios", "What-If and break-even salary", "5/10-year wealth and FIRE", "AI explanations and follow-ups", "Save, share and download", "Family and custom assumptions"],
   },
 } as const;
