@@ -368,6 +368,24 @@ export function calculateTaiwanPayroll(grossAnnual: number) {
   return { incomeTax, laborInsurance, healthInsurance };
 }
 
+// インドネシア・2026年（居住者・単身、PTKP Rp54,000,000）。従業員の社会保険：JHT 2%（上限なし）、JP 1%（月額上限は1〜2月Rp10,547,400、
+// 3〜12月Rp11,086,300）、JKN（医療）1%（月額上限Rp12,000,000）。会社負担のJKK（最低リスク0.24%と仮定）・JKM 0.30%・JKN 4%は課税所得に加算します。
+// 課税所得＝総額−職務費用（5%・上限年Rp6,000,000）−JHT・JP−PTKP（千ルピア未満切り捨て）。外国人のJP対象外、扶養控除は未反映です。
+export function calculateIndonesiaPayroll(grossAnnual: number) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  const jht = monthly * 0.02 * 12;
+  const jp = Math.min(monthly, 10_547_400) * 0.01 * 2 + Math.min(monthly, 11_086_300) * 0.01 * 10;
+  const jkn = Math.min(monthly, 12_000_000) * 0.01 * 12;
+  const employerPremiums = (monthly * (0.0024 + 0.003) + Math.min(monthly, 12_000_000) * 0.04) * 12;
+  const bruto = monthly * 12 + employerPremiums;
+  const netto = bruto - Math.min(bruto * 0.05, 6_000_000) - jht - jp;
+  const taxable = Math.floor(Math.max(0, netto - 54_000_000) / 1_000) * 1_000;
+  const incomeTax = taxFromAnnualBrackets(taxable, [
+    { limit: 60_000_000, rate: 0.05 }, { limit: 250_000_000, rate: 0.15 }, { limit: 500_000_000, rate: 0.25 }, { limit: 5_000_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
+  ]);
+  return { incomeTax, pension: jht + jp, health: jkn };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "china" && !["beijing", "shanghai"].includes(city.taxRegion)) return "unavailable";
@@ -399,6 +417,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
     const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "indonesia") {
+    const { incomeTax, pension, health } = calculateIndonesiaPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
   }
   if (city.taxSystem === "taiwan") {
     const { incomeTax, laborInsurance, healthInsurance } = calculateTaiwanPayroll(grossAnnual);

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateTaiwanPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateTaiwanPayroll, calculateIndonesiaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -319,4 +319,17 @@ test("Taiwan 2026 applies the 115 tax brackets, labor insurance and NHI caps", (
   assert.equal(low.incomeTax, 0);
   close(low.laborInsurance, 10_000);
   assert.equal(taxCalculationStatus(cities.taipei), "official-rate-estimate");
+});
+
+test("Indonesia 2026 adds employer BPJS premiums to gross and applies the UU HPP brackets", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 月Rp20,000,000：JHT 400,000、JP 1%（1〜2月10,547,400・3〜12月11,086,300が上限）、JKN上限12,000,000
+  const middle = calculateIndonesiaPayroll(240_000_000);
+  close(middle.pension, 4_800_000 + 105_474 * 2 + 110_863 * 10);
+  close(middle.health, 120_000 * 12);
+  // 総額240M＋会社負担（JKK48,000・JKM60,000・JKN480,000）×12＝247,056,000。職務費用6M、JHT・JP控除後にPTKP54M → 180,936,000
+  close(middle.incomeTax, 60_000_000 * 0.05 + 120_936_000 * 0.15);
+  // 月Rp5,000,000：課税所得3,787,000×5%
+  close(calculateIndonesiaPayroll(60_000_000).incomeTax, 189_350);
+  assert.equal(taxCalculationStatus(cities.jakarta), "official-rate-estimate");
 });
