@@ -266,6 +266,19 @@ export function calculateGermanyPayroll(grossAnnual: number, household: keyof ty
   return { incomeTax, solidarity, pension, unemployment, health, care };
 }
 
+// タイ・2026課税年度（居住者・単身）。社会保険（第33条）は賃金の5%で、2026年1月から月額上限は賃金฿17,500（最大฿875）。
+// 課税所得＝給与−給与所得控除（50%・上限฿100,000）−基礎控除฿60,000−社会保険料。配偶者・子どもの控除は未反映。
+export function calculateThailandPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const socialSecurity = Math.min(gross / 12, 17_500) * 0.05 * 12;
+  const taxable = Math.max(0, gross - Math.min(gross * 0.5, 100_000) - 60_000 - socialSecurity);
+  const incomeTax = taxFromAnnualBrackets(taxable, [
+    { limit: 150_000, rate: 0 }, { limit: 300_000, rate: 0.05 }, { limit: 500_000, rate: 0.1 }, { limit: 750_000, rate: 0.15 },
+    { limit: 1_000_000, rate: 0.2 }, { limit: 2_000_000, rate: 0.25 }, { limit: 5_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
+  ]);
+  return { incomeTax, socialSecurity };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "canada" && !["britishColumbia", "ontario", "alberta", "quebec"].includes(city.taxRegion)) return "unavailable";
@@ -293,6 +306,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
   }
   if (city.taxSystem === "uae") return emptyTaxBreakdown();
+  if (city.taxSystem === "thailand") {
+    const { incomeTax, socialSecurity } = calculateThailandPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (incomeTax + socialSecurity) / 12 };
+  }
   if (city.taxSystem === "germany") {
     const { incomeTax, solidarity, pension, unemployment, health, care } = calculateGermanyPayroll(grossAnnual, household);
     const totalTax = incomeTax + solidarity;
