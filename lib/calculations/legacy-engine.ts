@@ -301,6 +301,21 @@ export function calculateChinaPayroll(grossAnnual: number, region: keyof typeof 
   return { incomeTax, socialInsurance };
 }
 
+// フィリピン・2026年（居住者・単身）。所得税は2023年以降の累進税率。従業員の社会保険：SSS 5%（月額給与クレジット
+// ₱5,000〜₱35,000）、PhilHealth 2.5%（月収₱10,000〜₱100,000）、Pag-IBIG 月₱200。社会保険料は課税所得から除外します。
+// 13か月給与などの非課税枠（₱90,000）は未反映です。
+export function calculatePhilippinesPayroll(grossAnnual: number) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  const sss = Math.min(Math.max(monthly, 5_000), 35_000) * 0.05;
+  const philHealth = Math.min(Math.max(monthly, 10_000), 100_000) * 0.025;
+  const pagIbig = Math.min(monthly, 10_000) * 0.02;
+  const socialInsurance = monthly > 0 ? (sss + philHealth + pagIbig) * 12 : 0;
+  const incomeTax = taxFromAnnualBrackets(Math.max(0, grossAnnual - socialInsurance), [
+    { limit: 250_000, rate: 0 }, { limit: 400_000, rate: 0.15 }, { limit: 800_000, rate: 0.2 }, { limit: 2_000_000, rate: 0.25 }, { limit: 8_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
+  ]);
+  return { incomeTax, socialInsurance };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "china" && !["beijing", "shanghai"].includes(city.taxRegion)) return "unavailable";
@@ -331,6 +346,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "uae") return emptyTaxBreakdown();
   if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
     const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "philippines") {
+    const { incomeTax, socialInsurance } = calculatePhilippinesPayroll(grossAnnual);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
   }
   if (city.taxSystem === "thailand") {
