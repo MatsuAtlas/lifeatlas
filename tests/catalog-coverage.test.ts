@@ -6,8 +6,8 @@ import { assessCatalogFreshness, buildCatalogCoverage } from "../lib/data/catalo
 test("reports deterministic coverage for all 50 cities without inflating unsupported calculations", () => {
   const coverage = buildCatalogCoverage(new Date("2026-08-31T00:00:00Z"));
   assert.equal(coverage.summary.cityCount, 50);
-  assert.equal(coverage.summary.calculationAvailable, 30);
-  assert.equal(coverage.summary.calculationUnavailable, 20);
+  assert.equal(coverage.summary.calculationAvailable, 31);
+  assert.equal(coverage.summary.calculationUnavailable, 19);
   assert.equal(coverage.summary.highConfidence + coverage.summary.mediumConfidence + coverage.summary.lowConfidence, 50);
   assert.equal(coverage.summary.containsSavedEstimate, 36);
   assert.equal(coverage.rows.filter((row) => row.calculationStatus === "unavailable").every((row) => row.confidenceLevel === "low"), true);

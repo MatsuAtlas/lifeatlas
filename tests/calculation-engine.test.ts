@@ -180,3 +180,17 @@ test("Massachusetts, Illinois and DC 2026 state income tax is added to the feder
   close(incomeTax("boston", 2_000_000) - federal2m, 1_995_600 * 0.05 + (1_995_600 - 1_107_750) * 0.04);
   for (const cityId of ["boston", "chicago", "washingtonDc"] as const) assert.equal(taxCalculationStatus(cities[cityId]), "official-rate-estimate");
 });
+
+test("Alberta 2026 provincial tax uses the 8% first bracket and an 8% basic personal credit", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  const incomeTax = (gross: number) => (calculateCity(cities.calgary, gross, "single", "onebed", "balanced", "under40").taxBreakdown?.incomeTaxMonthly ?? 0) * 12;
+  // 連邦（$100,000・基礎控除$16,452）：58,523×14% + 25,025×20.5% = 13,323.345
+  // 州：61,200×8% + 38,800×10% − 22,769×8% = 6,954.48
+  close(incomeTax(100_000), 13_323.345 + 6_954.48);
+  // $300,000：4,896 + 9,305.9 + 3,702.24 + 8,021.26 + 7,446.18 − 1,821.52 = 31,550.06
+  const federal300k = 8_193.22 + (117_045 - 58_523) * 0.205 + (181_440 - 117_045) * 0.26 + (258_482 - 181_440) * 0.29 + (300_000 - 16_452 - 258_482) * 0.33;
+  close(incomeTax(300_000), federal300k + 31_550.06);
+  // 基礎控除以下では州税0
+  close(incomeTax(20_000), (20_000 - 16_452) * 0.14);
+  assert.equal(taxCalculationStatus(cities.calgary), "official-rate-estimate");
+});
