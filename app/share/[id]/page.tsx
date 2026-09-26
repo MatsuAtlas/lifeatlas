@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { cities } from "../../../data/cities";
+import { cities, cityOrder } from "../../../data/cities";
 import { PageViewTracker } from "../../../components/analytics/page-view-tracker";
 import { localizedCity, localizedDataScope } from "../../../lib/cities/localization";
 import { formatCurrency, formatPercent } from "../../../lib/formatters";
 import { readPublicShare } from "../../../lib/share/server";
 import { isSupabaseNotConfiguredError } from "../../../lib/supabase-server";
+
+const CITY_COUNT = cityOrder.length;
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +73,7 @@ export default async function PublicSharePage({ params }: { params: Promise<{ id
         })}</div>
       </section>
       <aside className="growth-note"><strong>{isJa ? "共有データについて" : "About this shared result"}</strong><p>{isJa ? "このページは作成者が明示的に公開した比較スナップショットです。公開情報と保存参考値による概算であり、税務・金融・移住助言ではありません。" : "This is an explicitly published comparison snapshot. It uses public sources and saved reference values and is not tax, financial or immigration advice."}</p><small>{record.snapshot.calculationVersion} · {new Date(record.snapshot.calculatedAt).toLocaleDateString(isJa ? "ja-JP" : "en-US")}</small></aside>
-      <div className="growth-cta"><div><strong>{isJa ? "自分の条件で比較する" : "Compare your own options"}</strong><p>{isJa ? "LifeAtlasは50都市を同じ計算エンジンで比較します。" : "LifeAtlas compares 50 cities with one deterministic engine."}</p></div><Link className="primary-button" href="/analyze">Offer Analyzer →</Link></div>
+      <div className="growth-cta"><div><strong>{isJa ? "自分の条件で比較する" : "Compare your own options"}</strong><p>{isJa ? `LifeAtlasは${CITY_COUNT}都市を同じ計算エンジンで比較します。` : `LifeAtlas compares ${CITY_COUNT} cities with one deterministic engine.`}</p></div><Link className="primary-button" href="/analyze">Offer Analyzer →</Link></div>
     </main>
   );
 }
