@@ -277,7 +277,8 @@ export function calculateCity<TCity extends City>(city: TCity, grossAnnual: numb
   const taxMonthly = taxBreakdown?.totalDeductionsMonthly ?? null;
   const netMonthly = taxMonthly === null || grossMonthly === null ? null : grossMonthly - taxMonthly;
   const monthlyRemaining = netMonthly === null ? null : netMonthly - totalMonthlyCosts;
-  const annualSavings = monthlyRemaining === null ? null : Math.max(monthlyRemaining, 0) * 12;
+  // 赤字は0に丸めず負値のまま返し、Offer Analyzerと同じ年間収支を示します。
+  const annualSavings = monthlyRemaining === null ? null : monthlyRemaining * 12;
   const rentBurden = netMonthly === null ? null : netMonthly > 0 ? (rent / netMonthly) * 100 : 100;
   const purchasingPower = netMonthly === null ? null : netMonthly > 0 ? Math.round((netMonthly / totalMonthlyCosts) * 100) : 0;
   const savings = monthlyRemaining === null || netMonthly === null ? null : clamp((monthlyRemaining / Math.max(netMonthly * 0.4, 1)) * 100);

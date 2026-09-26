@@ -136,7 +136,10 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
   const savingsTargetYears = annualSavings === null || input.customSavingsTarget === undefined
     ? null
     : yearsToWealthTarget(currentSavings, annualSavings, input.customSavingsTarget, annualReturnRate);
-  const confidence = dataConfidence(input.cityId, legacy.taxCalculationStatus, options.exchangeRateStatus ?? "fallback");
+  const exchangeRateStatus = options.liveCurrencies
+    ? [city.currency, input.salaryCurrency].every((currency) => currency === "JPY" || options.liveCurrencies?.includes(currency)) ? "live" : "fallback"
+    : options.exchangeRateStatus ?? "fallback";
+  const confidence = dataConfidence(input.cityId, legacy.taxCalculationStatus, exchangeRateStatus);
 
   return {
     scenarioId: input.id,

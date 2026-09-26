@@ -6,6 +6,8 @@ export type ScenarioHousehold = "single" | "couple";
 export type ScenarioCalculationOptions = {
   ratesToJpy?: Record<CurrencyCode, number>;
   exchangeRateStatus?: "live" | "fallback";
+  // 指定時は、シナリオの給与通貨と都市通貨がともに含まれる場合だけ為替を"live"として扱います。
+  liveCurrencies?: CurrencyCode[];
 };
 
 export type ScenarioInput = {

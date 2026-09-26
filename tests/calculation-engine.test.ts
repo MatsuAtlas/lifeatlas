@@ -108,7 +108,8 @@ test("keeps household, housing and lifestyle multipliers stable", () => {
   assert.equal(result.livingCosts, 2_925.625);
   assert.equal(result.taxMonthly, 1_826.1868333333334);
   assert.equal(result.monthlyRemaining, -1_281.8118333333332);
-  assert.equal(result.annualSavings, 0);
+  assert.equal(result.annualSavings, result.monthlyRemaining! * 12);
+  assert.ok(result.annualSavings! < 0);
   assert.equal(result.scores.overall, 60);
 });
 

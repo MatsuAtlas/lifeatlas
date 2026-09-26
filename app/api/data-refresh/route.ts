@@ -1,3 +1,4 @@
+import { ECB_SOURCE_URL, getExchangeRateSnapshot } from "../../../lib/data/exchange-rates";
 import { logOperationsEvent } from "../../../lib/observability/operations";
 
 type WorldBankObservation = {
@@ -15,10 +16,6 @@ type Snapshot = {
   year: string;
 } | null;
 
-type EcbSnapshot = {
-  observedOn: string;
-  rates: Record<string, number>;
-};
 
 const WORLD_BANK_INDICATOR = "SP.POP.TOTL";
 const CITY_COUNT = 50;
@@ -30,8 +27,6 @@ const currencies = [
 ] as const;
 
 const WORLD_BANK_SOURCE_URL = "https://datahelpdesk.worldbank.org/knowledgebase/articles/889392-about-the-indicators-api-documentation";
-const ECB_SOURCE_URL = "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html";
-const ECB_DAILY_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
 
 const worldBankUrl = (country: string) => `https://api.worldbank.org/v2/country/${country}/indicator/${WORLD_BANK_INDICATOR}?format=json&per_page=100`;
 
@@ -47,26 +42,6 @@ async function fetchWorldBankPopulation(country: string): Promise<Snapshot> {
   return observation?.value == null ? null : { value: observation.value, year: observation.date };
 }
 
-async function fetchEcbRates(): Promise<EcbSnapshot> {
-  const response = await fetch(ECB_DAILY_URL, {
-    headers: { accept: "application/xml,text/xml" },
-    cache: "no-store",
-    signal: AbortSignal.timeout(8_000),
-  });
-  if (!response.ok) throw new Error(`ECB response ${response.status}`);
-  const xml = await response.text();
-  const observedOn = xml.match(/time=['"](\d{4}-\d{2}-\d{2})['"]/)?.[1];
-  if (!observedOn) throw new Error("ECB observation date was not found");
-
-  const rates: Record<string, number> = { EUR: 1 };
-  for (const match of xml.matchAll(/currency=['"]([A-Z]{3})['"]\s+rate=['"]([0-9.]+)['"]/g)) {
-    const value = Number(match[2]);
-    if (Number.isFinite(value)) rates[match[1]] = value;
-  }
-  if (!rates.JPY) throw new Error("ECB JPY rate was not found");
-  return { observedOn, rates };
-}
-
 export async function GET() {
   const warnings: string[] = [];
   const [populationEntries, ecbSnapshot] = await Promise.all([
@@ -77,19 +52,16 @@ export async function GET() {
         return null;
       }),
     ] as const)),
-    fetchEcbRates().catch(() => {
-      warnings.push("ecb:daily-rates:unavailable");
-      return null;
-    }),
+    getExchangeRateSnapshot(),
   ]);
+  if (ecbSnapshot.status === "fallback") warnings.push("ecb:daily-rates:unavailable");
 
   const populations = Object.fromEntries(populationEntries) as Record<string, Snapshot>;
-  const jpyPerEuro = ecbSnapshot?.rates.JPY ?? null;
-  const exchangeRates = Object.fromEntries(currencies.map((currency) => {
-    if (currency === "JPY") return [currency, 1];
-    const currencyPerEuro = ecbSnapshot?.rates[currency] ?? null;
-    return [currency, jpyPerEuro && currencyPerEuro ? jpyPerEuro / currencyPerEuro : null];
-  })) as Record<(typeof currencies)[number], number | null>;
+  // ECBで取得できなかった通貨はnullのまま返し、画面側で保存参考レートと区別します。
+  const exchangeRates = Object.fromEntries(currencies.map((currency) => [
+    currency,
+    ecbSnapshot.liveCurrencies.includes(currency) ? ecbSnapshot.ratesToJpy[currency] : null,
+  ])) as Record<(typeof currencies)[number], number | null>;
 
   const automaticCountryCount = Object.values(populations).filter(Boolean).length;
   const automaticCurrencyCount = currencies.filter((currency) => currency === "JPY" || exchangeRates[currency] !== null).length;
@@ -103,7 +75,7 @@ export async function GET() {
     retrievedAt: new Date().toISOString(),
     populations,
     exchangeRates,
-    exchangeObservedOn: ecbSnapshot?.observedOn ?? null,
+    exchangeObservedOn: ecbSnapshot.observedOn,
     coverage: {
       cityCount: CITY_COUNT,
       countryCount: countries.length,
