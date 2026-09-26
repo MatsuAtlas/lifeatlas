@@ -372,6 +372,40 @@ export function calculateBrazilPayroll(grossAnnual: number) {
   return { incomeTax: incomeTax * 12, socialInsurance: inss * 12 };
 }
 
+// 台湾・115年度（2026年、居住者・単身・標準控除）。課税所得＝給与−免税額NT$101,000−標準控除NT$136,000−給与特別控除（上限NT$227,000）。
+// 労工保険（普通事故11.5%＋就業保険1%＝12.5%）の本人負担20%、健康保険（5.17%）の本人負担30%。投保額は月給を
+// 下限NT$29,500（最低賃金）と上限（労保NT$45,800・健保NT$313,000）の間に収めた概算で、実際の等級表の刻みは省略します。
+// 外国人の就業保険対象外、健保の補充保険料、扶養家族分の健保料は未反映です。
+export function calculateTaiwanPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const monthly = gross / 12;
+  const laborInsurance = monthly > 0 ? Math.min(Math.max(monthly, 29_500), 45_800) * 0.125 * 0.2 * 12 : 0;
+  const healthInsurance = monthly > 0 ? Math.min(Math.max(monthly, 29_500), 313_000) * 0.0517 * 0.3 * 12 : 0;
+  const taxable = Math.max(0, gross - 101_000 - 136_000 - Math.min(gross, 227_000));
+  const incomeTax = taxFromAnnualBrackets(taxable, [
+    { limit: 610_000, rate: 0.05 }, { limit: 1_380_000, rate: 0.12 }, { limit: 2_770_000, rate: 0.2 }, { limit: 5_190_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.4 },
+  ]);
+  return { incomeTax, laborInsurance, healthInsurance };
+}
+
+// インドネシア・2026年（居住者・単身、PTKP Rp54,000,000）。従業員の社会保険：JHT 2%（上限なし）、JP 1%（月額上限は1〜2月Rp10,547,400、
+// 3〜12月Rp11,086,300）、JKN（医療）1%（月額上限Rp12,000,000）。会社負担のJKK（最低リスク0.24%と仮定）・JKM 0.30%・JKN 4%は課税所得に加算します。
+// 課税所得＝総額−職務費用（5%・上限年Rp6,000,000）−JHT・JP−PTKP（千ルピア未満切り捨て）。外国人のJP対象外、扶養控除は未反映です。
+export function calculateIndonesiaPayroll(grossAnnual: number) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  const jht = monthly * 0.02 * 12;
+  const jp = Math.min(monthly, 10_547_400) * 0.01 * 2 + Math.min(monthly, 11_086_300) * 0.01 * 10;
+  const jkn = Math.min(monthly, 12_000_000) * 0.01 * 12;
+  const employerPremiums = (monthly * (0.0024 + 0.003) + Math.min(monthly, 12_000_000) * 0.04) * 12;
+  const bruto = monthly * 12 + employerPremiums;
+  const netto = bruto - Math.min(bruto * 0.05, 6_000_000) - jht - jp;
+  const taxable = Math.floor(Math.max(0, netto - 54_000_000) / 1_000) * 1_000;
+  const incomeTax = taxFromAnnualBrackets(taxable, [
+    { limit: 60_000_000, rate: 0.05 }, { limit: 250_000_000, rate: 0.15 }, { limit: 500_000_000, rate: 0.25 }, { limit: 5_000_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
+  ]);
+  return { incomeTax, pension: jht + jp, health: jkn };
+}
+
 // インド・新税制（既定の税制）。2025年予算で改定され、2026-27年度も据え置き。給与所得者の標準控除₹75,000、
 // 課税所得₹12 lakh以下は87条Aの税額控除（上限₹60,000）で0、わずかに超える場合は超過額までに抑えます（marginal relief）。
 // 付加税は₹50 lakh超10%・₹1 crore超15%・₹2 crore超25%（新税制の上限）で、閾値でのmarginal reliefを反映。最後に教育目的税4%。
@@ -431,6 +465,14 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
     const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "indonesia") {
+    const { incomeTax, pension, health } = calculateIndonesiaPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
+  }
+  if (city.taxSystem === "taiwan") {
+    const { incomeTax, laborInsurance, healthInsurance } = calculateTaiwanPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: healthInsurance / 12, pensionMonthly: laborInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (laborInsurance + healthInsurance) / 12, totalDeductionsMonthly: (incomeTax + laborInsurance + healthInsurance) / 12 };
   }
   if (city.taxSystem === "brazil") {
     const { incomeTax, socialInsurance } = calculateBrazilPayroll(grossAnnual);

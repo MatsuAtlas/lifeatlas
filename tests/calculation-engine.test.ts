@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, calculateTaiwanPayroll, calculateIndonesiaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -345,6 +345,37 @@ test("Brazil 2026 applies progressive INSS, the monthly table and the Law 15.270
   // 月R$5,000以下は所得税0
   assert.equal(calculateBrazilPayroll(60_000).incomeTax, 0);
   assert.equal(taxCalculationStatus(cities.saoPaulo), "official-rate-estimate");
+});
+
+test("Taiwan 2026 applies the 115 tax brackets, labor insurance and NHI caps", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 年NT$1,200,000：課税所得736,000 → 30,500＋126,000×12%。労保は上限45,800×2.5%、健保は月100,000×1.551%
+  const middle = calculateTaiwanPayroll(1_200_000);
+  close(middle.incomeTax, 45_620);
+  close(middle.laborInsurance, 1_145 * 12);
+  close(middle.healthInsurance, 1_551 * 12);
+  // 年NT$6,000,000：課税所得5,536,000 → 1,126,900＋346,000×40%。健保は上限313,000
+  const high = calculateTaiwanPayroll(6_000_000);
+  close(high.incomeTax, 1_265_300);
+  close(high.healthInsurance, 313_000 * 0.0517 * 0.3 * 12);
+  // 年NT$400,000：控除合計464,000以下なので所得税0
+  const low = calculateTaiwanPayroll(400_000);
+  assert.equal(low.incomeTax, 0);
+  close(low.laborInsurance, 10_000);
+  assert.equal(taxCalculationStatus(cities.taipei), "official-rate-estimate");
+});
+
+test("Indonesia 2026 adds employer BPJS premiums to gross and applies the UU HPP brackets", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 月Rp20,000,000：JHT 400,000、JP 1%（1〜2月10,547,400・3〜12月11,086,300が上限）、JKN上限12,000,000
+  const middle = calculateIndonesiaPayroll(240_000_000);
+  close(middle.pension, 4_800_000 + 105_474 * 2 + 110_863 * 10);
+  close(middle.health, 120_000 * 12);
+  // 総額240M＋会社負担（JKK48,000・JKM60,000・JKN480,000）×12＝247,056,000。職務費用6M、JHT・JP控除後にPTKP54M → 180,936,000
+  close(middle.incomeTax, 60_000_000 * 0.05 + 120_936_000 * 0.15);
+  // 月Rp5,000,000：課税所得3,787,000×5%
+  close(calculateIndonesiaPayroll(60_000_000).incomeTax, 189_350);
+  assert.equal(taxCalculationStatus(cities.jakarta), "official-rate-estimate");
 });
 
 test("India new regime applies the standard deduction, the 87A rebate, surcharge relief and 4% cess", () => {
