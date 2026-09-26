@@ -512,7 +512,7 @@ function makeScenario(index: number): ScenarioInput {
 
 export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } = {}) {
   const [language, setLanguage] = useState<Language>("ja");
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const [scenarios, setScenarios] = useState<ScenarioInput[]>(initialScenarios);
   const [priorities, setPriorities] = useState<UserPriorities>(DEFAULT_PRIORITIES);
   const [whatIfScenarioId, setWhatIfScenarioId] = useState(initialScenarios[1].id);
