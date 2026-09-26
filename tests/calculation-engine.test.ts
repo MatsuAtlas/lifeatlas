@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -205,4 +205,29 @@ test("Quebec 2026 applies the federal abatement, Quebec brackets, QPP, Quebec EI
   // EI（ケベック上限895.70）＋QPIP 100,000×0.455%
   close((breakdown?.employmentInsuranceMonthly ?? 0) * 12, 895.7 + 455);
   assert.equal(taxCalculationStatus(cities.montreal), "official-rate-estimate");
+});
+
+test("Germany 2026 applies the §32a tariff, solidarity surcharge and capped social insurance", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 税率表の各区間
+  assert.equal(germanIncomeTax2026(12_348), 0);
+  assert.equal(germanIncomeTax2026(46_674), 9_399);
+  assert.equal(germanIncomeTax2026(131_770), 44_207);
+  // €60,000・子どもなし：年金5,580、失業780、医療5,250、介護1,440。課税所得 60,000−1,266−(5,580+5,040+1,440)=46,674
+  const middle = calculateGermanyPayroll(60_000, "single");
+  close(middle.pension, 5_580);
+  close(middle.unemployment, 780);
+  close(middle.health, 5_250);
+  close(middle.care, 1_440);
+  assert.equal(middle.incomeTax, 9_399);
+  assert.equal(middle.solidarity, 0);
+  // €150,000：上限額が効き、所得税44,207、連帯付加税 44,207×5.5%
+  const high = calculateGermanyPayroll(150_000, "single");
+  close(high.pension, 101_400 * 0.093);
+  close(high.health, 69_750 * 0.0875);
+  assert.equal(high.incomeTax, 44_207);
+  close(high.solidarity, 44_207 * 0.055);
+  // 子ども2人は介護保険料率1.55%
+  close(calculateGermanyPayroll(60_000, "family").care, 60_000 * 0.0155);
+  assert.equal(taxCalculationStatus(cities.berlin), "official-rate-estimate");
 });

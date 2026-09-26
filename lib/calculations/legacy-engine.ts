@@ -227,6 +227,45 @@ export function calculateIrelandPayrollTax(grossAnnual: number) {
   return { incomeTax, usc, prsi };
 }
 
+// ドイツ・2026年（単身の基本税率表、教会税なし）。社会保険料（従業員負担）：年金9.3%・失業1.3%（上限€101,400）、
+// 医療7.3%＋平均追加保険料の半分1.45%（上限€69,750）、介護1.8%（子どもなし＋0.6%、2人目以降の子1人につき−0.25%）。
+// 課税所得＝給与−被用者控除€1,230−特別支出控除€36−社会保険料控除（年金全額・医療の96%・介護）。
+const GERMANY_PENSION_CEILING = 101_400;
+const GERMANY_HEALTH_CEILING = 69_750;
+const germanyChildren = { single: 0, couple: 0, singleParent: 1, coupleOneChild: 1, family: 2, familyThreeChildren: 3 } as const;
+
+export function germanIncomeTax2026(taxableIncome: number) {
+  const x = Math.floor(Math.max(0, taxableIncome));
+  if (x <= 12_348) return 0;
+  if (x <= 17_799) {
+    const y = (x - 12_348) / 10_000;
+    return Math.floor((914.51 * y + 1_400) * y);
+  }
+  if (x <= 69_878) {
+    const z = (x - 17_799) / 10_000;
+    return Math.floor((173.10 * z + 2_397) * z + 1_034.87);
+  }
+  if (x <= 277_825) return Math.floor(0.42 * x - 11_135.63);
+  return Math.floor(0.45 * x - 19_470.38);
+}
+
+export function calculateGermanyPayroll(grossAnnual: number, household: keyof typeof householdMultipliers) {
+  const gross = Math.max(0, grossAnnual);
+  const pensionBase = Math.min(gross, GERMANY_PENSION_CEILING);
+  const healthBase = Math.min(gross, GERMANY_HEALTH_CEILING);
+  const children = germanyChildren[household];
+  const careRate = children === 0 ? 0.024 : 0.018 - Math.max(0, children - 1) * 0.0025;
+  const pension = pensionBase * 0.093;
+  const unemployment = pensionBase * 0.013;
+  const health = healthBase * (0.073 + 0.0145);
+  const care = healthBase * careRate;
+  const taxable = gross - 1_230 - 36 - (pension + health * 0.96 + care);
+  const incomeTax = germanIncomeTax2026(taxable);
+  // 連帯付加税：所得税€20,350以下は免除、超過分は差額の11.9%を上限に5.5%。
+  const solidarity = incomeTax <= 20_350 ? 0 : Math.min(incomeTax * 0.055, (incomeTax - 20_350) * 0.119);
+  return { incomeTax, solidarity, pension, unemployment, health, care };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "canada" && !["britishColumbia", "ontario", "alberta", "quebec"].includes(city.taxRegion)) return "unavailable";
@@ -254,6 +293,12 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
   }
   if (city.taxSystem === "uae") return emptyTaxBreakdown();
+  if (city.taxSystem === "germany") {
+    const { incomeTax, solidarity, pension, unemployment, health, care } = calculateGermanyPayroll(grossAnnual, household);
+    const totalTax = incomeTax + solidarity;
+    const totalInsurance = pension + unemployment + health + care;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, reconstructionSurtaxMonthly: solidarity / 12, healthInsuranceMonthly: health / 12, careInsuranceMonthly: care / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: unemployment / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
+  }
   if (city.taxSystem === "ireland") {
     const { incomeTax, usc, prsi } = calculateIrelandPayrollTax(grossAnnual);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: usc / 12, pensionMonthly: prsi / 12, totalTaxMonthly: (incomeTax + usc) / 12, totalInsuranceMonthly: prsi / 12, totalDeductionsMonthly: (incomeTax + usc + prsi) / 12 };
