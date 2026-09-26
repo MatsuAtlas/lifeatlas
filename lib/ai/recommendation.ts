@@ -1,7 +1,8 @@
 import { cities } from "../../data/cities.ts";
-import { simulateWhatIf } from "../calculations/what-if.ts";
+import { buildWhatIfChanges, simulateWhatIf } from "../calculations/what-if.ts";
 import type { AIRecommendation, RecommendationInput, RecommendationLanguage } from "../../types/ai";
 import type { SavedAnalyzerInput } from "../../types/comparison";
+import type { ScenarioCalculationOptions } from "../../types/scenario";
 import type { WhatIfChange } from "../../types/what-if";
 
 const MAX_FOLLOW_UP_LENGTH = 400;
@@ -25,19 +26,21 @@ export function normalizeFollowUpQuestion(value: unknown) {
   return normalized.length > 0 && normalized.length <= MAX_FOLLOW_UP_LENGTH ? normalized : null;
 }
 
+// プランで利用できない結果（What-If・逆転給与・長期予測）はAIへ渡さず、AI経由でも開示しません。
+export type RecommendationAccess = { whatIf: boolean; breakEven: boolean; longTermProjections: boolean };
+export const FULL_RECOMMENDATION_ACCESS: RecommendationAccess = { whatIf: true, breakEven: true, longTermProjections: true };
+
 export function buildRecommendationInput(
   analysis: SavedAnalyzerInput,
   language: RecommendationLanguage,
   followUpQuestion?: string,
+  calculationOptions?: ScenarioCalculationOptions,
+  access: RecommendationAccess = FULL_RECOMMENDATION_ACCESS,
 ): RecommendationInput {
   const target = analysis.scenarios.find((scenario) => scenario.id === analysis.whatIf.scenarioId) ?? analysis.scenarios[0];
-  const targetCurrency = cities[target.cityId].currency;
-  const changes: WhatIfChange[] = [];
-  if (analysis.whatIf.salaryPercent !== 0) changes.push({ type: "salaryPercent", scenarioId: target.id, percent: analysis.whatIf.salaryPercent });
-  if (analysis.whatIf.rentPercent !== 0) changes.push({ type: "rentPercent", scenarioId: target.id, percent: analysis.whatIf.rentPercent });
-  if (analysis.whatIf.exchangePercent !== 0 && targetCurrency !== "JPY") changes.push({ type: "exchangeRatePercent", currency: targetCurrency, percent: analysis.whatIf.exchangePercent });
+  const changes: WhatIfChange[] = access.whatIf ? buildWhatIfChanges(analysis.whatIf, target) : [];
 
-  const initial = simulateWhatIf({ scenarios: analysis.scenarios, changes, priorities: analysis.priorities });
+  const initial = simulateWhatIf({ scenarios: analysis.scenarios, changes, priorities: analysis.priorities, calculationOptions });
   const winnerScenarioId = initial.after.scores[0].scenarioId;
   const requestedCandidate = analysis.breakEven.candidateScenarioId;
   const candidateScenarioId = requestedCandidate !== winnerScenarioId
@@ -47,7 +50,8 @@ export function buildRecommendationInput(
     scenarios: analysis.scenarios,
     changes,
     priorities: analysis.priorities,
-    breakEven: candidateScenarioId ? [{ referenceScenarioId: winnerScenarioId, candidateScenarioId, metric: analysis.breakEven.metric }] : [],
+    calculationOptions,
+    breakEven: access.breakEven && candidateScenarioId ? [{ referenceScenarioId: winnerScenarioId, candidateScenarioId, metric: analysis.breakEven.metric }] : [],
   });
   const resultById = new Map(simulation.after.results.map((result) => [result.scenarioId, result]));
   const inputById = new Map(simulation.after.inputs.map((input) => [input.id, input]));
@@ -78,9 +82,9 @@ export function buildRecommendationInput(
           totalLivingCostMonthly: result.totalLivingCostMonthly,
           annualSavings: result.annualSavings,
           savingsRate: result.savingsRate,
-          projectedSavings5Years: result.projectedSavings5Years,
-          projectedSavings10Years: result.projectedSavings10Years,
-          fireYearsToTarget: result.fire?.yearsToTarget ?? null,
+          projectedSavings5Years: access.longTermProjections ? result.projectedSavings5Years : null,
+          projectedSavings10Years: access.longTermProjections ? result.projectedSavings10Years : null,
+          fireYearsToTarget: access.longTermProjections ? result.fire?.yearsToTarget ?? null : null,
           currency: result.currency,
         },
         dataConfidence: {

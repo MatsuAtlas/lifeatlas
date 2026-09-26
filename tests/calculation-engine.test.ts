@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -108,7 +108,8 @@ test("keeps household, housing and lifestyle multipliers stable", () => {
   assert.equal(result.livingCosts, 2_925.625);
   assert.equal(result.taxMonthly, 1_826.1868333333334);
   assert.equal(result.monthlyRemaining, -1_281.8118333333332);
-  assert.equal(result.annualSavings, 0);
+  assert.equal(result.annualSavings, result.monthlyRemaining! * 12);
+  assert.ok(result.annualSavings! < 0);
   assert.equal(result.scores.overall, 60);
 });
 
@@ -122,4 +123,27 @@ test("does not fabricate a financial result for unsupported tax systems", () => 
   assert.equal(result.netMonthly, null);
   assert.equal(result.annualSavings, null);
   assert.equal(result.scores.overall, null);
+});
+
+test("Hong Kong salaries tax follows the 2026/27 progressive and standard rates with capped MPF", () => {
+  // 月50,000HKD：MPFは上限30,000HKDの5%×12=18,000。純所得582,000−基礎控除145,000=437,000に累進税率。
+  assert.deepEqual(calculateHongKongSalariesTax(600_000, "single"), { salariesTax: 56_290, mpf: 18_000 });
+  // 高所得では標準税率（500万HKDまで15%、超過分16%）が上限。
+  assert.deepEqual(calculateHongKongSalariesTax(6_000_000, "single"), { salariesTax: 907_120, mpf: 18_000 });
+  // 月7,100HKD未満は従業員のMPF拠出なし、控除内なら税額0。
+  assert.deepEqual(calculateHongKongSalariesTax(84_000, "single"), { salariesTax: 0, mpf: 0 });
+  // 子ども控除140,000HKD×2、単親控除145,000HKD。
+  assert.equal(calculateHongKongSalariesTax(600_000, "family").salariesTax, 9_980);
+  assert.equal(calculateHongKongSalariesTax(600_000, "singleParent").salariesTax, 9_280);
+});
+
+test("Hong Kong is calculable while keeping its salary benchmark and costs marked as stored estimates", () => {
+  const hongKong = cities.hongKong;
+  assert.equal(taxCalculationStatus(hongKong), "official-rate-estimate");
+  const result = calculateCity(hongKong, 600_000, "single", "onebed", "balanced", "under40");
+  assert.equal(result.taxMonthly, (56_290 + 18_000) / 12);
+  assert.equal(result.netMonthly, (600_000 - 56_290 - 18_000) / 12);
+  assert.equal(result.calculationUnavailableReason, null);
+  assert.ok(hongKong.dataSources.some((item) => /Life Atlas保存参考値/.test(item.source)));
+  assert.ok(hongKong.dataSources.some((item) => item.url.startsWith("https://www.ird.gov.hk/")));
 });

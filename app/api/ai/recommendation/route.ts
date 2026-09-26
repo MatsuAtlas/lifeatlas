@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { calculationOptionsFor, getExchangeRateSnapshot } from "../../../../lib/data/exchange-rates";
 import { isSavedAnalyzerInput } from "../../../../lib/comparison-history";
 import { createAIProvider, getAIModelId, AI_PROMPT_VERSION } from "../../../../lib/ai/provider";
 import {
@@ -191,7 +192,17 @@ export async function POST(request: Request) {
     const followUpQuestion = normalizeFollowUpQuestion(body.value.followUpQuestion);
     if (followUpQuestion === null) return NextResponse.json({ error: "質問は400文字以内で入力してください。" }, { status: 400 });
 
-    const input = buildRecommendationInput(body.value.analysis, language, followUpQuestion);
+    // 画面と異なる日付の為替で説明しないよう、サーバー側の為替日付と一致する場合だけ生成します。
+    const exchangeRates = await getExchangeRateSnapshot();
+    const clientObservedOn = body.value.exchangeObservedOn;
+    if (clientObservedOn !== undefined && clientObservedOn !== exchangeRates.observedOn) {
+      return NextResponse.json({ error: "為替レートが更新されました。最新の為替で再計算してから、もう一度お試しください。", exchangeRatesChanged: true }, { status: 409 });
+    }
+    const input = buildRecommendationInput(body.value.analysis, language, followUpQuestion, calculationOptionsFor(exchangeRates), {
+      whatIf: billing.entitlements.canUseWhatIf,
+      breakEven: billing.entitlements.canUseBreakEven,
+      longTermProjections: billing.entitlements.canUseLongTermProjections,
+    });
     const model = getAIModelId();
     const contextHash = await sha256Hex(stableRecommendationKey(input, model, AI_PROMPT_VERSION));
     const cached = await cachedGeneration(current.user.id, current.accessToken, contextHash, input);

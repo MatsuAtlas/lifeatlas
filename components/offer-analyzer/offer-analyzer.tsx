@@ -7,7 +7,8 @@ import { cities, cityOrder } from "../../data/cities";
 import { DEFAULT_PRIORITIES } from "../../lib/scoring/life-atlas-score";
 import { localizedCity } from "../../lib/cities/localization";
 import { trackProductEvent, trackProductEventOnce } from "../../lib/analytics/client";
-import { simulateWhatIf } from "../../lib/calculations/what-if";
+import { buildWhatIfChanges, simulateWhatIf } from "../../lib/calculations/what-if";
+import { calculationOptionsFor, isExchangeRateSnapshot, type ExchangeRateSnapshot } from "../../lib/data/exchange-rates";
 import { isUserProfile } from "../../lib/user-profile";
 import { validateAIRecommendation } from "../../lib/ai/recommendation";
 import { canCreateScenario, FREE_ENTITLEMENTS } from "../../lib/billing/entitlements";
@@ -31,7 +32,6 @@ import type { ComparisonRecord, SavedAnalyzerInput, SavedAnalyzerResult } from "
 import type { HousingType, LifestyleType } from "../../types/finance";
 import type { UserProfile } from "../../types/profile";
 import type { PriorityKey, ScenarioHousehold, ScenarioInput, ScenarioResult, ScenarioScore, UserPriorities } from "../../types/scenario";
-import type { WhatIfChange } from "../../types/what-if";
 
 type Language = "ja" | "en";
 
@@ -255,6 +255,9 @@ const copy = {
     aiAccountRequired: "AI説明はログイン後に利用できます。",
     aiUnavailable: "AI説明は現在準備中です。決定結果・What-If・逆転給与はそのまま利用できます。",
     aiLimit: "AI説明の24時間上限に達しました。",
+    aiRatesChanged: "為替レートが更新されたため再計算しました。もう一度AI説明を依頼してください。",
+    fxLive: (date: string) => `為替：ECB参照レート（${date}）。ECB非対応の通貨は保存参考レートを使用しています。`,
+    fxFallback: "為替：最新レートを取得できなかったため、保存参考レートで計算しています。",
     aiError: "AI説明を生成できませんでした。計算結果はそのまま利用できます。",
     aiPrivacy: "生成時には、この分析の給与・世帯・都市・計算結果だけをAIサービスへ送信します。氏名やメールアドレスは送りません。",
     aiCached: "同じ条件の保存済み説明を再利用しました",
@@ -416,6 +419,9 @@ const copy = {
     aiAccountRequired: "Sign in to use AI explanations.",
     aiUnavailable: "AI explanations are not configured yet. Your decision result, What-If and break-even salary remain available.",
     aiLimit: "You have reached the AI explanation limit for the last 24 hours.",
+    aiRatesChanged: "Exchange rates were updated and results recalculated. Please request the AI explanation again.",
+    fxLive: (date: string) => `Exchange rates: ECB reference rates (${date}). Currencies not published by the ECB use stored reference rates.`,
+    fxFallback: "Exchange rates: live rates were unavailable, so stored reference rates are used.",
     aiError: "The AI explanation could not be generated. Your calculated results remain available.",
     aiPrivacy: "Generation sends only this analysis's salary, household, cities and calculated results to the AI service. Your name and email are not sent.",
     aiCached: "Reused the saved explanation for these conditions",
@@ -536,6 +542,20 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
   const [aiAnalysisSignature, setAiAnalysisSignature] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRateSnapshot | null>(null);
+  const loadExchangeRates = useCallback(async () => {
+    try {
+      const response = await fetch("/api/exchange-rates", { cache: "no-store" });
+      const data: unknown = response.ok ? await response.json() : null;
+      if (isExchangeRateSnapshot(data)) setExchangeRates(data);
+    } catch {
+      // 取得できない場合は保存参考レートで計算を続けます。
+    }
+  }, []);
+  useEffect(() => {
+    void Promise.resolve().then(() => loadExchangeRates());
+  }, [loadExchangeRates]);
+  const calculationOptions = useMemo(() => exchangeRates ? calculationOptionsFor(exchangeRates) : undefined, [exchangeRates]);
   const [followUpQuestion, setFollowUpQuestion] = useState("");
   const t = copy[language];
   const activeEntitlements = authUser ? entitlements : FREE_ENTITLEMENTS;
@@ -629,22 +649,19 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
   };
 
   const activeWhatIfScenario = scenarios.find((scenario) => scenario.id === whatIfScenarioId) ?? scenarios[0];
-  const whatIfChanges = useMemo(() => {
-    const changes: WhatIfChange[] = [];
-    if (salaryPercent !== 0) changes.push({ type: "salaryPercent", scenarioId: activeWhatIfScenario.id, percent: salaryPercent });
-    if (rentPercent !== 0) changes.push({ type: "rentPercent", scenarioId: activeWhatIfScenario.id, percent: rentPercent });
-    const currency = cities[activeWhatIfScenario.cityId].currency;
-    if (exchangePercent !== 0 && currency !== "JPY") changes.push({ type: "exchangeRatePercent", currency, percent: exchangePercent });
-    if (whatIfHousehold !== null) changes.push({ type: "household", scenarioId: activeWhatIfScenario.id, householdType: whatIfHousehold });
-    if (whatIfChildren !== null) changes.push({ type: "children", scenarioId: activeWhatIfScenario.id, value: whatIfChildren });
-    if (whatIfSpending !== null) changes.push({ type: "customMonthlySpending", scenarioId: activeWhatIfScenario.id, value: whatIfSpending });
-    if (whatIfSavingsTarget !== null) changes.push({ type: "customSavingsTarget", scenarioId: activeWhatIfScenario.id, value: whatIfSavingsTarget });
-    if (whatIfRetirementAge !== null && whatIfRetirementAge >= activeWhatIfScenario.age) changes.push({ type: "retirementAge", scenarioId: activeWhatIfScenario.id, value: whatIfRetirementAge });
-    if (whatIfReturnRatePercent !== null) changes.push({ type: "annualReturnRate", scenarioId: activeWhatIfScenario.id, value: whatIfReturnRatePercent / 100 });
-    return changes;
-  }, [activeWhatIfScenario, exchangePercent, rentPercent, salaryPercent, whatIfChildren, whatIfHousehold, whatIfRetirementAge, whatIfReturnRatePercent, whatIfSavingsTarget, whatIfSpending]);
+  const whatIfChanges = useMemo(() => buildWhatIfChanges({
+    salaryPercent,
+    rentPercent,
+    exchangePercent,
+    householdType: whatIfHousehold,
+    children: whatIfChildren,
+    customMonthlySpending: whatIfSpending,
+    customSavingsTarget: whatIfSavingsTarget,
+    retirementAge: whatIfRetirementAge,
+    annualReturnRatePercent: whatIfReturnRatePercent,
+  }, activeWhatIfScenario), [activeWhatIfScenario, exchangePercent, rentPercent, salaryPercent, whatIfChildren, whatIfHousehold, whatIfRetirementAge, whatIfReturnRatePercent, whatIfSavingsTarget, whatIfSpending]);
 
-  const preview = useMemo(() => simulateWhatIf({ scenarios, changes: whatIfChanges, priorities }), [priorities, scenarios, whatIfChanges]);
+  const preview = useMemo(() => simulateWhatIf({ scenarios, changes: whatIfChanges, priorities, calculationOptions }), [calculationOptions, priorities, scenarios, whatIfChanges]);
   const winnerId = preview.after.scores[0].scenarioId;
   const candidateOptions = scenarios.filter((scenario) => scenario.id !== winnerId);
   const activeBreakEvenCandidateId = candidateOptions.some((scenario) => scenario.id === breakEvenCandidateId)
@@ -654,6 +671,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
     scenarios,
     changes: whatIfChanges,
     priorities,
+    calculationOptions,
     breakEven: activeBreakEvenCandidateId ? [{ referenceScenarioId: winnerId, candidateScenarioId: activeBreakEvenCandidateId, metric: breakEvenMetric }] : [],
   });
 
@@ -828,12 +846,15 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
       const response = await fetch("/api/ai/recommendation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language, analysis: currentAnalysis, ...(question ? { followUpQuestion: question } : {}) }),
+        body: JSON.stringify({ language, analysis: currentAnalysis, exchangeObservedOn: exchangeRates?.observedOn ?? null, ...(question ? { followUpQuestion: question } : {}) }),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
         if (response.status === 401) setAuthUser(null);
-        setAiError(response.status === 401
+        if (response.status === 409) void loadExchangeRates();
+        setAiError(response.status === 409
+          ? t.aiRatesChanged
+          : response.status === 401
           ? t.aiAccountRequired
           : response.status === 429
             ? t.aiLimit
@@ -1113,6 +1134,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
         <section id="result" className="oa-section oa-result-section">
           <div className="oa-decision-banner"><div><p className="eyebrow">03 / DECISION</p><span>{t.bestFit}</span><h2>{cityName(winnerCity, language)}</h2><p>{savingsLead === null ? (language === "ja" ? "現在の優先軸とデータ信頼度を含めて最上位です。" : "It ranks first after your priorities and data confidence are applied.") : language === "ja" ? `2位より年間貯蓄が約${formatMoney(savingsLead, "JPY", language)}多い試算です。` : `Projected annual savings are about ${formatMoney(savingsLead, "JPY", language)} above the runner-up.`}</p></div><div className="oa-decision-score"><strong>{winnerScore.score}</strong><span>/ 100<br />{t.score}</span></div></div>
           <div className="oa-results-grid">{simulation.after.scores.map(renderResultCard)}</div>
+          <p className="oa-fx-note">{exchangeRates && exchangeRates.status !== "fallback" && exchangeRates.observedOn ? t.fxLive(exchangeRates.observedOn) : t.fxFallback}</p>
         </section>
 
         <section id="what-if" className="oa-section oa-what-if-section">

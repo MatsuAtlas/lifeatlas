@@ -54,6 +54,7 @@ npm run dev
 - AI: `AI_GATEWAY_API_KEY` または実行環境の `VERCEL_OIDC_TOKEN`
 - Stripe: `STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`、月額・年額のPrice ID
 - 公開URL: `NEXT_PUBLIC_SITE_URL`
+- 設定診断: `LIFEATLAS_DIAGNOSTICS_TOKEN`（任意）
 
 Supabaseのテーブル、制約、RLS（行単位のアクセス制御）は `supabase/schema.sql` にあります。課金・AI・共有・分析を本番で使う前に、このスキーマを対象プロジェクトへ適用してください。
 
@@ -72,6 +73,21 @@ git diff --check
 ## 公開
 
 GitHubの公開先は `MatsuAtlas/lifeatlas` の `main` です。SitesのプロジェクトIDは `.openai/hosting.json` に保存されています。公開時は、同じコミットSHAをGitHub、Sitesのソース、Sitesの保存バージョンで一致させ、デプロイ後に本番URLとWorkerログを確認します。
+
+## 本番設定の診断
+
+`LIFEATLAS_DIAGNOSTICS_TOKEN` を設定すると、`GET /api/operations/diagnostics` で環境変数の有無・形式・Stripeのtest/liveを確認できます。`?probe=1` を付けると、読み取り専用で次も確認します。秘密値そのものは返しません。トークン未設定時は404です。
+
+- Supabaseの6テーブルの存在と、anonキーで行が見えないこと
+- Google Providerの有効状態
+- Stripe Priceの金額・通貨・間隔と表示価格の一致
+- Webhookの登録イベント
+- Customer Portalの設定
+- AI Gatewayに設定モデルが存在すること
+
+```bash
+curl -H "Authorization: Bearer $LIFEATLAS_DIAGNOSTICS_TOKEN" "https://<site>/api/operations/diagnostics?probe=1"
+```
 
 ## 重要な前提
 

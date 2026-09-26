@@ -213,7 +213,8 @@ test("renders bilingual methodology and transparent 50-city data pages", async (
   const dataHtml = await data.text();
   assert.match(dataHtml, /その数字が、どこまで言えるか/);
   assert.match(dataHtml, />50<\/strong>/);
-  assert.match(dataHtml, />25<\/strong>/);
+  assert.match(dataHtml, />26<\/strong>/);
+  assert.match(dataHtml, />24<\/strong>/);
   assert.match(dataHtml, /保存推定値を含む/);
   assert.match(dataHtml, /金額計算は未対応/);
 
@@ -288,10 +289,10 @@ test("exposes validated deterministic decision APIs without duplicating the calc
   assert.deepEqual(comparisonPayload.scores.map((score) => score.rank), [1, 2]);
 
   const breakEven = await fetch(`${baseUrl}/api/break-even`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference: tokyo, candidate: vancouver, metric: "disposableIncome", priorities }) });
-  assert.equal(breakEven.status, 200);
+  // 逆転給与はPro機能のため、契約を確認できない環境では結果を返しません。
+  assert.equal(breakEven.status, 503);
   const breakEvenPayload = await breakEven.json();
-  assert.equal(breakEvenPayload.result.status, "matched");
-  assert.equal(breakEvenPayload.result.candidateScenarioId, "api-vancouver");
+  assert.equal(breakEvenPayload.result, undefined);
 
   const crossOrigin = await fetch(`${baseUrl}/api/calculate`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://attacker.invalid" }, body: JSON.stringify({ scenario: tokyo }) });
   assert.equal(crossOrigin.status, 403);
@@ -303,7 +304,7 @@ test("publishes typed city catalog APIs with coverage and source metadata", asyn
   const catalogPayload = await catalog.json();
   assert.equal(catalogPayload.coverage.cityCount, 50);
   assert.equal(catalogPayload.cities.length, 50);
-  assert.equal(catalogPayload.cities.filter((city) => city.calculationStatus === "unavailable").length, 25);
+  assert.equal(catalogPayload.cities.filter((city) => city.calculationStatus === "unavailable").length, 24);
 
   const city = await fetch(`${baseUrl}/api/cities/los-angeles`);
   assert.equal(city.status, 200);

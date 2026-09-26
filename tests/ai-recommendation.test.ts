@@ -72,3 +72,28 @@ test("creates stable provider-independent cache hashes", async () => {
   assert.notEqual(key, stableRecommendationKey({ ...input, followUpQuestion: "別の質問" }, "provider/model", "v1"));
   assert.match(await sha256Hex(key), /^[0-9a-f]{64}$/);
 });
+
+test("AI context applies every saved What-If field the analyzer applies", () => {
+  const withHousehold: SavedAnalyzerInput = { ...analysis, whatIf: { ...analysis.whatIf, householdType: "couple", children: 1, customMonthlySpending: 3_000, annualReturnRatePercent: 5 } };
+  const base = buildRecommendationInput(analysis, "ja");
+  const changed = buildRecommendationInput(withHousehold, "ja");
+  const vancouverBase = base.scenarios.find((scenario) => scenario.scenarioId === "vancouver");
+  const vancouverChanged = changed.scenarios.find((scenario) => scenario.scenarioId === "vancouver");
+  assert.equal(vancouverChanged?.household.type, "couple");
+  assert.equal(vancouverChanged?.household.children, 1);
+  assert.notEqual(vancouverChanged?.financials.totalLivingCostMonthly, vancouverBase?.financials.totalLivingCostMonthly);
+});
+
+test("AI context omits What-If, break-even and long-term results the plan cannot use", () => {
+  const input = buildRecommendationInput(analysis, "ja", undefined, undefined, { whatIf: false, breakEven: false, longTermProjections: false });
+  assert.equal(input.whatIfApplied, false);
+  assert.deepEqual(input.breakEvenResults, []);
+  for (const scenario of input.scenarios) {
+    assert.equal(scenario.financials.projectedSavings5Years, null);
+    assert.equal(scenario.financials.projectedSavings10Years, null);
+    assert.equal(scenario.financials.fireYearsToTarget, null);
+  }
+  const full = buildRecommendationInput(analysis, "ja");
+  assert.equal(full.whatIfApplied, true);
+  assert.equal(full.breakEvenResults.length, 1);
+});

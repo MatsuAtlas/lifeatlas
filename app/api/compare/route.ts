@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isRecord, parseSameOriginJson } from "../../../lib/api/json-request";
 import { calculateScenario } from "../../../lib/calculations/calculate-scenario";
 import { isScenarioInput, isUserPriorities } from "../../../lib/comparison-history";
+import { calculationOptionsFor, getExchangeRateSnapshot } from "../../../lib/data/exchange-rates";
 import { logOperationsEvent } from "../../../lib/observability/operations";
 import { scoreScenarios } from "../../../lib/scoring/life-atlas-score";
 
@@ -15,11 +16,13 @@ export async function POST(request: Request) {
   const scenarios = parsed.value.scenarios;
   if (new Set(scenarios.map((scenario) => scenario.id)).size !== scenarios.length) return NextResponse.json({ error: "比較IDは重複できません。" }, { status: 400 });
   try {
-    const results = scenarios.map((scenario) => calculateScenario(scenario));
+    const exchangeRates = await getExchangeRateSnapshot();
+    const options = calculationOptionsFor(exchangeRates);
+    const results = scenarios.map((scenario) => calculateScenario(scenario, options));
     for (const result of results) {
       if (result.calculationStatus === "unavailable") logOperationsEvent("warn", "missing_city_data", { endpoint: "compare", cityId: result.cityId, reason: result.unavailableReason });
     }
-    return NextResponse.json({ results, scores: scoreScenarios(results, parsed.value.priorities) });
+    return NextResponse.json({ results, scores: scoreScenarios(results, parsed.value.priorities), exchangeRates: { status: exchangeRates.status, observedOn: exchangeRates.observedOn } });
   } catch (error) {
     logOperationsEvent("error", "calculation_failed", { endpoint: "compare", errorName: error instanceof Error ? error.name : "UnknownError" });
     return NextResponse.json({ error: "比較を完了できませんでした。" }, { status: 422 });
