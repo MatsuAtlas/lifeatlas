@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -271,4 +271,34 @@ test("Philippines 2026 deducts SSS, PhilHealth and Pag-IBIG before the progressi
   close(low.socialInsurance, 24_900);
   close(low.incomeTax, 25_100 * 0.15);
   assert.equal(taxCalculationStatus(cities.manila), "official-rate-estimate");
+});
+
+test("Vietnam 2026 applies the five-bracket monthly table, the new personal deduction and capped insurance", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1, `${actual} != ${expected}`);
+  // 月₫100百万：1〜6月 保険 46.8百万×9.5%＋1百万=5.446百万、課税79.054百万 → 0.5+3+7.5+19.054×30%
+  //            7〜12月 保険 50.6百万×9.5%＋1百万=5.807百万、課税78.693百万 → 0.5+3+7.5+18.693×30%
+  const high = calculateVietnamPayroll(1_200_000_000);
+  close(high.socialInsurance, (5_446_000 + 5_807_000) * 6);
+  close(high.incomeTax, (16_716_200 + 16_607_900) * 6);
+  // 月₫20百万：保険2.1百万、課税2.4百万×5%
+  const low = calculateVietnamPayroll(240_000_000);
+  close(low.socialInsurance, 2_100_000 * 12);
+  close(low.incomeTax, 120_000 * 12);
+  assert.equal(taxCalculationStatus(cities.hoChiMinh), "official-rate-estimate");
+});
+
+test("Brazil 2026 applies progressive INSS, the monthly table and the Law 15.270 reduction", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.05, `${actual} != ${expected}`);
+  const inssAtCeiling = 1_621 * 0.075 + 1_281.84 * 0.09 + 1_451.43 * 0.12 + 4_121.28 * 0.14;
+  // 月R$20,000：INSSは上限、所得税は27.5%帯（公式の控除額908.73とも一致）
+  const high = calculateBrazilPayroll(240_000);
+  close(high.socialInsurance / 12, inssAtCeiling);
+  close(high.incomeTax / 12, (20_000 - inssAtCeiling) * 0.275 - 908.73);
+  // 月R$6,000：減額 978.62−0.133145×6,000
+  const middle = calculateBrazilPayroll(72_000);
+  const inss6000 = 1_621 * 0.075 + 1_281.84 * 0.09 + 1_451.43 * 0.12 + (6_000 - 4_354.27) * 0.14;
+  close(middle.incomeTax / 12, (6_000 - inss6000) * 0.275 - 908.73 - (978.62 - 0.133145 * 6_000));
+  // 月R$5,000以下は所得税0
+  assert.equal(calculateBrazilPayroll(60_000).incomeTax, 0);
+  assert.equal(taxCalculationStatus(cities.saoPaulo), "official-rate-estimate");
 });
