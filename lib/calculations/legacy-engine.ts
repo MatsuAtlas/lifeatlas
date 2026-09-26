@@ -146,6 +146,32 @@ function calculateUsIncomeTax(city: City, grossAnnual: number) {
   return federalTax;
 }
 
+// 香港・薪俸税（2026/27課税年度、2026年5月13日成立の改正後）と従業員MPF強制拠出。
+// 配偶者の所得が不明なため既婚者控除は適用せず、本人の基礎控除と子ども控除だけを使います。
+const HONG_KONG_BASIC_ALLOWANCE = 145_000;
+const HONG_KONG_SINGLE_PARENT_ALLOWANCE = 145_000;
+const HONG_KONG_CHILD_ALLOWANCE = 140_000;
+const HONG_KONG_MPF_RATE = 0.05;
+const HONG_KONG_MPF_MIN_MONTHLY_INCOME = 7_100;
+const HONG_KONG_MPF_MAX_MONTHLY_INCOME = 30_000;
+const HONG_KONG_MPF_DEDUCTION_CAP = 18_000;
+const hongKongChildren = { single: 0, couple: 0, singleParent: 1, coupleOneChild: 1, family: 2, familyThreeChildren: 3 } as const;
+
+export function calculateHongKongSalariesTax(grossAnnual: number, household: keyof typeof householdMultipliers) {
+  const monthlyIncome = Math.max(0, grossAnnual) / 12;
+  const mpf = monthlyIncome < HONG_KONG_MPF_MIN_MONTHLY_INCOME ? 0 : Math.min(monthlyIncome, HONG_KONG_MPF_MAX_MONTHLY_INCOME) * HONG_KONG_MPF_RATE * 12;
+  const netIncome = Math.max(0, grossAnnual - Math.min(mpf, HONG_KONG_MPF_DEDUCTION_CAP));
+  const allowances = HONG_KONG_BASIC_ALLOWANCE
+    + (household === "singleParent" ? HONG_KONG_SINGLE_PARENT_ALLOWANCE : 0)
+    + hongKongChildren[household] * HONG_KONG_CHILD_ALLOWANCE;
+  const progressive = taxFromAnnualBrackets(Math.max(0, netIncome - allowances), [
+    { limit: 50_000, rate: 0.02 }, { limit: 100_000, rate: 0.06 }, { limit: 150_000, rate: 0.1 }, { limit: 200_000, rate: 0.14 }, { limit: Number.POSITIVE_INFINITY, rate: 0.17 },
+  ]);
+  // 標準税率（控除前の純所得に15%、500万HKD超の部分は16%）が上限になります。
+  const standard = taxFromAnnualBrackets(netIncome, [{ limit: 5_000_000, rate: 0.15 }, { limit: Number.POSITIVE_INFINITY, rate: 0.16 }]);
+  return { salariesTax: Math.min(progressive, standard), mpf };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "canada" && !["britishColumbia", "ontario"].includes(city.taxRegion)) return "unavailable";
@@ -173,6 +199,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
   }
   if (city.taxSystem === "uae") return emptyTaxBreakdown();
+  if (city.taxSystem === "hongKong") {
+    const { salariesTax, mpf } = calculateHongKongSalariesTax(grossAnnual, household);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: salariesTax / 12, pensionMonthly: mpf / 12, totalTaxMonthly: salariesTax / 12, totalInsuranceMonthly: mpf / 12, totalDeductionsMonthly: (salariesTax + mpf) / 12 };
+  }
   if (city.taxSystem === "japan") {
     const insurance = calculateJapanInsurance(city, grossAnnual, ageBand);
     const totalInsurance = insurance.healthInsurance + insurance.childSupport + insurance.careInsurance + insurance.pension + insurance.employment;
