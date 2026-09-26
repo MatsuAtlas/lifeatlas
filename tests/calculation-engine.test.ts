@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -230,4 +230,15 @@ test("Germany 2026 applies the §32a tariff, solidarity surcharge and capped soc
   // 子ども2人は介護保険料率1.55%
   close(calculateGermanyPayroll(60_000, "family").care, 60_000 * 0.0155);
   assert.equal(taxCalculationStatus(cities.berlin), "official-rate-estimate");
+});
+
+test("Thailand 2026 caps social security at 875 baht a month and applies the progressive rates", () => {
+  // ฿1,200,000：社会保険 875×12=10,500、課税所得 1,200,000−100,000−60,000−10,500=1,029,500
+  // 税額 7,500+20,000+37,500+50,000+29,500×25%=122,375
+  assert.deepEqual(calculateThailandPayroll(1_200_000), { incomeTax: 122_375, socialSecurity: 10_500 });
+  // ฿300,000：課税所得129,500は非課税枠内
+  assert.deepEqual(calculateThailandPayroll(300_000), { incomeTax: 0, socialSecurity: 10_500 });
+  // 月給฿10,000は上限未満：社会保険は5%
+  assert.equal(calculateThailandPayroll(120_000).socialSecurity, 6_000);
+  assert.equal(taxCalculationStatus(cities.bangkok), "official-rate-estimate");
 });
