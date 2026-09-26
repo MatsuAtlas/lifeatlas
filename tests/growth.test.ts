@@ -20,10 +20,10 @@ const analysis: SavedAnalyzerInput = {
   breakEven: { candidateScenarioId: "private-offer-b", metric: "disposableIncome" },
 };
 
-test("creates unique, reversible city slugs for all 50 cities", () => {
+test("creates unique, reversible city slugs for all 69 cities", () => {
   const slugs = cityOrder.map(citySlug);
-  assert.equal(slugs.length, 50);
-  assert.equal(new Set(slugs).size, 50);
+  assert.equal(slugs.length, 69);
+  assert.equal(new Set(slugs).size, 69);
   for (const cityId of cityOrder) assert.equal(cityIdFromSlug(citySlug(cityId)), cityId);
   assert.equal(citySlug("losAngeles"), "los-angeles");
 });

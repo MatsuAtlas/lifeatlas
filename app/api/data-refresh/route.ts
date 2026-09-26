@@ -1,3 +1,4 @@
+import { cityOrder } from "../../../data/cities";
 import { ECB_SOURCE_URL, getExchangeRateSnapshot } from "../../../lib/data/exchange-rates";
 import { logOperationsEvent } from "../../../lib/observability/operations";
 
@@ -18,12 +19,12 @@ type Snapshot = {
 
 
 const WORLD_BANK_INDICATOR = "SP.POP.TOTL";
-const CITY_COUNT = 50;
+const CITY_COUNT = cityOrder.length;
 const countries = [
-  "JPN", "CAN", "USA", "GBR", "FRA", "ITA", "MEX", "AUS", "KOR", "TWN", "SGP", "HKG", "THA", "MYS", "IDN", "PHL", "VNM", "CHN", "ESP", "DEU", "NLD", "PRT", "ARE", "CHE", "IRL", "BRA", "ARG", "CHL", "COL",
+  "JPN", "CAN", "USA", "GBR", "FRA", "ITA", "MEX", "AUS", "KOR", "TWN", "SGP", "HKG", "THA", "MYS", "IDN", "PHL", "VNM", "CHN", "ESP", "DEU", "NLD", "PRT", "ARE", "CHE", "IRL", "BRA", "ARG", "CHL", "COL", "SAU", "IND",
 ] as const;
 const currencies = [
-  "JPY", "CAD", "USD", "GBP", "EUR", "MXN", "AUD", "KRW", "TWD", "SGD", "HKD", "THB", "MYR", "IDR", "PHP", "VND", "CNY", "AED", "CHF", "BRL", "ARS", "CLP", "COP",
+  "JPY", "CAD", "USD", "GBP", "EUR", "MXN", "AUD", "KRW", "TWD", "SGD", "HKD", "THB", "MYR", "IDR", "PHP", "VND", "CNY", "AED", "CHF", "BRL", "ARS", "CLP", "COP", "INR", "SAR",
 ] as const;
 
 const WORLD_BANK_SOURCE_URL = "https://datahelpdesk.worldbank.org/knowledgebase/articles/889392-about-the-indicators-api-documentation";

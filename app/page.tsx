@@ -18,6 +18,10 @@ import {
   taxCalculationStatus,
 } from "../lib/calculations/legacy-engine";
 
+// 画面文言の都市数・通貨数もカタログから数えます。
+const CITY_COUNT = cityOrder.length;
+const CURRENCY_COUNT = Object.keys(FALLBACK_FX_TO_JPY).length;
+
 // 表紙の主要指標：カタログから計算し、手入力の数字を載せないようにします。
 const researchFigures = {
   cityCount: cityOrder.length,
@@ -139,7 +143,7 @@ const translations = {
     heroTitleEmphasis: "どの都市",
     heroTitleAfter: "でより強くなるか。",
     heroText: "各国の公式資料にもとづく税・社会保険・家賃・生活費の計算で、仕事と移住の選択肢を同じ物差しで比較します。数値の出典・基準日・前提はすべて公開しています。",
-    pillCities: "世界50都市 + ビジネス注目10都市",
+    pillCities: `世界${CITY_COUNT}都市 + ビジネス注目10都市`,
     pillCurrencies: "現地通貨 + 日本円",
     pillDeductions: "税金・保険料込み",
     compareEyebrow: "01 / 条件をセット",
@@ -209,7 +213,7 @@ const translations = {
     updating: "更新中",
     fallback: "自動取得できない項目は保存した参考値を表示しています。",
     dataCoverageTitle: "現在のデータ範囲",
-    dataCoverageSummary: "50都市・23通貨を対象に、項目ごとの基準日と更新方法を表示",
+    dataCoverageSummary: `${CITY_COUNT}都市・${CURRENCY_COUNT}通貨を対象に、項目ごとの基準日と更新方法を表示`,
     automatic: "自動取得",
     baseCurrency: "基準通貨",
     officialSnapshot: "公式統計の保存値",
@@ -324,7 +328,7 @@ const translations = {
     autoSources: "自動取得元",
     citySources: "都市別に参照している公式資料",
     footerText: "収入と都市の距離を、もっと分かりやすく。",
-    footerCities: "世界50都市対応",
+    footerCities: `世界${CITY_COUNT}都市対応`,
     footerDeductions: "税金・保険料込み",
     householdSingle: "単身成人",
     householdCouple: "大人2人",
@@ -359,7 +363,7 @@ const translations = {
     heroTitleEmphasis: "go further",
     heroTitleAfter: "?",
     heroText: "Compare job and relocation options on one yardstick: taxes, social insurance, rent and living costs calculated from each country's official sources. Every figure's source, reference date and assumptions are published.",
-    pillCities: "50 cities + 10 business spotlights",
+    pillCities: `${CITY_COUNT} cities + 10 business spotlights`,
     pillCurrencies: "Local currency + JPY",
     pillDeductions: "Taxes and insurance included",
     compareEyebrow: "01 / SET YOUR CONDITIONS",
@@ -429,7 +433,7 @@ const translations = {
     updating: "Updating",
     fallback: "Fields unavailable from an automatic source use saved reference values.",
     dataCoverageTitle: "Current data coverage",
-    dataCoverageSummary: "Covers 50 cities and 23 currencies, with the date and update method shown for each field",
+    dataCoverageSummary: `Covers ${CITY_COUNT} cities and ${CURRENCY_COUNT} currencies, with the date and update method shown for each field`,
     automatic: "Automatic",
     baseCurrency: "Base currency",
     officialSnapshot: "Saved official statistic",
@@ -544,7 +548,7 @@ const translations = {
     autoSources: "Automatic sources",
     citySources: "Official sources referenced by city",
     footerText: "Make the distance between income and cities easier to understand.",
-    footerCities: "50 cities worldwide",
+    footerCities: `${CITY_COUNT} cities worldwide`,
     footerDeductions: "Taxes and insurance included",
     householdSingle: "Single adult",
     householdCouple: "Two adults",
@@ -1424,7 +1428,7 @@ export default function Home() {
         <section id="recommendations" className="recommendation-section section-anchor">
           <div className="recommendation-heading">
             <div><p className="eyebrow">07 / YOUR CITY MATCHES</p><h2>{language === "ja" ? "今の条件から、次に見るべき3都市。" : "Three cities worth exploring next."}</h2></div>
-            <p>{language === "ja" ? "Life Atlasの50都市すべてを対象に、入力済みの給与・世帯・住居・生活スタイル条件と、ビジネス環境・暮らしやすさを重ねて候補を更新します。" : "All 50 Life Atlas cities are evaluated using your salary, household, housing and lifestyle inputs alongside business conditions and livability."}</p>
+            <p>{language === "ja" ? `Life Atlasの${CITY_COUNT}都市すべてを対象に、入力済みの給与・世帯・住居・生活スタイル条件と、ビジネス環境・暮らしやすさを重ねて候補を更新します。` : `All ${CITY_COUNT} Life Atlas cities are evaluated using your salary, household, housing and lifestyle inputs alongside business conditions and livability.`}</p>
           </div>
           <div className="recommendation-coverage" aria-label={language === "ja" ? "おすすめのデータ範囲" : "Recommendation data coverage"}>
             <span><strong>{recommendationCoverage.candidateCount}</strong>{language === "ja" ? "対象都市" : "cities evaluated"}</span>
@@ -1449,7 +1453,7 @@ export default function Home() {
               </article>;
             })}
           </div>
-          <div className="recommendation-method"><span>{language === "ja" ? "現在の配点" : "Current weighting"}</span><strong>{recommendationPriority === "balance" ? (language === "ja" ? "手元資金40%・ビジネス35%・暮らし25%" : "Money 40% · Business 35% · Livability 25%") : recommendationPriority === "money" ? (language === "ja" ? "手元資金60%・ビジネス20%・暮らし20%" : "Money 60% · Business 20% · Livability 20%") : (language === "ja" ? "手元資金20%・ビジネス60%・暮らし20%" : "Money 20% · Business 60% · Livability 20%")}</strong><p>{language === "ja" ? "50都市すべてを候補にします。選択した働き方で給与または税金・社会保険を計算できない都市は手元資金を0点として扱います。ビジネス詳細が未整備の都市は既存の参考スコアを50%補正し、データ不足だけで高順位にならないようにしています。移住・投資・税務判断を代替するものではありません。" : "All 50 cities remain eligible. Cities without salary or tax and social-insurance calculations for the selected work scenario receive zero for the money factor. Where detailed business data is unavailable, the existing reference score is weighted at 50% so missing data cannot produce an inflated rank. This does not replace relocation, investment or tax advice."}</p></div>
+          <div className="recommendation-method"><span>{language === "ja" ? "現在の配点" : "Current weighting"}</span><strong>{recommendationPriority === "balance" ? (language === "ja" ? "手元資金40%・ビジネス35%・暮らし25%" : "Money 40% · Business 35% · Livability 25%") : recommendationPriority === "money" ? (language === "ja" ? "手元資金60%・ビジネス20%・暮らし20%" : "Money 60% · Business 20% · Livability 20%") : (language === "ja" ? "手元資金20%・ビジネス60%・暮らし20%" : "Money 20% · Business 60% · Livability 20%")}</strong><p>{language === "ja" ? `${CITY_COUNT}都市すべてを候補にします。選択した働き方で給与または税金・社会保険を計算できない都市は手元資金を0点として扱います。ビジネス詳細が未整備の都市は既存の参考スコアを50%補正し、データ不足だけで高順位にならないようにしています。移住・投資・税務判断を代替するものではありません。` : `All ${CITY_COUNT} cities remain eligible. Cities without salary or tax and social-insurance calculations for the selected work scenario receive zero for the money factor. Where detailed business data is unavailable, the existing reference score is weighted at 50% so missing data cannot produce an inflated rank. This does not replace relocation, investment or tax advice.`}</p></div>
         </section>
 
         <section id="global-business" className="global-business-section section-anchor">
@@ -1480,7 +1484,7 @@ export default function Home() {
 
         <section className="details-grid">
           <div className="mini-panel"><span className="mini-icon">◎</span><div><h3>{t.businessTitle}</h3><p>{t.businessText}</p><a className="inline-link" href="#global-business">{t.moreDetails} <span>→</span></a></div></div>
-          <div className="mini-panel"><span className="mini-icon">⌁</span><div><h3>{t.transparencyTitle}</h3><p>{t.transparencyText}</p><button className="inline-link" onClick={openMethodDetails}>{t.sourcesNotes} <span>→</span></button><Link className="inline-link" href={`/data${language === "en" ? "?lang=en" : ""}`}>{language === "ja" ? "50都市のデータ一覧" : "All 50 cities"} <span>→</span></Link></div></div>
+          <div className="mini-panel"><span className="mini-icon">⌁</span><div><h3>{t.transparencyTitle}</h3><p>{t.transparencyText}</p><button className="inline-link" onClick={openMethodDetails}>{t.sourcesNotes} <span>→</span></button><Link className="inline-link" href={`/data${language === "en" ? "?lang=en" : ""}`}>{language === "ja" ? `${CITY_COUNT}都市のデータ一覧` : `All ${CITY_COUNT} cities`} <span>→</span></Link></div></div>
         </section>
 
         {detailsOpen && <section id="method" className="method-panel section-anchor"><div className="section-heading"><div><p className="eyebrow">{t.methodEyebrow}</p><h2>{t.methodTitle}</h2></div><button className="close-button" onClick={() => setDetailsOpen(false)}>{t.close}</button></div><div className="method-grid"><div><span>{t.dataStatus}</span><strong>{dataLoading ? t.dataLoading : selectedFxAutomatic ? t.dataLiveMethod : t.dataFallbackMethod}</strong><p>{language === "ja" ? "都市人口は各統計の公表時点を保存し、国人口はWorld Bank、対応通貨の為替はECBから自動取得します。更新操作で都市人口の基準日は書き換えません。" : "City population keeps its published statistical baseline. Country population comes from the World Bank and supported FX rates come from the ECB. Refreshing does not rewrite a city-population date."} {t.retrievedAt}{officialData ? new Date(officialData.retrievedAt).toLocaleString(language === "ja" ? "ja-JP" : "en-US") : language === "ja" ? "未取得" : "Not available"}</p></div><div><span>{t.cityCosts}</span><strong>{t.cityCostsStrong}</strong><p>{t.cityCostsText}</p></div><div><span>{t.taxes}</span><strong>{t.taxesStrong}</strong><p>{t.taxesText}</p></div><div><span>{t.formula}</span><strong>{t.formulaStrong}</strong><p>{t.formulaText}</p></div></div>{officialData && <div className="source-list"><span>{t.autoSources}</span>{officialData.sources.map((source) => <a key={source.name} href={source.url} target="_blank" rel="noreferrer">{source.name} <small>（{sourceScope(source.scope, language)}）</small> ↗</a>)}</div>}<div className="source-list"><span>{t.citySources}</span>{citySourceLinks.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.source} <small>（{sourceItem(source.item, language)} / {sourceLevel(source.level, language)} / {sourcePeriod(source.period, language)}）</small> ↗</a>)}</div><Link className="secondary-button" href={`/methodology${language === "en" ? "?lang=en" : ""}`}>{language === "ja" ? "計算方法の詳細" : "Full methodology"}</Link></section>}
