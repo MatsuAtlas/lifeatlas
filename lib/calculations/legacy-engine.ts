@@ -172,6 +172,30 @@ export function calculateHongKongSalariesTax(grossAnnual: number, household: key
   return { salariesTax: Math.min(progressive, standard), mpf };
 }
 
+// アイルランド・2026課税年度（単独課税の給与所得者）。所得税20%/40%（標準税率帯€44,000）から
+// 基礎控除額（Personal €2,000・Employee €2,000）を差し引き、USCとPRSI Class A1を加えます。
+// PRSIは2026年10月1日に4.2%→4.35%へ上がるため、年間では9か月4.2%・3か月4.35%で按分します。
+// 配偶者の所得、単親控除、家賃控除などは未反映です。
+const IRELAND_STANDARD_RATE_BAND = 44_000;
+const IRELAND_TAX_CREDITS = 4_000;
+const IRELAND_USC_EXEMPTION = 13_000;
+const IRELAND_PRSI_RATE = 0.042 * 0.75 + 0.0435 * 0.25;
+const IRELAND_PRSI_WEEKLY_THRESHOLD = 352;
+const IRELAND_PRSI_MAX_WEEKLY_CREDIT = 12;
+
+export function calculateIrelandPayrollTax(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const incomeTax = Math.max(0, taxFromAnnualBrackets(gross, [{ limit: IRELAND_STANDARD_RATE_BAND, rate: 0.2 }, { limit: Number.POSITIVE_INFINITY, rate: 0.4 }]) - IRELAND_TAX_CREDITS);
+  const usc = gross <= IRELAND_USC_EXEMPTION ? 0 : taxFromAnnualBrackets(gross, [
+    { limit: 12_012, rate: 0.005 }, { limit: 28_700, rate: 0.02 }, { limit: 70_044, rate: 0.03 }, { limit: Number.POSITIVE_INFINITY, rate: 0.08 },
+  ]);
+  const weekly = gross / 52;
+  // 週€352以下はPRSIなし。€352.01〜€424は週€12を上限とするPRSIクレジットが段階的に減ります。
+  const weeklyCredit = weekly <= IRELAND_PRSI_WEEKLY_THRESHOLD ? 0 : Math.max(0, IRELAND_PRSI_MAX_WEEKLY_CREDIT - (weekly - IRELAND_PRSI_WEEKLY_THRESHOLD) / 6);
+  const prsi = weekly <= IRELAND_PRSI_WEEKLY_THRESHOLD ? 0 : Math.max(0, weekly * IRELAND_PRSI_RATE - weeklyCredit) * 52;
+  return { incomeTax, usc, prsi };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "canada" && !["britishColumbia", "ontario"].includes(city.taxRegion)) return "unavailable";
@@ -199,6 +223,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
   }
   if (city.taxSystem === "uae") return emptyTaxBreakdown();
+  if (city.taxSystem === "ireland") {
+    const { incomeTax, usc, prsi } = calculateIrelandPayrollTax(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: usc / 12, pensionMonthly: prsi / 12, totalTaxMonthly: (incomeTax + usc) / 12, totalInsuranceMonthly: prsi / 12, totalDeductionsMonthly: (incomeTax + usc + prsi) / 12 };
+  }
   if (city.taxSystem === "hongKong") {
     const { salariesTax, mpf } = calculateHongKongSalariesTax(grossAnnual, household);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: salariesTax / 12, pensionMonthly: mpf / 12, totalTaxMonthly: salariesTax / 12, totalInsuranceMonthly: mpf / 12, totalDeductionsMonthly: (salariesTax + mpf) / 12 };
