@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -258,4 +258,17 @@ test("China 2026 uses city contribution bases (time-weighted) and the comprehens
   close(calculateChinaPayroll(60_000, "shanghai").socialInsurance, 7_460 * 0.105 * 6 + 7_546 * 0.105 * 6);
   assert.equal(taxCalculationStatus(cities.beijing), "official-rate-estimate");
   assert.equal(taxCalculationStatus(cities.shanghai), "official-rate-estimate");
+});
+
+test("Philippines 2026 deducts SSS, PhilHealth and Pag-IBIG before the progressive tax", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // ₱1,200,000（月₱100,000）：SSS 1,750、PhilHealth 2,500、Pag-IBIG 200 → 年53,400。課税所得1,146,600
+  const high = calculatePhilippinesPayroll(1_200_000);
+  close(high.socialInsurance, 53_400);
+  close(high.incomeTax, 22_500 + 80_000 + 346_600 * 0.25);
+  // ₱300,000（月₱25,000）：SSS 1,250、PhilHealth 625、Pag-IBIG 200 → 年24,900。課税所得275,100
+  const low = calculatePhilippinesPayroll(300_000);
+  close(low.socialInsurance, 24_900);
+  close(low.incomeTax, 25_100 * 0.15);
+  assert.equal(taxCalculationStatus(cities.manila), "official-rate-estimate");
 });
