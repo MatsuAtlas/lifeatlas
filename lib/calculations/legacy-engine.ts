@@ -116,6 +116,14 @@ function calculateCanadaTax(city: City, grossAnnual: number) {
     ]);
     return { federalTax, provincialTax, healthPremium: 0 };
   }
+  if (city.taxRegion === "quebec") {
+    // ケベック州2026：連邦税は基本連邦税の16.5%を減額（Québec abatement）。州税は14/19/24/25.75%、
+    // 区切り$54,345/$108,680/$132,245、基礎控除$18,952（14%の税額控除）。労働者控除などは未反映。
+    const provincialTax = Math.max(0, taxFromAnnualBrackets(grossAnnual, [
+      { limit: 54_345, rate: 0.14 }, { limit: 108_680, rate: 0.19 }, { limit: 132_245, rate: 0.24 }, { limit: Number.POSITIVE_INFINITY, rate: 0.2575 },
+    ]) - 18_952 * 0.14);
+    return { federalTax: federalTax * (1 - 0.165), provincialTax, healthPremium: 0 };
+  }
   if (city.taxRegion === "alberta") {
     // 2026年：2025年の公式区切りをCRA公表の指数2.0%で調整（基礎控除$22,769は公式値と一致）。
     // 非還付控除は最低税率8%で計算します。
@@ -221,7 +229,7 @@ export function calculateIrelandPayrollTax(grossAnnual: number) {
 
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
-  if (city.taxSystem === "canada" && !["britishColumbia", "ontario", "alberta"].includes(city.taxRegion)) return "unavailable";
+  if (city.taxSystem === "canada" && !["britishColumbia", "ontario", "alberta", "quebec"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington", "massachusetts", "illinois", "districtOfColumbia"].includes(city.taxRegion)) return "unavailable";
   if (["singapore", "uae"].includes(city.taxSystem)) return "official-scenario";
   return "official-rate-estimate";
@@ -291,7 +299,9 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "canada") {
     const tax = calculateCanadaTax(city, grossAnnual);
     const pension = calculateCanadaPension(grossAnnual, city.insurance);
-    const employment = Math.min(grossAnnual * city.insurance.employmentRateEmployee, city.insurance.employmentCap ?? 1_123.07);
+    // ケベック州はEIの料率が低い代わりに、親保険（QPIP 0.455%、上限所得$103,000）を加えます。
+    const parentalInsurance = city.taxRegion === "quebec" ? Math.min(grossAnnual, 103_000) * 0.00455 : 0;
+    const employment = Math.min(grossAnnual * city.insurance.employmentRateEmployee, city.insurance.employmentCap ?? 1_123.07) + parentalInsurance;
     const totalTax = tax.federalTax + tax.provincialTax;
     const totalInsurance = pension + employment + tax.healthPremium;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: totalTax / 12, healthInsuranceMonthly: tax.healthPremium / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: employment / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };

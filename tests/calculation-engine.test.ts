@@ -194,3 +194,15 @@ test("Alberta 2026 provincial tax uses the 8% first bracket and an 8% basic pers
   close(incomeTax(20_000), (20_000 - 16_452) * 0.14);
   assert.equal(taxCalculationStatus(cities.calgary), "official-rate-estimate");
 });
+
+test("Quebec 2026 applies the federal abatement, Quebec brackets, QPP, Quebec EI and QPIP", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  const breakdown = calculateCity(cities.montreal, 100_000, "single", "onebed", "balanced", "under40").taxBreakdown;
+  // 連邦基本税13,323.345×(1−16.5%)＋州税（7,608.3＋8,674.45−18,952×14%）
+  close((breakdown?.incomeTaxMonthly ?? 0) * 12, 13_323.345 * 0.835 + 13_629.47);
+  // QPP：上限4,479.30＋QPP2 10,400×4%＝416
+  close((breakdown?.pensionMonthly ?? 0) * 12, 4_895.3);
+  // EI（ケベック上限895.70）＋QPIP 100,000×0.455%
+  close((breakdown?.employmentInsuranceMonthly ?? 0) * 12, 895.7 + 455);
+  assert.equal(taxCalculationStatus(cities.montreal), "official-rate-estimate");
+});
