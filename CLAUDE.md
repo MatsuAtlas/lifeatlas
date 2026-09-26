@@ -26,6 +26,11 @@ LifeAtlasは、複数の仕事・移住候補のうち「どれを選ぶべき�
 - Supabaseは `lib/supabase-server.ts` からRESTで利用。RLSを緩めない。service roleキーはサーバー専用。
 - 主要UIは `app/page.tsx` と `components/offer-analyzer/offer-analyzer.tsx`（大きいが、全面リファクタリングはしない。必要な範囲だけ抽出する）。
 
+## デザイン原則（研究機関のレポート型）
+- 紙のような背景・細い罫線・控えめなアクセント（深緑）・見出しは明朝／セリフ、数値は等幅数字。写真・グラデーション・強い影・大きな角丸は使わない。
+- 最初に見せるのは雰囲気ではなく「結論・主要指標・出典」。数値はカタログから計算し、手入力の宣伝用数字を載せない。
+- 既定はライトテーマ。ダークテーマは同じ構成で色だけを切り替える。テーマの色は `app/globals.css` 末尾の Research theme の変数で管理する。
+
 ## コマンド
 ```bash
 npm run test:unit   # unitテスト（node --test、型ストリップ）

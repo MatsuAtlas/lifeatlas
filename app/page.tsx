@@ -18,6 +18,13 @@ import {
   taxCalculationStatus,
 } from "../lib/calculations/legacy-engine";
 
+// 表紙の主要指標：カタログから計算し、手入力の数字を載せないようにします。
+const researchFigures = {
+  cityCount: cityOrder.length,
+  calculableCount: cityOrder.filter((cityId) => taxCalculationStatus(cities[cityId]) !== "unavailable").length,
+  officialSourceCount: new Set(cityOrder.flatMap((cityId) => cities[cityId].dataSources.filter((item) => !/Life Atlas|保存参考値|未対応/.test(item.source)).map((item) => item.url))).size,
+};
+
 type SalaryCurrency = "origin" | "JPY";
 type DestinationSalaryMode = "localBenchmark" | "sameYen" | "actualOffer";
 type Language = "ja" | "en";
@@ -127,11 +134,11 @@ const translations = {
     themeToLight: "明るくする",
     themeToDark: "暗くする",
     themeAria: "表示テーマを切り替える",
-    heroEyebrow: "世界の都市で、暮らしと仕事を設計する",
+    heroEyebrow: "LifeAtlas Research · 2026年版",
     heroTitleBefore: "あなたの収入は、",
     heroTitleEmphasis: "どの都市",
     heroTitleAfter: "でより強くなるか。",
-    heroText: "海の近く、美しい街で、仕事も人生も育てる。税金・家賃・生活費とビジネス環境を、同じ物差しで比べます。",
+    heroText: "各国の公式資料にもとづく税・社会保険・家賃・生活費の計算で、仕事と移住の選択肢を同じ物差しで比較します。数値の出典・基準日・前提はすべて公開しています。",
     pillCities: "世界50都市 + ビジネス注目10都市",
     pillCurrencies: "現地通貨 + 日本円",
     pillDeductions: "税金・保険料込み",
@@ -347,11 +354,11 @@ const translations = {
     themeToLight: "Light mode",
     themeToDark: "Dark mode",
     themeAria: "Switch color theme",
-    heroEyebrow: "Design your life and work across world cities",
+    heroEyebrow: "LifeAtlas Research · 2026 edition",
     heroTitleBefore: "Where does your income ",
     heroTitleEmphasis: "go further",
     heroTitleAfter: "?",
-    heroText: "Build a life and a business near the sea, in a city you love. Compare taxes, rent, living costs and founder readiness on one clear map.",
+    heroText: "Compare job and relocation options on one yardstick: taxes, social insurance, rent and living costs calculated from each country's official sources. Every figure's source, reference date and assumptions are published.",
     pillCities: "50 cities + 10 business spotlights",
     pillCurrencies: "Local currency + JPY",
     pillDeductions: "Taxes and insurance included",
@@ -675,7 +682,7 @@ export default function Home() {
   const [lifestyle, setLifestyle] = useState<keyof typeof lifestyleMultipliers>("balanced");
   const [ageBand, setAgeBand] = useState<AgeBand>("under40");
   const [recommendationPriority, setRecommendationPriority] = useState<RecommendationPriority>("balance");
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [officialData, setOfficialData] = useState<OfficialData | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
@@ -1109,10 +1116,15 @@ export default function Home() {
               <a className="hero-secondary-cta" href="#compare">{language === "ja" ? "都市を比較する" : "Explore cities"}</a>
             </div>
           </div>
-          <div className="hero-visual" aria-label={language === "ja" ? "海と海外の街並み" : "Coastal international city"}>
-            <div className="hero-visual-caption"><span>48°51′N · COASTAL EDITION</span><strong>{language === "ja" ? "暮らす場所を、意思で選ぶ。" : "Choose where life can expand."}</strong></div>
-            <div className="hero-visual-score"><small>{language === "ja" ? "注目都市" : "Spotlight"}</small><strong>10</strong><span>{language === "ja" ? "公式情報源で比較" : "official-source profiles"}</span></div>
-          </div>
+          <aside className="research-figures" aria-labelledby="research-figures-title">
+            <h2 id="research-figures-title">{language === "ja" ? "主要指標" : "Key figures"}</h2>
+            <dl>
+              <div><dt>{language === "ja" ? "比較対象の都市" : "Cities covered"}</dt><dd>{researchFigures.cityCount}</dd></div>
+              <div><dt>{language === "ja" ? "税・社会保険を公式制度で計算できる都市" : "Cities with official tax and social-insurance models"}</dt><dd>{researchFigures.calculableCount}<small>/ {researchFigures.cityCount}</small></dd></div>
+              <div><dt>{language === "ja" ? "参照している公式資料" : "Official sources referenced"}</dt><dd>{researchFigures.officialSourceCount}</dd></div>
+            </dl>
+            <p>{language === "ja" ? "計算できない都市は推測で埋めず「—」と表示します。" : "Cities we cannot calculate show “—” rather than an estimate."} <Link href="/data">{language === "ja" ? "データ範囲" : "Data coverage"}</Link> · <Link href="/methodology">{language === "ja" ? "計算方法" : "Methodology"}</Link></p>
+          </aside>
         </section>
 
         <section id="account" className="account-card section-anchor" aria-labelledby="account-title">
