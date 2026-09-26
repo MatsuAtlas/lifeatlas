@@ -372,12 +372,35 @@ export function calculateBrazilPayroll(grossAnnual: number) {
   return { incomeTax: incomeTax * 12, socialInsurance: inss * 12 };
 }
 
+// インド・新税制（既定の税制）。2025年予算で改定され、2026-27年度も据え置き。給与所得者の標準控除₹75,000、
+// 課税所得₹12 lakh以下は87条Aの税額控除（上限₹60,000）で0、わずかに超える場合は超過額までに抑えます（marginal relief）。
+// 付加税は₹50 lakh超10%・₹1 crore超15%・₹2 crore超25%（新税制の上限）で、閾値でのmarginal reliefを反映。最後に教育目的税4%。
+// EPF（従業員積立基金）は基本給の構成や加入区分で大きく変わるため含めません。
+const INDIA_SLABS: TaxSlice[] = [
+  { limit: 400_000, rate: 0 }, { limit: 800_000, rate: 0.05 }, { limit: 1_200_000, rate: 0.1 }, { limit: 1_600_000, rate: 0.15 },
+  { limit: 2_000_000, rate: 0.2 }, { limit: 2_400_000, rate: 0.25 }, { limit: Number.POSITIVE_INFINITY, rate: 0.3 },
+];
+const INDIA_SURCHARGE = [{ threshold: 20_000_000, rate: 0.25 }, { threshold: 10_000_000, rate: 0.15 }, { threshold: 5_000_000, rate: 0.1 }];
+
+function indiaTaxWithSurcharge(taxable: number): number {
+  const base = taxFromAnnualBrackets(taxable, INDIA_SLABS);
+  const tier = INDIA_SURCHARGE.find((item) => taxable > item.threshold);
+  if (!tier) return base;
+  return Math.min(base * (1 + tier.rate), indiaTaxWithSurcharge(tier.threshold) + (taxable - tier.threshold));
+}
+
+export function calculateIndiaIncomeTax(grossAnnual: number) {
+  const taxable = Math.max(0, grossAnnual - 75_000);
+  const tax = taxable <= 1_200_000 ? 0 : Math.min(indiaTaxWithSurcharge(taxable), taxable - 1_200_000);
+  return tax * 1.04;
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "china" && !["beijing", "shanghai"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "canada" && !["britishColumbia", "ontario", "alberta", "quebec"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington", "massachusetts", "illinois", "districtOfColumbia"].includes(city.taxRegion)) return "unavailable";
-  if (["singapore", "uae"].includes(city.taxSystem)) return "official-scenario";
+  if (["singapore", "uae", "saudiArabia"].includes(city.taxSystem)) return "official-scenario";
   return "official-rate-estimate";
 }
 
@@ -399,7 +422,12 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     ]);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
   }
-  if (city.taxSystem === "uae") return emptyTaxBreakdown();
+  // UAE・サウジアラビアは給与に個人所得税がなく、外国人従業員の社会保険の本人負担もありません。
+  if (city.taxSystem === "uae" || city.taxSystem === "saudiArabia") return emptyTaxBreakdown();
+  if (city.taxSystem === "india") {
+    const incomeTax = calculateIndiaIncomeTax(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
+  }
   if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
     const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };

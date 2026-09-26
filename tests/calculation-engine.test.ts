@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateNetherlandsPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -41,9 +41,9 @@ function city(overrides: Partial<CalculationCity>): CalculationCity {
   };
 }
 
-test("keeps the complete 50-city catalog available to every product surface", () => {
-  assert.equal(cityOrder.length, 50);
-  assert.equal(new Set(cityOrder).size, 50);
+test("keeps the complete 69-city catalog available to every product surface", () => {
+  assert.equal(cityOrder.length, 69);
+  assert.equal(new Set(cityOrder).size, 69);
   assert.deepEqual(Object.keys(cities).sort(), [...cityOrder].sort());
   for (const cityId of cityOrder) {
     assert.equal(cities[cityId].id, cityId);
@@ -345,4 +345,25 @@ test("Brazil 2026 applies progressive INSS, the monthly table and the Law 15.270
   // 月R$5,000以下は所得税0
   assert.equal(calculateBrazilPayroll(60_000).incomeTax, 0);
   assert.equal(taxCalculationStatus(cities.saoPaulo), "official-rate-estimate");
+});
+
+test("India new regime applies the standard deduction, the 87A rebate, surcharge relief and 4% cess", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 課税所得₹12 lakh以下（給与₹12.75 lakhまで）は87条Aで0
+  assert.equal(calculateIndiaIncomeTax(1_275_000), 0);
+  // 給与₹13 lakh → 課税₹12.25 lakh。税率表では₹63,750だが、₹12 lakh超過分₹25,000までに抑える
+  close(calculateIndiaIncomeTax(1_300_000), 25_000 * 1.04);
+  // 給与₹20 lakh → 課税₹19.25 lakh：20,000+40,000+60,000+325,000×20%
+  close(calculateIndiaIncomeTax(2_000_000), 185_000 * 1.04);
+  // 課税₹51.25 lakh：付加税10%は₹50 lakh超過分₹125,000までに抑える
+  close(calculateIndiaIncomeTax(5_200_000), (1_080_000 + 125_000) * 1.04);
+  assert.equal(taxCalculationStatus(cities.bangalore), "official-rate-estimate");
+});
+
+test("Riyadh and Abu Dhabi deduct no income tax or employee social insurance for foreign employees", () => {
+  for (const cityId of ["riyadh", "abuDhabi"] as const) {
+    assert.equal(taxCalculationStatus(cities[cityId]), "official-scenario");
+    const result = calculateCity(cities[cityId], 200_000, "single", "onebed", "balanced", "under40");
+    assert.equal(result.taxBreakdown?.totalDeductionsMonthly, 0);
+  }
 });

@@ -1,8 +1,8 @@
 import type { InsuranceConfig } from "./finance";
 
-export type CityId = "tokyo" | "osaka" | "vancouver" | "toronto" | "losAngeles" | "newYork" | "london" | "paris" | "rome" | "queretaro" | "puebla" | "merida" | "mexicoCity" | "melbourne" | "sapporo" | "fukuoka" | "seoul" | "taipei" | "singapore" | "hongKong" | "bangkok" | "kualaLumpur" | "jakarta" | "manila" | "hoChiMinh" | "beijing" | "shanghai" | "sydney" | "brisbane" | "perth" | "montreal" | "calgary" | "chicago" | "dallas" | "sanFrancisco" | "miami" | "boston" | "seattle" | "washingtonDc" | "madrid" | "berlin" | "amsterdam" | "lisbon" | "dubai" | "zurich" | "dublin" | "saoPaulo" | "buenosAires" | "santiago" | "bogota";
+export type CityId = "tokyo" | "osaka" | "vancouver" | "toronto" | "losAngeles" | "newYork" | "london" | "paris" | "rome" | "queretaro" | "puebla" | "merida" | "mexicoCity" | "melbourne" | "sapporo" | "fukuoka" | "seoul" | "taipei" | "singapore" | "hongKong" | "bangkok" | "kualaLumpur" | "jakarta" | "manila" | "hoChiMinh" | "beijing" | "shanghai" | "sydney" | "brisbane" | "perth" | "montreal" | "calgary" | "chicago" | "dallas" | "sanFrancisco" | "miami" | "boston" | "seattle" | "washingtonDc" | "madrid" | "berlin" | "amsterdam" | "lisbon" | "dubai" | "zurich" | "dublin" | "saoPaulo" | "buenosAires" | "santiago" | "bogota" | "yokohama" | "nagoya" | "kyoto" | "ottawa" | "edmonton" | "austin" | "houston" | "sanJose" | "sanDiego" | "manchester" | "munich" | "frankfurt" | "hamburg" | "lyon" | "adelaide" | "canberra" | "abuDhabi" | "riyadh" | "bangalore";
 
-export type CurrencyCode = "JPY" | "CAD" | "USD" | "GBP" | "EUR" | "MXN" | "AUD" | "KRW" | "TWD" | "SGD" | "HKD" | "THB" | "MYR" | "IDR" | "PHP" | "VND" | "CNY" | "AED" | "CHF" | "BRL" | "ARS" | "CLP" | "COP";
+export type CurrencyCode = "JPY" | "CAD" | "USD" | "GBP" | "EUR" | "MXN" | "AUD" | "KRW" | "TWD" | "SGD" | "HKD" | "THB" | "MYR" | "IDR" | "PHP" | "VND" | "CNY" | "AED" | "CHF" | "BRL" | "ARS" | "CLP" | "COP" | "INR" | "SAR";
 
 export type DataSource = {
   item: string;
@@ -25,7 +25,7 @@ export type City = {
   climate: string;
   language: string;
   population: string;
-  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia" | "singapore" | "uae" | "hongKong" | "ireland" | "germany" | "thailand" | "china" | "philippines" | "vietnam" | "brazil" | "netherlands" | "estimate";
+  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia" | "singapore" | "uae" | "hongKong" | "ireland" | "germany" | "thailand" | "china" | "philippines" | "vietnam" | "brazil" | "india" | "saudiArabia" | "netherlands" | "estimate";
   taxRegion: string;
   insurance: InsuranceConfig;
   averageAnnualIncome: number;
