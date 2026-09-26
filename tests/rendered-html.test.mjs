@@ -213,8 +213,8 @@ test("renders bilingual methodology and transparent 50-city data pages", async (
   const dataHtml = await data.text();
   assert.match(dataHtml, /その数字が、どこまで言えるか/);
   assert.match(dataHtml, />50<\/strong>/);
-  assert.match(dataHtml, />39<\/strong>/);
-  assert.match(dataHtml, />11<\/strong>/);
+  assert.match(dataHtml, />40<\/strong>/);
+  assert.match(dataHtml, />10<\/strong>/);
   assert.match(dataHtml, /保存推定値を含む/);
   assert.match(dataHtml, /金額計算は未対応/);
 
@@ -304,7 +304,7 @@ test("publishes typed city catalog APIs with coverage and source metadata", asyn
   const catalogPayload = await catalog.json();
   assert.equal(catalogPayload.coverage.cityCount, 50);
   assert.equal(catalogPayload.cities.length, 50);
-  assert.equal(catalogPayload.cities.filter((city) => city.calculationStatus === "unavailable").length, 11);
+  assert.equal(catalogPayload.cities.filter((city) => city.calculationStatus === "unavailable").length, 10);
 
   const city = await fetch(`${baseUrl}/api/cities/los-angeles`);
   assert.equal(city.status, 200);
