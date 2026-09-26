@@ -116,6 +116,14 @@ function calculateCanadaTax(city: City, grossAnnual: number) {
     ]);
     return { federalTax, provincialTax, healthPremium: 0 };
   }
+  if (city.taxRegion === "alberta") {
+    // 2026年：2025年の公式区切りをCRA公表の指数2.0%で調整（基礎控除$22,769は公式値と一致）。
+    // 非還付控除は最低税率8%で計算します。
+    const provincialTax = Math.max(0, taxFromAnnualBrackets(grossAnnual, [
+      { limit: 61_200, rate: 0.08 }, { limit: 154_259, rate: 0.1 }, { limit: 185_111, rate: 0.12 }, { limit: 246_813, rate: 0.13 }, { limit: 370_220, rate: 0.14 }, { limit: Number.POSITIVE_INFINITY, rate: 0.15 },
+    ]) - 22_769 * 0.08);
+    return { federalTax, provincialTax, healthPremium: 0 };
+  }
   const taxable = Math.max(0, grossAnnual - 12_989);
   const provincialTaxBeforeSurtax = taxFromAnnualBrackets(taxable, [
     { limit: 53_891, rate: 0.0505 }, { limit: 107_785, rate: 0.0915 }, { limit: 150_000, rate: 0.1116 }, { limit: 220_000, rate: 0.1216 }, { limit: Number.POSITIVE_INFINITY, rate: 0.1316 },
@@ -213,7 +221,7 @@ export function calculateIrelandPayrollTax(grossAnnual: number) {
 
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
-  if (city.taxSystem === "canada" && !["britishColumbia", "ontario"].includes(city.taxRegion)) return "unavailable";
+  if (city.taxSystem === "canada" && !["britishColumbia", "ontario", "alberta"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington", "massachusetts", "illinois", "districtOfColumbia"].includes(city.taxRegion)) return "unavailable";
   if (["singapore", "uae"].includes(city.taxSystem)) return "official-scenario";
   return "official-rate-estimate";
