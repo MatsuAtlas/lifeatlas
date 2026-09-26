@@ -18,7 +18,7 @@ LifeAtlasは、複数の仕事・移住候補のうち「どれを選ぶべき�
 - 公式値・自動取得値・保存参考値・推定値を区別し、出典URL・範囲・基準日・信頼度を保持する。国人口を都市人口として扱わない。
 
 ## アーキテクチャ
-- Next.js 16 App Router + React 19 + TypeScript。本番はVinext/Cloudflare Worker形式でOpenAI Sitesへ公開（`.openai/hosting.json`）。`vercel.json` はあるがVercelへは公開しない。
+- Next.js 16 App Router + React 19 + TypeScript。本番はVinext/Cloudflare Worker形式でOpenAI Sitesへ公開（`.openai/hosting.json`）。`vercel.json` は `git.deploymentEnabled: false` でVercelの自動デプロイを止めている（VercelはAI Gatewayでのみ使用）。
 - `data/cities.ts`（50都市・静的・出典付き）、`data/currencies.ts`（保存参考為替）
 - `lib/scoring/life-atlas-score.ts`（財務45・暮らし20・優先軸25・信頼度10、決定的な順位）
 - `lib/calculations/what-if.ts`、`break-even.ts`（What-Ifの条件変更は `buildWhatIfChanges` を画面とAIで共用）
