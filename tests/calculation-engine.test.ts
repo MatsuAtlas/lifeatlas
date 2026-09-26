@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -146,4 +146,22 @@ test("Hong Kong is calculable while keeping its salary benchmark and costs marke
   assert.equal(result.calculationUnavailableReason, null);
   assert.ok(hongKong.dataSources.some((item) => /Life Atlas保存参考値/.test(item.source)));
   assert.ok(hongKong.dataSources.some((item) => item.url.startsWith("https://www.ird.gov.hk/")));
+});
+
+test("Ireland 2026 payroll tax applies bands, credits, USC and time-weighted PRSI", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // €60,000：所得税 8,800+6,400−4,000=11,200、USC 60.06+333.76+939=1,332.82、PRSI 60,000×4.2375%=2,542.5
+  const middle = calculateIrelandPayrollTax(60_000);
+  close(middle.incomeTax, 11_200);
+  close(middle.usc, 1_332.82);
+  close(middle.prsi, 2_542.5);
+  // €100,000：USCの8%帯（€70,044超）
+  const high = calculateIrelandPayrollTax(100_000);
+  close(high.incomeTax, 27_200);
+  close(high.usc, 4_030.62);
+  // €13,000以下はUSC免除、週€352以下はPRSIなし、控除額で所得税0
+  assert.deepEqual(calculateIrelandPayrollTax(13_000), { incomeTax: 0, usc: 0, prsi: 0 });
+  // €20,000（週€384.62）はPRSIクレジットが一部残る
+  close(calculateIrelandPayrollTax(20_000).prsi, (20_000 / 52 * 0.042375 - (12 - (20_000 / 52 - 352) / 6)) * 52);
+  assert.equal(taxCalculationStatus(cities.dublin), "official-rate-estimate");
 });
