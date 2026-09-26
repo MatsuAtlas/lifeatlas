@@ -184,6 +184,7 @@ const translations = {
     actualOfferSalary: "実際のオファー年収を入力",
     destinationSalary: "目的地の年間総支給給与",
     destinationSalaryHint: "実際の雇用契約・内定条件を現地通貨で入力",
+    offerCurrencyReset: (from: string, to: string) => `目的地の通貨が${from}から${to}に変わったため、実際のオファー額をリセットしました。${to}で入力してください。`,
     household: "世帯",
     housing: "住居",
     lifestyle: "生活スタイル",
@@ -269,7 +270,7 @@ const translations = {
     yenFootnote: "日本円換算は比較用の表示です。実際の計算は各都市の現地通貨で行っています。",
     assetEyebrow: "04 / 資産形成",
     assetTitle: "貯める力の比較",
-    annualSavings: "年間貯蓄可能額",
+    annualSavings: "年間の貯蓄額（赤字はマイナス）",
     costIndex: "生活コスト指数",
     purchasingPower: "購買力指数",
     fireNote: "FIREの簡易目安",
@@ -403,6 +404,7 @@ const translations = {
     actualOfferSalary: "Enter an actual salary offer",
     destinationSalary: "Destination annual gross salary",
     destinationSalaryHint: "Enter the employment offer in the destination currency",
+    offerCurrencyReset: (from: string, to: string) => `The destination currency changed from ${from} to ${to}, so the offer amount was cleared. Enter it in ${to}.`,
     household: "Household",
     housing: "Housing",
     lifestyle: "Lifestyle",
@@ -488,7 +490,7 @@ const translations = {
     yenFootnote: "JPY values are shown for comparison. Calculations are performed in each city's local currency.",
     assetEyebrow: "04 / WEALTH BUILDING",
     assetTitle: "Savings power compared",
-    annualSavings: "Potential annual savings",
+    annualSavings: "Annual savings (shortfall shown as negative)",
     costIndex: "Living-cost index",
     purchasingPower: "Purchasing-power index",
     fireNote: "Simple FIRE estimate",
@@ -663,6 +665,7 @@ export default function Home() {
   const [language, setLanguage] = useState<Language>("ja");
   const [originId, setOriginId] = useState<CityId>("tokyo");
   const [destinationId, setDestinationId] = useState<CityId>("singapore");
+  const [offerCurrencyNotice, setOfferCurrencyNotice] = useState<{ from: CurrencyCode; to: CurrencyCode } | null>(null);
   const [salary, setSalary] = useState("8500000");
   const [salaryCurrency, setSalaryCurrency] = useState<SalaryCurrency>("origin");
   const [destinationSalaryMode, setDestinationSalaryMode] = useState<DestinationSalaryMode>("localBenchmark");
@@ -859,8 +862,21 @@ export default function Home() {
     requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
+  // 実オファー額は目的地通貨で入力されるため、通貨が変わる切替では額を引き継がず再入力を求めます。
+  const changeDestination = (nextId: CityId) => {
+    const previousCurrency = cities[destinationId].currency;
+    const nextCurrency = cities[nextId].currency;
+    if (destinationSalaryMode === "actualOffer" && destinationSalary && previousCurrency !== nextCurrency) {
+      setDestinationSalary("");
+      setOfferCurrencyNotice({ from: previousCurrency, to: nextCurrency });
+    } else if (previousCurrency !== nextCurrency) {
+      setOfferCurrencyNotice(null);
+    }
+    setDestinationId(nextId);
+  };
+
   const compareBusinessCity = (cityId: CityId) => {
-    setDestinationId(cityId);
+    changeDestination(cityId);
     requestAnimationFrame(() => requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })));
   };
 
@@ -1027,7 +1043,7 @@ export default function Home() {
 
   const swapCities = () => {
     setOriginId(destinationId);
-    setDestinationId(originId);
+    changeDestination(originId);
   };
 
   const resetForm = () => {
@@ -1037,6 +1053,7 @@ export default function Home() {
     setSalaryCurrency("origin");
     setDestinationSalaryMode("localBenchmark");
     setDestinationSalary("");
+    setOfferCurrencyNotice(null);
     setHousehold("single");
     setHousing("onebed");
     setLifestyle("balanced");
@@ -1175,7 +1192,7 @@ export default function Home() {
             </label>
             <button className="swap-button" onClick={swapCities} aria-label={t.swapAria}>↔</button>
             <label>{t.destination}
-              <select value={destinationId} onChange={(event) => setDestinationId(event.target.value as CityId)}>
+              <select value={destinationId} onChange={(event) => changeDestination(event.target.value as CityId)}>
                 {cityOrder.map((id) => <option key={id} value={id}>{displayCityName(cities[id])} / {displayCityCountry(cities[id])}</option>)}
               </select>
             </label>
@@ -1236,8 +1253,9 @@ export default function Home() {
                 : destinationSalaryMode === "sameYen" ? t.sameYenSalaryHint : t.destinationSalaryHint}</small>
             </label>
             {destinationSalaryMode === "actualOffer" && <label>{t.destinationSalary}
-              <div className="input-with-unit"><input inputMode="numeric" value={destinationSalary} onChange={(event) => setDestinationSalary(event.target.value.replace(/[^0-9]/g, ""))} aria-label={t.destinationSalary} /><span>{destination.currency}</span></div>
+              <div className="input-with-unit"><input inputMode="numeric" value={destinationSalary} onChange={(event) => { setDestinationSalary(event.target.value.replace(/[^0-9]/g, "")); setOfferCurrencyNotice(null); }} aria-label={t.destinationSalary} /><span>{destination.currency}</span></div>
               <small>{t.destinationSalaryHint}</small>
+              {offerCurrencyNotice && <small className="offer-currency-notice" role="status">{t.offerCurrencyReset(offerCurrencyNotice.from, offerCurrencyNotice.to)}</small>}
             </label>}
           </div>
           <div className="form-actions">
@@ -1407,7 +1425,7 @@ export default function Home() {
           </div>
           <div className="recommendation-grid">
             {recommendations.map((recommendation, index) => {
-              const reason = recommendation.strongestFactor === "money" ? (language === "ja" ? "現在の条件で手元資金を残しやすい" : "Stronger money-left outlook for your inputs") : recommendation.strongestFactor === "business" ? recommendation.businessCoverage === "detailed" ? (language === "ja" ? "事業環境の詳細情報が充実" : "Strong detailed business conditions") : (language === "ja" ? "ビジネス参考値は信頼度を補正済み" : "Reference business data is confidence-adjusted") : (language === "ja" ? "暮らしやすさとのバランスが良い" : "Good balance with livability");
+              const reason = recommendation.strongestFactor === "money" ? recommendation.remainingJpy !== null && recommendation.remainingJpy < 0 ? (language === "ja" ? "候補の中では月の不足額が小さい（収支はマイナス）" : "Smallest monthly shortfall among matches (still negative)") : (language === "ja" ? "現在の条件で手元資金を残しやすい" : "Stronger money-left outlook for your inputs") : recommendation.strongestFactor === "business" ? recommendation.businessCoverage === "detailed" ? (language === "ja" ? "事業環境の詳細情報が充実" : "Strong detailed business conditions") : (language === "ja" ? "ビジネス参考値は信頼度を補正済み" : "Reference business data is confidence-adjusted") : (language === "ja" ? "暮らしやすさとのバランスが良い" : "Good balance with livability");
               return <article className="recommendation-card" key={recommendation.city.id} data-city-id={recommendation.city.id} data-business-coverage={recommendation.businessCoverage}>
                 <div className="recommendation-rank"><span>0{index + 1}</span><small>{language === "ja" ? "候補" : "MATCH"}</small></div>
                 <div className="recommendation-city"><span>{displayCityCountry(recommendation.city)}</span><h3>{displayCityName(recommendation.city)}</h3><p>{reason}</p></div>

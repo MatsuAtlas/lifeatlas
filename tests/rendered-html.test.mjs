@@ -288,10 +288,10 @@ test("exposes validated deterministic decision APIs without duplicating the calc
   assert.deepEqual(comparisonPayload.scores.map((score) => score.rank), [1, 2]);
 
   const breakEven = await fetch(`${baseUrl}/api/break-even`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference: tokyo, candidate: vancouver, metric: "disposableIncome", priorities }) });
-  assert.equal(breakEven.status, 200);
+  // 逆転給与はPro機能のため、契約を確認できない環境では結果を返しません。
+  assert.equal(breakEven.status, 503);
   const breakEvenPayload = await breakEven.json();
-  assert.equal(breakEvenPayload.result.status, "matched");
-  assert.equal(breakEvenPayload.result.candidateScenarioId, "api-vancouver");
+  assert.equal(breakEvenPayload.result, undefined);
 
   const crossOrigin = await fetch(`${baseUrl}/api/calculate`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://attacker.invalid" }, body: JSON.stringify({ scenario: tokyo }) });
   assert.equal(crossOrigin.status, 403);

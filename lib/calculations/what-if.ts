@@ -1,5 +1,7 @@
+import { cities } from "../../data/cities.ts";
 import { FALLBACK_FX_TO_JPY } from "../../data/currencies.ts";
 import type { CurrencyCode } from "../../types/city";
+import type { SavedAnalyzerInput } from "../../types/comparison";
 import type { ScenarioCalculationOptions, ScenarioInput, UserPriorities } from "../../types/scenario";
 import type { WhatIfBreakEvenRequest, WhatIfChange, WhatIfSimulationInput, WhatIfSimulationResult, WhatIfSnapshot } from "../../types/what-if";
 import { DEFAULT_PRIORITIES, scoreScenarios } from "../scoring/life-atlas-score.ts";
@@ -72,6 +74,24 @@ function applyTargetedChange(
   if (change.type === "customSavingsTarget") scenarios[index] = { ...current, customSavingsTarget: change.value ?? undefined };
   if (change.type === "retirementAge") scenarios[index] = { ...current, retirementAge: change.value };
   if (change.type === "annualReturnRate") scenarios[index] = { ...current, annualReturnRate: change.value };
+}
+
+type SavedWhatIfSettings = Omit<SavedAnalyzerInput["whatIf"], "scenarioId">;
+
+// 画面とAI説明が同じ条件変更を適用するための共通ビルダーです。
+export function buildWhatIfChanges(whatIf: SavedWhatIfSettings, target: ScenarioInput): WhatIfChange[] {
+  const changes: WhatIfChange[] = [];
+  if (whatIf.salaryPercent !== 0) changes.push({ type: "salaryPercent", scenarioId: target.id, percent: whatIf.salaryPercent });
+  if (whatIf.rentPercent !== 0) changes.push({ type: "rentPercent", scenarioId: target.id, percent: whatIf.rentPercent });
+  const currency = cities[target.cityId].currency;
+  if (whatIf.exchangePercent !== 0 && currency !== "JPY") changes.push({ type: "exchangeRatePercent", currency, percent: whatIf.exchangePercent });
+  if (whatIf.householdType != null) changes.push({ type: "household", scenarioId: target.id, householdType: whatIf.householdType });
+  if (whatIf.children != null) changes.push({ type: "children", scenarioId: target.id, value: whatIf.children });
+  if (whatIf.customMonthlySpending != null) changes.push({ type: "customMonthlySpending", scenarioId: target.id, value: whatIf.customMonthlySpending });
+  if (whatIf.customSavingsTarget != null) changes.push({ type: "customSavingsTarget", scenarioId: target.id, value: whatIf.customSavingsTarget });
+  if (whatIf.retirementAge != null && whatIf.retirementAge >= target.age) changes.push({ type: "retirementAge", scenarioId: target.id, value: whatIf.retirementAge });
+  if (whatIf.annualReturnRatePercent != null) changes.push({ type: "annualReturnRate", scenarioId: target.id, value: whatIf.annualReturnRatePercent / 100 });
+  return changes;
 }
 
 export function simulateWhatIf(input: WhatIfSimulationInput): WhatIfSimulationResult {

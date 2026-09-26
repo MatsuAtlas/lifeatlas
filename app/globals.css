@@ -110,6 +110,7 @@ select, input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid va
 select:focus, input:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
 option { background: #102530; color: #fff; }
 .input-with-unit { display: flex; height: 48px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-light); overflow: hidden; }
+.offer-currency-notice { display: block; margin-top: 6px; color: var(--orange); font-size: 11px; line-height: 1.5; }
 .input-with-unit input { height: 46px; border: 0; background: transparent; }
 .input-with-unit span { display: grid; place-items: center; padding: 0 13px; color: var(--green); font-size: 12px; font-weight: 800; }
 .currency-input-select { width: auto; min-width: 76px; height: 46px; padding: 0 10px; border: 0; border-left: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--green); font-size: 11px; font-weight: 800; }
@@ -352,6 +353,7 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
 .oa-factors ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
 .oa-factors li { padding: 6px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 9px; }
 .oa-confidence { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 17px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; }
+.oa-fx-note { margin: 14px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .oa-confidence strong.is-high { color: var(--green); }.oa-confidence strong.is-medium { color: var(--orange); }.oa-confidence strong.is-low { color: var(--danger); }
 .oa-confidence p { flex-basis: 100%; margin: 0; color: var(--faint); line-height: 1.6; }
 .oa-card-delta { position: absolute; top: 15px; right: 15px; display: none; }
