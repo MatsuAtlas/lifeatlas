@@ -352,6 +352,22 @@ export function calculateBrazilPayroll(grossAnnual: number) {
   return { incomeTax: incomeTax * 12, socialInsurance: inss * 12 };
 }
 
+// 台湾・115年度（2026年、居住者・単身・標準控除）。課税所得＝給与−免税額NT$101,000−標準控除NT$136,000−給与特別控除（上限NT$227,000）。
+// 労工保険（普通事故11.5%＋就業保険1%＝12.5%）の本人負担20%、健康保険（5.17%）の本人負担30%。投保額は月給を
+// 下限NT$29,500（最低賃金）と上限（労保NT$45,800・健保NT$313,000）の間に収めた概算で、実際の等級表の刻みは省略します。
+// 外国人の就業保険対象外、健保の補充保険料、扶養家族分の健保料は未反映です。
+export function calculateTaiwanPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const monthly = gross / 12;
+  const laborInsurance = monthly > 0 ? Math.min(Math.max(monthly, 29_500), 45_800) * 0.125 * 0.2 * 12 : 0;
+  const healthInsurance = monthly > 0 ? Math.min(Math.max(monthly, 29_500), 313_000) * 0.0517 * 0.3 * 12 : 0;
+  const taxable = Math.max(0, gross - 101_000 - 136_000 - Math.min(gross, 227_000));
+  const incomeTax = taxFromAnnualBrackets(taxable, [
+    { limit: 610_000, rate: 0.05 }, { limit: 1_380_000, rate: 0.12 }, { limit: 2_770_000, rate: 0.2 }, { limit: 5_190_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.4 },
+  ]);
+  return { incomeTax, laborInsurance, healthInsurance };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "china" && !["beijing", "shanghai"].includes(city.taxRegion)) return "unavailable";
@@ -383,6 +399,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
     const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "taiwan") {
+    const { incomeTax, laborInsurance, healthInsurance } = calculateTaiwanPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: healthInsurance / 12, pensionMonthly: laborInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (laborInsurance + healthInsurance) / 12, totalDeductionsMonthly: (incomeTax + laborInsurance + healthInsurance) / 12 };
   }
   if (city.taxSystem === "brazil") {
     const { incomeTax, socialInsurance } = calculateBrazilPayroll(grossAnnual);
