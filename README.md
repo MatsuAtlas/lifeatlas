@@ -2,7 +2,7 @@
 
 Life Atlasは、世界50都市の仕事・移住候補を、同じ計算条件で比較する意思決定アプリです。給与、税金、社会保険、家賃、生活費、貯蓄、購買力、FIRE目安を決定的な計算エンジンで算出し、AIはその結果だけを説明します。
 
-本番サイト: https://life-atlas-global-2026.dreamy-gnat-5451.chatgpt.site/
+本番サイト: Vercelへ移行中（`main` へのマージで自動デプロイ）。旧公開先: https://life-atlas-global-2026.dreamy-gnat-5451.chatgpt.site/
 
 ## 主な機能
 
@@ -72,7 +72,14 @@ git diff --check
 
 ## 公開
 
-GitHubの公開先は `MatsuAtlas/lifeatlas` の `main` です。SitesのプロジェクトIDは `.openai/hosting.json` に保存されています。公開時は、同じコミットSHAをGitHub、Sitesのソース、Sitesの保存バージョンで一致させ、デプロイ後に本番URLとWorkerログを確認します。
+本番はVercelです。`main` へのマージだけが本番デプロイになり、他のブランチはデプロイされません（`vercel.json` の `git.deploymentEnabled`）。
+
+- 環境変数はVercelの Project Settings → Environment Variables に **Production** として登録します。秘密値をPreview・Developmentへ入れる必要はありません。
+- 公開URLは `NEXT_PUBLIC_SITE_URL`、未設定ならVercelの本番ドメイン（`VERCEL_PROJECT_PRODUCTION_URL`）を使います。GoogleログインやSEOのURLはこの値から作られます。
+- Supabase Authの Redirect URLs に `<本番URL>/api/auth/callback`、Stripe Webhookに `<本番URL>/api/webhooks/stripe` を登録します。
+- デプロイ後は、Vercelのデプロイ記録に表示されるコミットSHAと `main` のSHAが一致することを確認します。
+
+旧公開先のOpenAI Sites向けファイル（`.openai/hosting.json`、`vite.config.ts`、`worker/`、`build/sites-vite-plugin.ts`）は、移行が完了するまで残しています。
 
 ## 本番設定の診断
 
