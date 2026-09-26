@@ -79,6 +79,15 @@ git diff --check
 - Supabase Authの Redirect URLs に `<本番URL>/api/auth/callback`、Stripe Webhookに `<本番URL>/api/webhooks/stripe` を登録します。
 - デプロイ後は、Vercelのデプロイ記録に表示されるコミットSHAと `main` のSHAが一致することを確認します。
 
+本番設定は `scripts/provision-production.mjs` で自動化しています。`VERCEL_TOKEN`、`SUPABASE_ACCESS_TOKEN`、`STRIPE_TEST_SECRET_KEY`（テストモードのみ）を環境変数に置き、`node scripts/provision-production.mjs` で確認、`--apply` で実行します。実行内容は次のとおりです。
+
+- Supabaseのキーを取得してVercelへ登録し、Redirect URLを追加
+- StripeのテストPrice（$12/$79）・Webhook・Customer Portalを作成
+- Vercelの環境変数（Production）を登録し、再デプロイ
+- 診断APIで結果を確認
+
+秘密値は表示しません。live課金、スキーマ適用、削除は行いません。
+
 旧公開先のOpenAI Sites向けファイル（`.openai/hosting.json`、`vite.config.ts`、`worker/`、`build/sites-vite-plugin.ts`）は、移行が完了するまで残しています。
 
 ## 本番設定の診断
