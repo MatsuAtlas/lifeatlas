@@ -88,7 +88,7 @@ export function evaluateEnvironment(env: Env) {
       credential: value(env, "AI_GATEWAY_API_KEY")
         ? { status: "ok" as const }
         : value(env, "VERCEL_OIDC_TOKEN")
-          ? { status: "warning" as const, detail: "only a short-lived OIDC token is set; use AI_GATEWAY_API_KEY on Sites" }
+          ? { status: "warning" as const, detail: "only a short-lived OIDC token is set; set AI_GATEWAY_API_KEY as a server secret" }
           : { status: "missing" as const },
       model: value(env, "LIFEATLAS_AI_MODEL") || null,
       freeDailyLimit: positiveInteger(env, "LIFEATLAS_FREE_AI_DAILY_LIMIT"),
