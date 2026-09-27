@@ -452,6 +452,8 @@ export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "china" && !["beijing", "shanghai"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "canada" && !["britishColumbia", "ontario", "alberta", "quebec"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington", "massachusetts", "illinois", "districtOfColumbia"].includes(city.taxRegion)) return "unavailable";
+  if (city.taxSystem === "uk" && !["england", "scotland"].includes(city.taxRegion)) return "unavailable";
+  if (city.taxSystem === "italy" && !["lazio", "lombardy"].includes(city.taxRegion)) return "unavailable";
   if (["singapore", "uae", "saudiArabia"].includes(city.taxSystem)) return "official-scenario";
   return "official-rate-estimate";
 }
@@ -590,7 +592,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "uk") {
     const allowance = grossAnnual > 100_000 ? Math.max(0, 12_570 - (grossAnnual - 100_000) / 2) : 12_570;
     const taxableIncome = Math.max(0, grossAnnual - allowance);
-    const incomeTax = taxFromAnnualBrackets(taxableIncome, [{ limit: 37_700, rate: 0.2 }, { limit: 125_140 - 12_570, rate: 0.4 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 }]);
+    // スコットランド2026-27：課税所得（個人控除後）に19/20/21/42/45/47%の6段階。国民保険は英国共通。
+    const incomeTax = city.taxRegion === "scotland"
+      ? taxFromAnnualBrackets(taxableIncome, [{ limit: 3_967, rate: 0.19 }, { limit: 16_956, rate: 0.2 }, { limit: 31_092, rate: 0.21 }, { limit: 62_430, rate: 0.42 }, { limit: 125_140, rate: 0.45 }, { limit: Number.POSITIVE_INFINITY, rate: 0.47 }])
+      : taxFromAnnualBrackets(taxableIncome, [{ limit: 37_700, rate: 0.2 }, { limit: 125_140 - 12_570, rate: 0.4 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 }]);
     const ni = Math.max(0, Math.min(grossAnnual, 50_270) - 12_570) * 0.08 + Math.max(0, grossAnnual - 50_270) * 0.02;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, employmentInsuranceMonthly: ni / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: ni / 12, totalDeductionsMonthly: (incomeTax + ni) / 12 };
   }
@@ -608,7 +613,11 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     const pension = grossAnnual * city.insurance.pensionRateEmployee + Math.min(Math.max(0, grossAnnual - 56_224), 66_071) * 0.01;
     const taxableIncome = Math.max(0, grossAnnual - pension);
     const nationalTax = taxFromAnnualBrackets(taxableIncome, [{ limit: 15_000, rate: 0.23 }, { limit: 28_000, rate: 0.33 }, { limit: Number.POSITIVE_INFINITY, rate: 0.43 }]);
-    const localTax = taxableIncome * 0.0263;
+    // 地方税：ローマ（ラツィオ州）は州・市の合計2.63%の固定概算。ミラノはロンバルディア州の累進税率
+    // （1.23/1.58/1.72/1.73%）と、課税所得€23,000超で所得全体にかかる市税0.8%。
+    const localTax = city.taxRegion === "lombardy"
+      ? taxFromAnnualBrackets(taxableIncome, [{ limit: 15_000, rate: 0.0123 }, { limit: 28_000, rate: 0.0158 }, { limit: 50_000, rate: 0.0172 }, { limit: Number.POSITIVE_INFINITY, rate: 0.0173 }]) + (taxableIncome > 23_000 ? taxableIncome * 0.008 : 0)
+      : taxableIncome * 0.0263;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: nationalTax / 12, residentTaxMonthly: localTax / 12, pensionMonthly: pension / 12, totalTaxMonthly: (nationalTax + localTax) / 12, totalInsuranceMonthly: pension / 12, totalDeductionsMonthly: (nationalTax + localTax + pension) / 12 };
   }
   if (city.taxSystem === "mexico") {

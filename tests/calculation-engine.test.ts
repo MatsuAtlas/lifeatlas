@@ -41,9 +41,9 @@ function city(overrides: Partial<CalculationCity>): CalculationCity {
   };
 }
 
-test("keeps the complete 69-city catalog available to every product surface", () => {
-  assert.equal(cityOrder.length, 69);
-  assert.equal(new Set(cityOrder).size, 69);
+test("keeps the complete 71-city catalog available to every product surface", () => {
+  assert.equal(cityOrder.length, 71);
+  assert.equal(new Set(cityOrder).size, 71);
   assert.deepEqual(Object.keys(cities).sort(), [...cityOrder].sort());
   for (const cityId of cityOrder) {
     assert.equal(cities[cityId].id, cityId);
@@ -410,4 +410,25 @@ test("Malaysia 2026 applies the LHDN MTD table with the RM400 rebate and the for
   // 年RM600,000：EPF控除は上限RM4,000、課税所得587,000 → 187,000×26%＋84,400
   close(calculateMalaysiaPayroll(600_000).incomeTax, 187_000 * 0.26 + 84_400);
   assert.equal(taxCalculationStatus(cities.kualaLumpur), "official-rate-estimate");
+});
+
+test("Edinburgh uses the 2026-27 Scottish income tax bands with UK National Insurance", () => {
+  const result = calculateCity(cities.edinburgh, 50_000, "single", "onebed", "balanced", "under40");
+  // 課税所得37,430：3,967×19%＋12,989×20%＋14,136×21%＋6,338×42%
+  const expectedTax = 3_967 * 0.19 + 12_989 * 0.2 + 14_136 * 0.21 + 6_338 * 0.42;
+  assert.ok(Math.abs((result.taxBreakdown?.incomeTaxMonthly ?? 0) * 12 - expectedTax) < 0.01);
+  const london = calculateCity(cities.london, 50_000, "single", "onebed", "balanced", "under40");
+  assert.equal(result.taxBreakdown?.employmentInsuranceMonthly, london.taxBreakdown?.employmentInsuranceMonthly);
+  assert.equal(taxCalculationStatus(cities.edinburgh), "official-rate-estimate");
+});
+
+test("Milan applies the Lombardy progressive surcharge and Milan's 0.8% municipal surcharge above €23,000", () => {
+  const result = calculateCity(cities.milan, 42_000, "single", "onebed", "balanced", "under40");
+  const taxable = 42_000 - 42_000 * 0.0919;
+  const expectedLocal = 15_000 * 0.0123 + 13_000 * 0.0158 + (taxable - 28_000) * 0.0172 + taxable * 0.008;
+  assert.ok(Math.abs((result.taxBreakdown?.residentTaxMonthly ?? 0) * 12 - expectedLocal) < 0.01);
+  // 課税所得€23,000以下は市税が免除され、州税だけになる
+  const low = calculateCity(cities.milan, 25_000, "single", "onebed", "balanced", "under40");
+  const lowTaxable = 25_000 - 25_000 * 0.0919;
+  assert.ok(Math.abs((low.taxBreakdown?.residentTaxMonthly ?? 0) * 12 - (15_000 * 0.0123 + (lowTaxable - 15_000) * 0.0158)) < 0.01);
 });

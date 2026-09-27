@@ -81,11 +81,11 @@ test("renders the account and comparison history interface", async () => {
   assert.match(html, /リモート勤務：日本の収入を維持/);
   assert.match(html, /実際のオファー年収を入力/);
   assert.match(html, /給与または税制度を公式資料で確認できない都市は手取り・残額を表示しません/);
-  assert.match(html, /Life Atlasの69都市すべてを対象/);
-  assert.match(html, /69都市すべてを候補にします/);
-  assert.match(html, />69<\/strong>対象都市/);
+  assert.match(html, /Life Atlasの71都市すべてを対象/);
+  assert.match(html, /71都市すべてを候補にします/);
+  assert.match(html, />71<\/strong>対象都市/);
   assert.match(html, />10<\/strong>ビジネス詳細あり/);
-  assert.match(html, />59<\/strong>ビジネス参考値/);
+  assert.match(html, />61<\/strong>ビジネス参考値/);
   assert.match(html, /詳細未整備・参考スコアを50%補正|ビジネス詳細データあり/);
   assert.match(html, /この都市を詳しく比較する/);
   assert.match(html, /Inland Revenue Authority of Singapore/);
@@ -195,7 +195,7 @@ test("publishes sitemap coverage without indexing account or API routes", async 
   assert.match(robotsText, /Disallow: \/api\//);
 });
 
-test("renders bilingual methodology and transparent 69-city data pages", async () => {
+test("renders bilingual methodology and transparent 71-city data pages", async () => {
   const methodology = await fetch(`${baseUrl}/methodology`);
   assert.equal(methodology.status, 200);
   const methodologyHtml = await methodology.text();
@@ -212,8 +212,8 @@ test("renders bilingual methodology and transparent 69-city data pages", async (
   assert.equal(data.status, 200);
   const dataHtml = await data.text();
   assert.match(dataHtml, /その数字が、どこまで言えるか/);
-  assert.match(dataHtml, />69<\/strong>/);
-  assert.match(dataHtml, />62<\/strong>/);
+  assert.match(dataHtml, />71<\/strong>/);
+  assert.match(dataHtml, />64<\/strong>/);
   assert.match(dataHtml, />7<\/strong>/);
   assert.match(dataHtml, /保存推定値を含む/);
   assert.match(dataHtml, /金額計算は未対応/);
@@ -262,7 +262,7 @@ test("reports transparent official-data coverage for all comparison cities", asy
   assert.equal(response.status, 200);
   const payload = await response.json();
 
-  assert.equal(payload.coverage.cityCount, 69);
+  assert.equal(payload.coverage.cityCount, 71);
   assert.equal(payload.coverage.currencyCount, 25);
   assert.equal(Object.keys(payload.exchangeRates).length, 25);
   assert.equal(Object.keys(payload.populations).length, payload.coverage.countryCount);
@@ -302,8 +302,8 @@ test("publishes typed city catalog APIs with coverage and source metadata", asyn
   const catalog = await fetch(`${baseUrl}/api/cities`);
   assert.equal(catalog.status, 200);
   const catalogPayload = await catalog.json();
-  assert.equal(catalogPayload.coverage.cityCount, 69);
-  assert.equal(catalogPayload.cities.length, 69);
+  assert.equal(catalogPayload.coverage.cityCount, 71);
+  assert.equal(catalogPayload.cities.length, 71);
   assert.equal(catalogPayload.cities.filter((city) => city.calculationStatus === "unavailable").length, 7);
 
   const city = await fetch(`${baseUrl}/api/cities/los-angeles`);
