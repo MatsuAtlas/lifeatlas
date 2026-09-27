@@ -1,0 +1,26 @@
+name: Production check (temporary)
+
+# 本番反映の読み取り確認用の一時ワークフロー。作業ブランチでのみ動き、確認後に削除する。
+on:
+  push:
+    branches:
+      - claude/pensive-maxwell-id07ll
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Production /api/cities
+        run: |
+          base=https://lifeatlas-delta.vercel.app
+          code=$(curl -sS -m 20 -o out.json -w '%{http_code} %{redirect_url}' "$base/api/cities" || echo "curl-failed")
+          echo "$base/api/cities -> $code"
+          if [ "${code%% *}" = "200" ]; then
+            jq -c '.coverage, [.cities[] | select(.id == "taipei" or .id == "jakarta") | {id, calculationStatus}]' out.json || head -c 300 out.json
+          fi
+          code=$(curl -sS -m 20 -o page.html -w '%{http_code}' "$base/" || echo "curl-failed")
+          echo "$base/ -> $code"
