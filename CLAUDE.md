@@ -19,7 +19,7 @@ LifeAtlasは、複数の仕事・移住候補のうち「どれを選ぶべき�
 
 ## アーキテクチャ
 - Next.js 16 App Router + React 19 + TypeScript。本番はVercel。`vercel.json` の `git.deploymentEnabled` で `main` だけを自動デプロイし、他のブランチのプレビューは作らない。旧公開先OpenAI Sites向けのファイル（`.openai/`、`worker/`、`vite.config.ts`）は移行完了まで残している。
-- `data/cities.ts`（69都市・静的・出典付き）、`data/currencies.ts`（保存参考為替）
+- `data/cities.ts`（71都市・静的・出典付き）、`data/currencies.ts`（保存参考為替）
 - `lib/scoring/life-atlas-score.ts`（財務45・暮らし20・優先軸25・信頼度10、決定的な順位）
 - `lib/calculations/what-if.ts`、`break-even.ts`（What-Ifの条件変更は `buildWhatIfChanges` を画面とAIで共用）
 - `lib/billing/entitlements.ts` に権限判定を集約。プラン名の判定をUIへ散らさない。Pro機能はAPI側でも確認する。
