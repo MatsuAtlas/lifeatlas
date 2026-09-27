@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -217,6 +217,46 @@ test("Netherlands 2026 Box 1 applies bands and both tax credits, and stays unava
   }
   assert.ok(amsterdam.dataSources.some((item) => /Life Atlas保存参考値/.test(item.source)));
   assert.ok(amsterdam.dataSources.some((item) => item.url.includes("tabel-arbeidskorting-2026")));
+});
+
+test("Korea 2026 payroll applies the earned-income deduction, basic deduction, premiums, tax credit and 10% local income tax", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 勤労所得控除の各区間と上限2,000万ウォン
+  close(koreaEarnedIncomeDeduction2026(5_000_000), 3_500_000);
+  close(koreaEarnedIncomeDeduction2026(20_000_000), 8_250_000);
+  close(koreaEarnedIncomeDeduction2026(55_000_000), 12_500_000);
+  close(koreaEarnedIncomeDeduction2026(100_000_000), 14_750_000);
+  assert.equal(koreaEarnedIncomeDeduction2026(1_000_000_000), 20_000_000);
+  // 勤労所得税額控除：130万以下は55%、上限は総給与で74万→66万→50万→20万
+  close(koreaEarnedIncomeTaxCredit2026(1_000_000, 30_000_000), 550_000);
+  close(koreaEarnedIncomeTaxCredit2026(4_000_000, 30_000_000), 740_000);
+  close(koreaEarnedIncomeTaxCredit2026(4_000_000, 55_000_000), 660_000);
+  close(koreaEarnedIncomeTaxCredit2026(10_000_000, 100_000_000), 500_000);
+  close(koreaEarnedIncomeTaxCredit2026(30_000_000, 200_000_000), 200_000);
+  // 5,500万ウォン：年金 55,000,000×4.75%＝2,612,500、健康 1,977,250＋長期療養 275,000×0.9448＝259,820、雇用 495,000。
+  // 課税標準 42,500,000−1,500,000−2,612,500−2,237,070−495,000＝35,655,430 → 算出税額 840,000＋21,655,430×15%＝4,088,314.5、
+  // 税額控除は上限66万 → 所得税 3,428,314.5、地方所得税 342,831.45
+  const middle = calculateKoreaPayroll(55_000_000);
+  close(middle.pension, 2_612_500);
+  close(middle.health, 2_237_070);
+  close(middle.employment, 495_000);
+  close(middle.incomeTax, 3_428_314.5);
+  close(middle.localIncomeTax, 342_831.45);
+  // 1億ウォン：年金は基準所得月額の上限（1〜6月637万、7〜12月659万）、24%帯、税額控除は最低50万
+  const high = calculateKoreaPayroll(100_000_000);
+  close(high.pension, (6_370_000 + 6_590_000) * 6 * 0.0475);
+  close(high.incomeTax, 6_240_000 + (75_089_000 - 50_000_000) * 0.24 - 500_000);
+  // 2,000万ウォン：6%帯、税額控除55%
+  close(calculateKoreaPayroll(20_000_000).incomeTax, 8_306_520 * 0.06 * 0.45);
+  assert.deepEqual(calculateKoreaPayroll(0), { incomeTax: 0, localIncomeTax: 0, pension: 0, health: 0, employment: 0 });
+
+  const seoul = cities.seoul;
+  assert.equal(taxCalculationStatus(seoul), "official-rate-estimate");
+  const result = calculateCity(seoul, 55_000_000, "single", "onebed", "balanced", "under40");
+  close(result.taxMonthly ?? Number.NaN, (3_428_314.5 + 342_831.45 + 2_612_500 + 2_237_070 + 495_000) / 12);
+  assert.equal(result.calculationUnavailableReason, null);
+  assert.ok(seoul.dataSources.some((item) => /Life Atlas保存参考値/.test(item.source)));
+  assert.ok(seoul.dataSources.some((item) => item.url.startsWith("https://www.law.go.kr/")));
 });
 
 test("Massachusetts, Illinois and DC 2026 state income tax is added to the federal tax", () => {

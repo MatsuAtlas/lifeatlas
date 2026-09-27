@@ -145,6 +145,10 @@ const SOURCE_PERIOD_EN: Record<string, string> = {
   "AY 2026-27以降": "AY 2026–27 onward",
   "2026年4月1日": "1 April 2026",
   "2022年以降（2026年も同率）": "2022 onward (same rates in 2026)",
+  "2026年1月1日施行の現行法（2023年以降の税率）": "Law in force from 1 January 2026 (rates since 2023)",
+  "2026年1月1日施行": "In force from 1 January 2026",
+  "2026年（上限は6月まで637万・7月から659万ウォン）": "2026 (cap ₩6.37m to June, ₩6.59m from July)",
+  "2026年確認（施行令は2025年12月23日施行版）": "Checked 2026 (decree in force from 23 December 2025)",
 };
 
 const JAPANESE_TEXT_ALL = /[\u3040-\u30ff\u3400-\u9fff]/g;
@@ -184,6 +188,14 @@ const SOURCE_NAME_EN: Record<string, string> = {
   "Washington State Department of Revenue・給与への州所得税なし": "Washington State Department of Revenue · No state income tax on wages",
   "BPJS Ketenagakerjaan公式アカウント（@BPJSTKinfo）": "BPJS Ketenagakerjaan official account (@BPJSTKinfo)",
   "Social Security Office・ค่าจ้างขั้นต่ำและขั้นสูง（上限฿17,500）": "Social Security Office · ค่าจ้างขั้นต่ำและขั้นสูง (cap ฿17,500)",
+  "国税庁・勤労所得の課税標準と基本税率／国家法令情報センター・所得税法第55条": "National Tax Service (Korea) · Tax base and basic rates for earned income / Korean Law Information Center · Income Tax Act Art. 55",
+  "国税庁・勤労所得金額／国家法令情報センター・所得税法第47条": "National Tax Service (Korea) · Earned income amount / Korean Law Information Center · Income Tax Act Art. 47",
+  "国家法令情報センター・所得税法第59条": "Korean Law Information Center · Income Tax Act Art. 59",
+  "国家法令情報センター・所得税法第52条（特別所得控除）": "Korean Law Information Center · Income Tax Act Art. 52 (special income deductions)",
+  "国家法令情報センター・地方税法第103条の13": "Korean Law Information Center · Local Tax Act Art. 103-13",
+  "国民年金公団・年金保険料": "National Pension Service · Pension contributions",
+  "国民健康保険公団・2026年度保険料率引き上げ案内": "National Health Insurance Service · 2026 premium rate notice",
+  "国家法令情報センター・雇用保険及び産業災害補償保険の保険料徴収等に関する法律第13条": "Korean Law Information Center · Insurance Premium Collection Act Art. 13",
 };
 
 export function localizedSourceName(name: string, language: SupportedLanguage) {
