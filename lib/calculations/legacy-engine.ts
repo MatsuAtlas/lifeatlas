@@ -268,19 +268,24 @@ export function calculateGermanyPayroll(grossAnnual: number, household: keyof ty
 
 // オランダ・2026年（AOW年齢未満の居住者、給与所得者）。Box 1は€38,883まで35.75%（所得税8.10%＋国民保険27.65%）、
 // €78,426まで37.56%、それを超える部分は49.50%。ここから一般税額控除（最大€3,115、€29,736超で超過分の6.398%ずつ減り
-// €78,426以上で0）と労働税額控除（最大€5,685、€45,592超で超過分の6.51%ずつ減る）を差し引きます。
-// 労働税額控除の€45,592以下の積み上げ区間は公式表の原文を確認できていないため、この範囲の給与ではnull（計算不能）を返します。
+// €78,426以上で0）と労働税額控除（Tabel arbeidskorting 2026の5区間）を差し引きます。
 // 30%ルール（外国人専門職の非課税手当）と年金基金の掛金は未反映。基礎医療保険の定額保険料は生活費側で扱います。
-export const NETHERLANDS_MIN_VERIFIED_LABOR_INCOME = 45_592;
+export function netherlandsLabourCredit2026(labourIncome: number) {
+  const x = Math.max(0, labourIncome);
+  if (x <= 11_965) return x * 0.08324;
+  if (x <= 25_845) return 996 + (x - 11_965) * 0.31009;
+  if (x <= 45_592) return 5_300 + (x - 25_845) * 0.0195;
+  if (x <= 132_920) return Math.max(0, 5_685 - (x - 45_592) * 0.0651);
+  return 0;
+}
 
 export function calculateNetherlandsPayroll(grossAnnual: number) {
   const gross = Math.max(0, grossAnnual);
-  if (gross < NETHERLANDS_MIN_VERIFIED_LABOR_INCOME) return null;
   const box1 = taxFromAnnualBrackets(gross, [
     { limit: 38_883, rate: 0.3575 }, { limit: 78_426, rate: 0.3756 }, { limit: Number.POSITIVE_INFINITY, rate: 0.495 },
   ]);
   const generalCredit = gross >= 78_426 ? 0 : Math.max(0, 3_115 - Math.max(0, gross - 29_736) * 0.06398);
-  const labourCredit = Math.max(0, 5_685 - (gross - NETHERLANDS_MIN_VERIFIED_LABOR_INCOME) * 0.0651);
+  const labourCredit = netherlandsLabourCredit2026(gross);
   // 税額控除はBox 1の税額（所得税＋国民保険料）を超えて還付されません。
   const box1AfterCredits = Math.max(0, box1 - generalCredit - labourCredit);
   return { box1, generalCredit, labourCredit, box1AfterCredits };
@@ -525,9 +530,9 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: usc / 12, pensionMonthly: prsi / 12, totalTaxMonthly: (incomeTax + usc) / 12, totalInsuranceMonthly: prsi / 12, totalDeductionsMonthly: (incomeTax + usc + prsi) / 12 };
   }
   if (city.taxSystem === "netherlands") {
-    // 未確認の区間（労働所得€45,592未満）とAOW年齢の可能性がある65歳以上は計算しません。
-    const payroll = ageBand === "65plus" ? null : calculateNetherlandsPayroll(grossAnnual);
-    if (payroll === null) return null;
+    // 年齢帯からAOW年齢（2026年は67歳）以上かを判定できないため、65歳以上は計算しません。
+    if (ageBand === "65plus") return null;
+    const payroll = calculateNetherlandsPayroll(grossAnnual);
     // Box 1は所得税と国民保険料を一体で課税し、税額控除も合算額から差し引くため、1行の税額として示します。
     const levy = payroll.box1AfterCredits;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: levy / 12, totalTaxMonthly: levy / 12, totalDeductionsMonthly: levy / 12 };

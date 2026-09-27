@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -166,7 +166,7 @@ test("Ireland 2026 payroll tax applies bands, credits, USC and time-weighted PRS
   assert.equal(taxCalculationStatus(cities.dublin), "official-rate-estimate");
 });
 
-test("Netherlands 2026 Box 1 applies bands and both tax credits, and stays unavailable where the official table is unverified", () => {
+test("Netherlands 2026 Box 1 applies bands and both tax credits, and stays unavailable for ages that may be past the AOW age", () => {
   const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
   // €60,000：Box 1 38,883×35.75%＋21,117×37.56%＝21,832.22、一般控除 3,115−30,264×6.398%＝1,178.71、
   // 労働控除 5,685−14,408×6.51%＝4,747.04 → 15,906.47
@@ -185,13 +185,21 @@ test("Netherlands 2026 Box 1 applies bands and both tax credits, and stays unava
   close(high.box1AfterCredits, 37_289.1141);
   // 労働控除は負にならない（€140,000では0）
   assert.equal(calculateNetherlandsPayroll(140_000)?.labourCredit, 0);
-  // €45,592ちょうどは労働控除が最大€5,685、それ未満は積み上げ区間が未確認のためnull
+  // €45,592ちょうどは労働控除が最大€5,685（3区間目の上限）
   const boundary = calculateNetherlandsPayroll(45_592);
-  assert.ok(boundary);
-  assert.equal(boundary.labourCredit, 5_685);
+  close(boundary.labourCredit, 5_685.0665);
   close(boundary.generalCredit, 2_100.53312);
-  close(boundary.box1AfterCredits, 16_420.5729 - 2_100.53312 - 5_685);
-  assert.equal(calculateNetherlandsPayroll(45_591), null);
+  // 労働控除の積み上げ区間（Tabel arbeidskorting 2026）
+  close(netherlandsLabourCredit2026(10_000), 832.4);
+  close(netherlandsLabourCredit2026(11_965), 995.9666);
+  close(netherlandsLabourCredit2026(20_000), 996 + 8_035 * 0.31009);
+  close(netherlandsLabourCredit2026(25_845), 996 + 13_880 * 0.31009);
+  close(netherlandsLabourCredit2026(30_000), 5_381.0225);
+  assert.equal(netherlandsLabourCredit2026(132_921), 0);
+  // €30,000：Box 1 10,725、一般控除 3,115−264×6.398%＝3,098.11、労働控除 5,300＋4,155×1.95%＝5,381.02 → 2,245.87
+  close(calculateNetherlandsPayroll(30_000).box1AfterCredits, 2_245.86822);
+  // €10,000：控除合計がBox 1の税額を超えるため0（還付しない）
+  assert.equal(calculateNetherlandsPayroll(10_000).box1AfterCredits, 0);
 
   const amsterdam = cities.amsterdam;
   assert.equal(taxCalculationStatus(amsterdam), "official-rate-estimate");
@@ -199,8 +207,9 @@ test("Netherlands 2026 Box 1 applies bands and both tax credits, and stays unava
   close(result.taxMonthly ?? Number.NaN, 15_906.46922 / 12);
   close(result.netMonthly ?? Number.NaN, (60_000 - 15_906.46922) / 12);
   assert.equal(result.calculationUnavailableReason, null);
-  // 未確認の給与帯とAOW年齢の可能性がある65歳以上は、推測せず計算不能にします。
-  for (const unavailable of [calculateCity(amsterdam, 30_000, "single", "onebed", "balanced", "under40"), calculateCity(amsterdam, 60_000, "single", "onebed", "balanced", "65plus")]) {
+  close(calculateCity(amsterdam, 30_000, "single", "onebed", "balanced", "under40").taxMonthly ?? Number.NaN, 2_245.86822 / 12);
+  // AOW年齢（67歳）以上かを年齢帯から判定できない65歳以上は、推測せず計算不能にします。
+  for (const unavailable of [calculateCity(amsterdam, 60_000, "single", "onebed", "balanced", "65plus")]) {
     assert.equal(unavailable.taxBreakdown, null);
     assert.equal(unavailable.netMonthly, null);
     assert.equal(unavailable.taxCalculationStatus, "unavailable");
