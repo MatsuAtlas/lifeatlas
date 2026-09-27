@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, calculateTaiwanPayroll, calculateIndonesiaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -397,4 +397,17 @@ test("Riyadh and Abu Dhabi deduct no income tax or employee social insurance for
     const result = calculateCity(cities[cityId], 200_000, "single", "onebed", "balanced", "under40");
     assert.equal(result.taxBreakdown?.totalDeductionsMonthly, 0);
   }
+});
+
+test("Malaysia 2026 applies the LHDN MTD table with the RM400 rebate and the foreign-employee EPF", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 年RM84,000：EPF 1,680、課税所得84,000−9,000−1,680＝73,320 → (73,320−70,000)×19%＋3,700
+  const middle = calculateMalaysiaPayroll(84_000);
+  close(middle.epf, 1_680);
+  close(middle.incomeTax, 3_320 * 0.19 + 3_700);
+  // 年RM30,000：課税所得20,400 → 400×3%−250 は負になるため0（RM400の税額控除）
+  assert.equal(calculateMalaysiaPayroll(30_000).incomeTax, 0);
+  // 年RM600,000：EPF控除は上限RM4,000、課税所得587,000 → 187,000×26%＋84,400
+  close(calculateMalaysiaPayroll(600_000).incomeTax, 187_000 * 0.26 + 84_400);
+  assert.equal(taxCalculationStatus(cities.kualaLumpur), "official-rate-estimate");
 });
