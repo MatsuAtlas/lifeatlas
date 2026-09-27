@@ -238,6 +238,7 @@ const translations = {
     incomeTax: "所得税",
     federalProvincialTax: "連邦・州所得税",
     federalStateCityTax: "連邦・州・市所得税",
+    netherlandsBox1Tax: "所得税・国民保険料（Box 1、税額控除後）",
     reconstructionTax: "復興特別所得税",
     residentTax: "住民税",
     healthInsurance: "健康保険",
@@ -458,6 +459,7 @@ const translations = {
     incomeTax: "Income tax",
     federalProvincialTax: "Federal and provincial tax",
     federalStateCityTax: "Federal, state and city tax",
+    netherlandsBox1Tax: "Income tax and national insurance (Box 1, after credits)",
     reconstructionTax: "Reconstruction surtax",
     residentTax: "Resident tax",
     healthInsurance: "Health insurance",
@@ -1358,7 +1360,7 @@ export default function Home() {
                 </div>
                 {breakdown ? <div className="deduction-list">
                   <div className="deduction-heading">{t.deductionHeading}</div>
-                  <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? t.federalProvincialTax : result.city.taxSystem === "us" ? t.federalStateCityTax : t.incomeTax}</span><strong>{dualMoney(breakdown.incomeTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
+                  <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? t.federalProvincialTax : result.city.taxSystem === "us" ? t.federalStateCityTax : result.city.taxSystem === "netherlands" ? t.netherlandsBox1Tax : t.incomeTax}</span><strong>{dualMoney(breakdown.incomeTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
                   {result.city.taxSystem === "japan" ? <>
                     <div className="deduction-row"><span>{t.reconstructionTax}</span><strong>{dualMoney(breakdown.reconstructionSurtaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
                     <div className="deduction-row"><span>{t.residentTax}</span><strong>{dualMoney(breakdown.residentTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>
