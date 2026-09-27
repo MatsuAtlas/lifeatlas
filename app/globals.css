@@ -795,3 +795,19 @@ select:focus, input:focus { box-shadow: 0 0 0 2px var(--green-soft); }
 }
 .app-shell :is(input, select, textarea), .growth-page :is(input, select, textarea), .input-with-unit, .swap-button,
 .tax-breakdown, .result-breakdown, .google-button, .auth-google-button { border-radius: 3px; }
+
+/* 都市・比較ページ（growth-page）も研究レポート型にそろえる：小さな角、罫線区切り、表のような指標 */
+.growth-hero { padding: 64px 0 48px; border-top: 3px solid var(--ink); background: none; }
+.growth-hero h1 { font-family: var(--serif); font-size: clamp(34px, 4.6vw, 58px); font-weight: 600; line-height: 1.14; letter-spacing: -0.01em; }
+.growth-hero h1 em { font-style: normal; }
+.growth-section-heading h2, .growth-panel h2 { font-family: var(--serif); letter-spacing: -0.01em; }
+.growth-facts span, .growth-metrics div, .growth-metric-grid div, .growth-link-grid a { border-radius: 3px; }
+.growth-metric-grid { gap: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.growth-metric-grid div { border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; background: var(--panel); }
+.growth-metric-grid dd, .growth-metrics dd { font-variant-numeric: tabular-nums; }
+.growth-winner, .growth-cta { border: 1px solid var(--ink); border-top: 3px solid var(--green); background: var(--panel); }
+.growth-link-grid a { background: var(--panel); }
+@media (max-width: 760px) {
+  .growth-hero { padding: 40px 0 36px; }
+  .growth-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
