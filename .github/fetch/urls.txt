@@ -1,0 +1,8 @@
+kl-rate|html|https://www.hasil.gov.my/en/individual/individual-life-cycle/income-declaration/tax-rate/
+kl-pcb2026|pdf|https://www.hasil.gov.my/wp-content/uploads/spesifikasi-kaedah-pengiraan-berkomputer-pcb-2026.pdf
+co-et-pr010|html|http://www.secretariasenado.gov.co/senado/basedoc/estatuto_tributario_pr010.html
+co-uvt2026|pdf|https://www.dian.gov.co/normatividad/Normatividad/Resoluci%C3%B3n%20000238%20de%2015-12-2025.Pdf
+es-madrid-2025|html|https://sede.agenciatributaria.gob.es/Sede/ayuda/manuales-videos-folletos/manuales-practicos/irpf-2025/c15-calculo-impuesto-determinacion-cuotas-integras/gravamen-base-liquidable-general/gravamen-autonomico/comunidad-madrid.html
+es-madrid-irpf|html|https://www.comunidad.madrid/atencion-contribuyente/irpf
+pt-irs68|html|https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs68.aspx
+pt-set2026|pdf|https://portugal.gov.pt/api/media/edge/Project/Portal-do-Governo/Portal-do-Governo/gc25/documentos/Financas/20260917_IRS_Set2026_simulacoes.pdf
