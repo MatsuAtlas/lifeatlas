@@ -1,5 +1,10 @@
 """Fetch official tax pages and print their visible text to the job log (temporary helper, not merged)."""
-import html.parser, io, sys, urllib.request
+import html.parser, io, signal, sys, urllib.request
+
+def _timeout(signum, frame):
+    raise TimeoutError("per-URL deadline")
+
+signal.signal(signal.SIGALRM, _timeout)
 
 class Text(html.parser.HTMLParser):
     def __init__(self):
@@ -14,10 +19,11 @@ class Text(html.parser.HTMLParser):
         if not self.skip: self.parts.append(data)
 
 for url in [line.strip() for line in open(sys.argv[1]) if line.strip() and not line.startswith("#")]:
-    print(f"\n===== BEGIN {url}")
+    print(f"\n===== BEGIN {url}", flush=True)
+    signal.alarm(45)
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (LifeAtlas source check)"})
-        body = urllib.request.urlopen(req, timeout=60).read()
+        body = urllib.request.urlopen(req, timeout=30).read()
         if url.lower().endswith(".pdf") or body[:4] == b"%PDF":
             from pypdf import PdfReader
             text = "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(body)).pages)
@@ -29,4 +35,5 @@ for url in [line.strip() for line in open(sys.argv[1]) if line.strip() and not l
         print("\n".join(kept[i:i + 3000] for i in range(0, len(kept), 3000)))
     except Exception as error:
         print(f"FETCH FAILED: {error!r}")
-    print(f"===== END {url}")
+    signal.alarm(0)
+    print(f"===== END {url}", flush=True)
