@@ -5,6 +5,7 @@ import Link from "next/link";
 import { cities, cityOrder } from "../data/cities";
 import { FALLBACK_FX_TO_JPY } from "../data/currencies";
 import { trackProductEvent } from "../lib/analytics/client";
+import { localizedSourceItem, localizedSourceLevel, localizedSourceName, localizedSourcePeriod } from "../lib/cities/localization";
 import { isComparisonRecord, isSavedAnalyzerInput, LOCAL_HISTORY_LIMIT, localHistoryId, queueAnalyzerRestore, readLocalHistory, writeLocalHistory } from "../lib/comparison-history";
 import type { City, CityId, CurrencyCode, DataSource } from "../types/city";
 import type { ComparisonRecord as HistoryRecord } from "../types/comparison";
@@ -582,34 +583,15 @@ const cityLanguage = (city: City, language: Language) => language === "ja" ? cit
 const sourceItem = (item: string, language: Language) => {
   if (language === "ja") return item;
   const labels: Record<string, string> = { "人口": "Population", "人口・物価・給与・家賃": "Population, prices, salary and rent", "物価": "Prices", "物価・家賃": "Prices and rent", "給与": "Salary", "給与中央値": "Median salary", "所得税": "Income tax", "連邦・州所得税": "Federal and provincial tax", "連邦所得税": "Federal income tax", "州税・市税": "State and city tax", "社会保障・Medicare": "Social Security and Medicare", "医療保険": "Health insurance", "健康保険・介護保険": "Health and long-term care insurance", "CPP・EI": "CPP and EI", "国民保険": "National Insurance", "社会保険": "Social insurance", "年金": "Pension", "退職積立": "Superannuation", "所得税・Medicare levy": "Income tax and Medicare levy" };
-  return labels[item] ?? item;
+  return labels[item] ?? localizedSourceItem(item, language);
 };
-const sourceLevel = (level: DataSource["level"], language: Language) => {
-  if (language === "ja") return level;
-  const labels: Record<DataSource["level"], string> = { 都市: "City", 都道府県: "Prefecture", 州: "State", 国: "Country", "国・州": "Country / state", "州・市": "State / city", 都市圏: "Metro area", 自治体: "Municipality" };
-  return labels[level];
-};
+const sourceLevel = (level: DataSource["level"], language: Language) => localizedSourceLevel(level, language);
 const sourceScope = (scope: string, language: Language) => {
   if (language === "ja") return scope;
   const labels: Record<string, string> = { "各国の人口": "Population by country", "各通貨を日本円へ換算するための為替": "FX rates used to convert currencies to JPY", "対象国の総人口（都市人口ではありません）": "Country population only (not city population)", "対応通貨を日本円へ換算するための日次為替": "Daily rates for supported currencies converted to JPY" };
   return labels[scope] ?? scope;
 };
-const sourcePeriod = (period: string, language: Language) => {
-  if (language === "ja") return period;
-  const labels: Record<string, string> = {
-    "2025年10月1日速報": "Preliminary 1 October 2025",
-    "2026年7月1日": "1 July 2026",
-    "2021年国勢調査": "2021 Census",
-    "2023年推計": "2023 estimate",
-    "2024年推計": "2024 estimate",
-    "2023年": "2023",
-    "2024年": "2024",
-    "2020年国勢調査": "2020 Census",
-    "2024-25年度・2025年6月30日": "2024–25 reporting year · 30 June 2025",
-    "2026年時点の比較用推定": "2026 comparison estimate",
-  };
-  return labels[period] ?? period.replace(/年/g, "");
-};
+const sourcePeriod = (period: string, language: Language) => localizedSourcePeriod(period, language);
 
 const formatMoney = (value: number, currency: CurrencyCode, language: Language = "ja") =>
   new Intl.NumberFormat(language === "ja" ? "ja-JP" : "en-US", {
@@ -1266,7 +1248,7 @@ export default function Home() {
               </select>
               <small>{destinationSalaryMode === "localBenchmark"
                 ? destinationBenchmarkSource
-                  ? `${money(destination.averageAnnualIncome, destination.currency)} / ${language === "ja" ? "年" : "year"} · ${sourceLevel(destinationBenchmarkSource.level, language)} · ${sourcePeriod(destinationBenchmarkSource.period, language)} · ${destinationBenchmarkSource.source}`
+                  ? `${money(destination.averageAnnualIncome, destination.currency)} / ${language === "ja" ? "年" : "year"} · ${sourceLevel(destinationBenchmarkSource.level, language)} · ${sourcePeriod(destinationBenchmarkSource.period, language)} · ${localizedSourceName(destinationBenchmarkSource.source, language)}`
                   : t.salaryBenchmarkUnavailableDetail
                 : destinationSalaryMode === "sameYen" ? t.sameYenSalaryHint : t.destinationSalaryHint}</small>
             </label>
@@ -1317,7 +1299,7 @@ export default function Home() {
                   <div className="coverage-item">
                     <div className="coverage-label"><span>{t.cityPopulationBaseline}</span><small className={`coverage-badge ${populationIsEstimate ? "is-estimate" : "is-snapshot"}`}>{populationIsEstimate ? t.estimateValue : t.officialSnapshot}</small></div>
                     <strong>{localizedCityPopulation(city, language)}</strong>
-                    <p>{populationSource ? <><span>{t.scopeLabelText}: {sourceLevel(populationSource.level, language)} / {sourcePeriod(populationSource.period, language)}</span><a href={populationSource.url} target="_blank" rel="noreferrer">{t.sourceLabelText}: {populationIsEstimate && language === "en" ? "Life Atlas estimate based on public statistics" : populationSource.source} ↗</a></> : <span>{t.baselineDateUnknown}</span>}</p>
+                    <p>{populationSource ? <><span>{t.scopeLabelText}: {sourceLevel(populationSource.level, language)} / {sourcePeriod(populationSource.period, language)}</span><a href={populationSource.url} target="_blank" rel="noreferrer">{t.sourceLabelText}: {populationIsEstimate && language === "en" ? "Life Atlas estimate based on public statistics" : localizedSourceName(populationSource.source, language)} ↗</a></> : <span>{t.baselineDateUnknown}</span>}</p>
                   </div>
                   <div className="coverage-item">
                     <div className="coverage-label"><span>{t.countryPopulationReference}</span><small className={`coverage-badge ${countryPopulation ? "is-live" : "is-reference"}`}>{countryPopulation ? t.automatic : t.countryPopulationUnavailable}</small></div>
@@ -1332,7 +1314,7 @@ export default function Home() {
                   <div className="coverage-item">
                     <div className="coverage-label"><span>{t.salaryBenchmark}</span><small className={`coverage-badge ${salaryBenchmarkSource ? "is-snapshot" : "is-reference"}`}>{salaryBenchmarkSource ? t.officialSnapshot : t.salaryBenchmarkUnavailable}</small></div>
                     <strong>{salaryBenchmarkSource ? `${formatMoney(city.averageAnnualIncome, city.currency, language)} / ${language === "ja" ? "年" : "year"}` : "—"}</strong>
-                    <p>{salaryBenchmarkSource ? <><span>{t.scopeLabelText}: {sourceLevel(salaryBenchmarkSource.level, language)} / {sourcePeriod(salaryBenchmarkSource.period, language)}</span><a href={salaryBenchmarkSource.url} target="_blank" rel="noreferrer">{t.sourceLabelText}: {salaryBenchmarkSource.source} ↗</a></> : <span>{t.salaryBenchmarkUnavailableDetail}</span>}</p>
+                    <p>{salaryBenchmarkSource ? <><span>{t.scopeLabelText}: {sourceLevel(salaryBenchmarkSource.level, language)} / {sourcePeriod(salaryBenchmarkSource.period, language)}</span><a href={salaryBenchmarkSource.url} target="_blank" rel="noreferrer">{t.sourceLabelText}: {localizedSourceName(salaryBenchmarkSource.source, language)} ↗</a></> : <span>{t.salaryBenchmarkUnavailableDetail}</span>}</p>
                   </div>
                   <div className="coverage-item">
                     <div className="coverage-label"><span>{t.taxesInsurance}</span><small className={`coverage-badge ${taxCalculationStatus(city) === "official-scenario" ? "is-live" : taxCalculationStatus(city) === "official-rate-estimate" ? "is-estimate" : "is-reference"}`}>{calculationLabel(taxCalculationStatus(city))}</small></div>
@@ -1489,7 +1471,7 @@ export default function Home() {
           <div className="mini-panel"><span className="mini-icon">⌁</span><div><h3>{t.transparencyTitle}</h3><p>{t.transparencyText}</p><button className="inline-link" onClick={openMethodDetails}>{t.sourcesNotes} <span>→</span></button><Link className="inline-link" href={`/data${language === "en" ? "?lang=en" : ""}`}>{language === "ja" ? `${CITY_COUNT}都市のデータ一覧` : `All ${CITY_COUNT} cities`} <span>→</span></Link></div></div>
         </section>
 
-        {detailsOpen && <section id="method" className="method-panel section-anchor"><div className="section-heading"><div><p className="eyebrow">{t.methodEyebrow}</p><h2>{t.methodTitle}</h2></div><button className="close-button" onClick={() => setDetailsOpen(false)}>{t.close}</button></div><div className="method-grid"><div><span>{t.dataStatus}</span><strong>{dataLoading ? t.dataLoading : selectedFxAutomatic ? t.dataLiveMethod : t.dataFallbackMethod}</strong><p>{language === "ja" ? "都市人口は各統計の公表時点を保存し、国人口はWorld Bank、対応通貨の為替はECBから自動取得します。更新操作で都市人口の基準日は書き換えません。" : "City population keeps its published statistical baseline. Country population comes from the World Bank and supported FX rates come from the ECB. Refreshing does not rewrite a city-population date."} {t.retrievedAt}{officialData ? new Date(officialData.retrievedAt).toLocaleString(language === "ja" ? "ja-JP" : "en-US") : language === "ja" ? "未取得" : "Not available"}</p></div><div><span>{t.cityCosts}</span><strong>{t.cityCostsStrong}</strong><p>{t.cityCostsText}</p></div><div><span>{t.taxes}</span><strong>{t.taxesStrong}</strong><p>{t.taxesText}</p></div><div><span>{t.formula}</span><strong>{t.formulaStrong}</strong><p>{t.formulaText}</p></div></div>{officialData && <div className="source-list"><span>{t.autoSources}</span>{officialData.sources.map((source) => <a key={source.name} href={source.url} target="_blank" rel="noreferrer">{source.name} <small>（{sourceScope(source.scope, language)}）</small> ↗</a>)}</div>}<div className="source-list"><span>{t.citySources}</span>{citySourceLinks.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.source} <small>（{sourceItem(source.item, language)} / {sourceLevel(source.level, language)} / {sourcePeriod(source.period, language)}）</small> ↗</a>)}</div><Link className="secondary-button" href={`/methodology${language === "en" ? "?lang=en" : ""}`}>{language === "ja" ? "計算方法の詳細" : "Full methodology"}</Link></section>}
+        {detailsOpen && <section id="method" className="method-panel section-anchor"><div className="section-heading"><div><p className="eyebrow">{t.methodEyebrow}</p><h2>{t.methodTitle}</h2></div><button className="close-button" onClick={() => setDetailsOpen(false)}>{t.close}</button></div><div className="method-grid"><div><span>{t.dataStatus}</span><strong>{dataLoading ? t.dataLoading : selectedFxAutomatic ? t.dataLiveMethod : t.dataFallbackMethod}</strong><p>{language === "ja" ? "都市人口は各統計の公表時点を保存し、国人口はWorld Bank、対応通貨の為替はECBから自動取得します。更新操作で都市人口の基準日は書き換えません。" : "City population keeps its published statistical baseline. Country population comes from the World Bank and supported FX rates come from the ECB. Refreshing does not rewrite a city-population date."} {t.retrievedAt}{officialData ? new Date(officialData.retrievedAt).toLocaleString(language === "ja" ? "ja-JP" : "en-US") : language === "ja" ? "未取得" : "Not available"}</p></div><div><span>{t.cityCosts}</span><strong>{t.cityCostsStrong}</strong><p>{t.cityCostsText}</p></div><div><span>{t.taxes}</span><strong>{t.taxesStrong}</strong><p>{t.taxesText}</p></div><div><span>{t.formula}</span><strong>{t.formulaStrong}</strong><p>{t.formulaText}</p></div></div>{officialData && <div className="source-list"><span>{t.autoSources}</span>{officialData.sources.map((source) => <a key={source.name} href={source.url} target="_blank" rel="noreferrer">{source.name} <small>（{sourceScope(source.scope, language)}）</small> ↗</a>)}</div>}<div className="source-list"><span>{t.citySources}</span>{citySourceLinks.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{localizedSourceName(source.source, language)} <small>（{sourceItem(source.item, language)} / {sourceLevel(source.level, language)} / {sourcePeriod(source.period, language)}）</small> ↗</a>)}</div><Link className="secondary-button" href={`/methodology${language === "en" ? "?lang=en" : ""}`}>{language === "ja" ? "計算方法の詳細" : "Full methodology"}</Link></section>}
 
         <footer className="site-footer"><div className="footer-brand"><span className="brand-mark">✦</span><strong>Life Atlas</strong><p>{t.footerText}</p></div><div className="footer-meta"><Link href="/pricing">Pricing</Link><Link href={`/methodology${language === "en" ? "?lang=en" : ""}`}>{language === "ja" ? "計算方法" : "Method"}</Link><Link href={`/data${language === "en" ? "?lang=en" : ""}`}>Data</Link><span>{t.footerCities}</span><span>{t.footerDeductions}</span><span>© 2026 Life Atlas</span></div></footer>
       </div>
