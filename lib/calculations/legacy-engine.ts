@@ -393,6 +393,48 @@ export function calculateTaiwanPayroll(grossAnnual: number) {
   return { incomeTax, laborInsurance, healthInsurance };
 }
 
+// 韓国・2026年（居住者・単身の給与所得者）。社会保険（本人負担）：国民年金4.75%（料率9.5%の半分。基準所得月額は1〜6月が
+// 40万〜637万ウォン、7〜12月が41万〜659万ウォン）、健康保険3.595%（7.19%の半分）、長期療養保険は健康保険料×0.9448/7.19、
+// 雇用保険0.9%（失業給付1.8%の半分）。所得税＝(総給与−勤労所得控除（上限2,000万）−基本控除150万−年金保険料−健康・長期療養・
+// 雇用保険料)に基本税率を掛け、勤労所得税額控除を差し引きます。保険料の特別所得控除を申請するため標準税額控除（13万）は使いません。
+// 地方所得税は所得税の10%。非課税手当（食事代など）、健康保険料の上下限、扶養家族、その他の所得・税額控除は未反映です。
+export function koreaEarnedIncomeDeduction2026(totalSalary: number) {
+  const x = Math.max(0, totalSalary);
+  const deduction = x <= 5_000_000 ? x * 0.7
+    : x <= 15_000_000 ? 3_500_000 + (x - 5_000_000) * 0.4
+      : x <= 45_000_000 ? 7_500_000 + (x - 15_000_000) * 0.15
+        : x <= 100_000_000 ? 12_000_000 + (x - 45_000_000) * 0.05
+          : 14_750_000 + (x - 100_000_000) * 0.02;
+  return Math.min(deduction, 20_000_000, x);
+}
+
+export function koreaEarnedIncomeTaxCredit2026(calculatedTax: number, totalSalary: number) {
+  const credit = calculatedTax <= 1_300_000 ? calculatedTax * 0.55 : 715_000 + (calculatedTax - 1_300_000) * 0.3;
+  const cap = totalSalary <= 33_000_000 ? 740_000
+    : totalSalary <= 70_000_000 ? Math.max(660_000, 740_000 - (totalSalary - 33_000_000) * 0.008)
+      : totalSalary <= 120_000_000 ? Math.max(500_000, 660_000 - (totalSalary - 70_000_000) / 2)
+        : Math.max(200_000, 500_000 - (totalSalary - 120_000_000) / 2);
+  return Math.min(credit, cap);
+}
+
+export function calculateKoreaPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const monthly = gross / 12;
+  const pension = monthly > 0 ? (Math.min(Math.max(monthly, 400_000), 6_370_000) * 6 + Math.min(Math.max(monthly, 410_000), 6_590_000) * 6) * 0.0475 : 0;
+  const health = gross * 0.03595;
+  const longTermCare = health * 0.9448 / 7.19;
+  const employment = gross * 0.009;
+  const earnedIncome = gross - koreaEarnedIncomeDeduction2026(gross);
+  const taxable = Math.max(0, earnedIncome - 1_500_000 - pension - health - longTermCare - employment);
+  const calculatedTax = taxFromAnnualBrackets(taxable, [
+    { limit: 14_000_000, rate: 0.06 }, { limit: 50_000_000, rate: 0.15 }, { limit: 88_000_000, rate: 0.24 }, { limit: 150_000_000, rate: 0.35 },
+    { limit: 300_000_000, rate: 0.38 }, { limit: 500_000_000, rate: 0.4 }, { limit: 1_000_000_000, rate: 0.42 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 },
+  ]);
+  const incomeTax = Math.max(0, calculatedTax - koreaEarnedIncomeTaxCredit2026(calculatedTax, gross));
+  const localIncomeTax = incomeTax * 0.1;
+  return { incomeTax, localIncomeTax, pension, health: health + longTermCare, employment };
+}
+
 // インドネシア・2026年（居住者・単身、PTKP Rp54,000,000）。従業員の社会保険：JHT 2%（上限なし）、JP 1%（月額上限は1〜2月Rp10,547,400、
 // 3〜12月Rp11,086,300）、JKN（医療）1%（月額上限Rp12,000,000）。会社負担のJKK（最低リスク0.24%と仮定）・JKM 0.30%・JKN 4%は課税所得に加算します。
 // 課税所得＝総額−職務費用（5%・上限年Rp6,000,000）−JHT・JP−PTKP（千ルピア未満切り捨て）。外国人のJP対象外、扶養控除は未反映です。
@@ -498,6 +540,12 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "indonesia") {
     const { incomeTax, pension, health } = calculateIndonesiaPayroll(grossAnnual);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
+  }
+  if (city.taxSystem === "korea") {
+    const { incomeTax, localIncomeTax, pension, health, employment } = calculateKoreaPayroll(grossAnnual);
+    const totalTax = incomeTax + localIncomeTax;
+    const totalInsurance = pension + health + employment;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: localIncomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: employment / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
   }
   if (city.taxSystem === "taiwan") {
     const { incomeTax, laborInsurance, healthInsurance } = calculateTaiwanPayroll(grossAnnual);
