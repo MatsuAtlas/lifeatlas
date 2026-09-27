@@ -32,12 +32,12 @@ jobs:
           gh api "repos/$REPO/deployments?environment=Production&per_page=3" --jq '.[] | "\(.id) \(.sha[0:7]) \(.created_at)"'
       - name: Production /api/cities
         run: |
-          printf '%s\n' https://lifeatlas.vercel.app https://life-atlas-global-2026.dreamy-gnat-5451.chatgpt.site >> urls.txt
+          printf '%s\n' https://lifeatlas-life-atlas1.vercel.app https://lifeatlas-git-main-life-atlas1.vercel.app https://life-atlas1.vercel.app https://lifeatlas-one.vercel.app >> urls.txt
           sort -u urls.txt | while read -r base; do
             [ -z "$base" ] && continue
-            code=$(curl -sS -m 20 -o out.json -w '%{http_code}' "$base/api/cities" || echo "curl-failed")
+            code=$(curl -sS -m 20 -o out.json -w '%{http_code} %{redirect_url}' "$base/api/cities" || echo "curl-failed")
             echo "$base/api/cities -> $code"
-            if [ "$code" = "200" ]; then
+            if [ "${code%% *}" = "200" ]; then
               jq -c '.coverage, [.cities[] | select(.id == "taipei" or .id == "jakarta") | {id, calculationStatus}]' out.json || head -c 300 out.json
             fi
           done
