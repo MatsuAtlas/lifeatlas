@@ -24,7 +24,9 @@ for url in [line.strip() for line in open(sys.argv[1]) if line.strip() and not l
         else:
             parser = Text(); parser.feed(body.decode("utf-8", "replace")); text = "".join(parser.parts)
         lines = [" ".join(line.split()) for line in text.splitlines()]
-        print("\n".join(line for line in lines if line)[:25000])
+        # ナビゲーションの短い行を除き、残りを約3,000字ごとの行にまとめてログの行数を抑えます。
+        kept = " / ".join(line for line in lines if line and (len(line) > 25 or any(ch.isdigit() for ch in line)))[:40000]
+        print("\n".join(kept[i:i + 3000] for i in range(0, len(kept), 3000)))
     except Exception as error:
         print(f"FETCH FAILED: {error!r}")
     print(f"===== END {url}")
