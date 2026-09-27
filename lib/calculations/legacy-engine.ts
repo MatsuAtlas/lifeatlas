@@ -429,6 +429,24 @@ export function calculateIndiaIncomeTax(grossAnnual: number) {
   return tax * 1.04;
 }
 
+// マレーシア・2026課税年度（居住者・単身、外国人被用者）。課税所得＝給与−本人控除RM9,000−EPF（上限RM4,000）。
+// 税額は内国歳入庁PCB仕様書（2026年）の表1（P・M・R・B）どおり、(P−M)×R＋B。課税所得RM35,000以下のBはRM400の税額控除を含みます。
+// 外国人のEPF本人負担は2%（2025年10月分の給与から）。SOCSOの労災部門は雇用主負担、EISは外国人に適用されません。
+const malaysiaTaxTable = [
+  { from: 2_000_000, rate: 0.3, base: 528_400 }, { from: 600_000, rate: 0.28, base: 136_400 }, { from: 400_000, rate: 0.26, base: 84_400 },
+  { from: 100_000, rate: 0.25, base: 9_400 }, { from: 70_000, rate: 0.19, base: 3_700 }, { from: 50_000, rate: 0.11, base: 1_500 },
+  { from: 35_000, rate: 0.06, base: 600 }, { from: 20_000, rate: 0.03, base: -250 }, { from: 5_000, rate: 0.01, base: -400 },
+] as const;
+
+export function calculateMalaysiaPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const epf = gross * 0.02;
+  const chargeable = Math.max(0, gross - 9_000 - Math.min(epf, 4_000));
+  const row = malaysiaTaxTable.find((item) => chargeable > item.from);
+  const incomeTax = row ? Math.max(0, (chargeable - row.from) * row.rate + row.base) : 0;
+  return { incomeTax, epf };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "china" && !["beijing", "shanghai"].includes(city.taxRegion)) return "unavailable";
@@ -467,6 +485,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
     const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "malaysia") {
+    const { incomeTax, epf } = calculateMalaysiaPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: epf / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: epf / 12, totalDeductionsMonthly: (incomeTax + epf) / 12 };
   }
   if (city.taxSystem === "indonesia") {
     const { incomeTax, pension, health } = calculateIndonesiaPayroll(grossAnnual);
