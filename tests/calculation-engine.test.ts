@@ -441,3 +441,11 @@ test("Milan applies the Lombardy progressive surcharge and Milan's 0.8% municipa
   const lowTaxable = 25_000 - 25_000 * 0.0919;
   assert.ok(Math.abs((low.taxBreakdown?.residentTaxMonthly ?? 0) * 12 - (15_000 * 0.0123 + (lowTaxable - 15_000) * 0.0158)) < 0.01);
 });
+
+test("Italy 2026 IRPEF uses 23% to €28,000, 33% to €50,000 and 43% above", () => {
+  const result = calculateCity(cities.rome, 60_000, "single", "onebed", "balanced", "under40");
+  const pension = 60_000 * 0.0919 + (60_000 - 56_224) * 0.01;
+  const taxable = 60_000 - pension;
+  const expected = 28_000 * 0.23 + 22_000 * 0.33 + (taxable - 50_000) * 0.43;
+  assert.ok(Math.abs((result.taxBreakdown?.incomeTaxMonthly ?? 0) * 12 - expected) < 0.01);
+});

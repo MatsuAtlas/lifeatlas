@@ -617,7 +617,9 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "italy") {
     const pension = grossAnnual * city.insurance.pensionRateEmployee + Math.min(Math.max(0, grossAnnual - 56_224), 66_071) * 0.01;
     const taxableIncome = Math.max(0, grossAnnual - pension);
-    const nationalTax = taxFromAnnualBrackets(taxableIncome, [{ limit: 15_000, rate: 0.23 }, { limit: 28_000, rate: 0.33 }, { limit: Number.POSITIVE_INFINITY, rate: 0.43 }]);
+    // IRPEF 2026（2026年予算法で第2段階を35%→33%に引き下げ）：€28,000まで23%、€50,000まで33%、超過分43%。
+    // 給与所得者の税額控除（detrazioni）と税負担軽減措置（cuneo fiscale）は未反映。
+    const nationalTax = taxFromAnnualBrackets(taxableIncome, [{ limit: 28_000, rate: 0.23 }, { limit: 50_000, rate: 0.33 }, { limit: Number.POSITIVE_INFINITY, rate: 0.43 }]);
     // 地方税：ローマ（ラツィオ州）は州・市の合計2.63%の固定概算。ミラノはロンバルディア州の累進税率
     // （1.23/1.58/1.72/1.73%）と、課税所得€23,000超で所得全体にかかる市税0.8%。
     const localTax = city.taxRegion === "lombardy"
