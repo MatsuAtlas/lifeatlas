@@ -447,8 +447,125 @@ export function calculateMalaysiaPayroll(grossAnnual: number) {
   return { incomeTax, epf };
 }
 
+// ポルトガル・2026年（居住者・単身の給与所得者、IRS Jovemなどの特例なし）。社会保険（Segurança Social）は本人11%（上限なし）。
+// 所得税法（CIRS）：給与所得控除＝max(IAS×8.54, 社会保険料)（第25条、IAS 2026＝€537.13）。最低生活保障（第70条）の控除を
+// 課税所得から差し引き、第68条の税率表（法律73-A/2025による現行法）で累進課税。課税所得€80,000超は連帯付加税（第68-A条）。
+// 一般家計支出の税額控除（第78-B条：支出の35%、上限€250）は満額使えると仮定します。2026年9月に閣議決定された
+// 1〜6段階の税率引き下げ法案は、国会で成立していないため反映していません。
+const PORTUGAL_IAS_2026 = 537.13;
+const PORTUGAL_FIRST_BRACKET = { limit: 8_342, rate: 0.125 };
+const PORTUGAL_GENERAL_EXPENSES_CREDIT = 250;
+const portugalBrackets: TaxSlice[] = [
+  PORTUGAL_FIRST_BRACKET, { limit: 12_587, rate: 0.157 }, { limit: 17_838, rate: 0.212 }, { limit: 23_089, rate: 0.241 }, { limit: 29_397, rate: 0.311 },
+  { limit: 43_090, rate: 0.349 }, { limit: 46_566, rate: 0.431 }, { limit: 86_634, rate: 0.446 }, { limit: Number.POSITIVE_INFINITY, rate: 0.48 },
+];
+
+export function calculatePortugalPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const socialSecurity = gross * 0.11;
+  const specificDeduction = Math.min(gross, Math.max(PORTUGAL_IAS_2026 * 8.54, socialSecurity));
+  // 第70条：参照額は€12,880と1.5×14×IASの大きい方。総収入が2.2×14×IASを超える場合は適用しません。
+  const reference = Math.max(12_880, 1.5 * 14 * PORTUGAL_IAS_2026);
+  const generalExpensesAsIncome = PORTUGAL_GENERAL_EXPENSES_CREDIT / PORTUGAL_FIRST_BRACKET.rate;
+  const upperLimit = reference - PORTUGAL_GENERAL_EXPENSES_CREDIT / (PORTUGAL_FIRST_BRACKET.rate * 3.6) + PORTUGAL_FIRST_BRACKET.limit / 3.6;
+  let minimumExistence = 0;
+  if (gross <= 2.2 * 14 * PORTUGAL_IAS_2026) {
+    const raw = gross <= reference ? reference - (specificDeduction + generalExpensesAsIncome)
+      : gross <= upperLimit ? reference - 2.6 * (gross - reference) - (specificDeduction + generalExpensesAsIncome)
+        : upperLimit - PORTUGAL_FIRST_BRACKET.limit - 1.35 * (gross - upperLimit) - specificDeduction;
+    minimumExistence = Math.min(Math.max(0, raw), gross - specificDeduction);
+  }
+  const taxable = Math.max(0, gross - specificDeduction - minimumExistence);
+  const normalTax = Math.max(0, taxFromAnnualBrackets(taxable, portugalBrackets) - PORTUGAL_GENERAL_EXPENSES_CREDIT);
+  const solidarity = Math.max(0, Math.min(taxable, 250_000) - 80_000) * 0.025 + Math.max(0, taxable - 250_000) * 0.05;
+  return { incomeTax: normalTax + solidarity, socialSecurity, taxable };
+}
+
+// スペイン・マドリード州・2026年（居住者・単身、65歳未満、給与以外の所得なし）。社会保険（本人）：共通6.50%
+// （共通4.70%＋失業1.55%＋職業訓練0.10%＋MEI 0.15%、上限は月€5,101.20）と、上限超過分の連帯追加保険料（1.15/1.25/1.46%の本人負担分4.70/28.30）。
+// 所得税（IRPF）：給与−社会保険料−必要経費€2,000−勤労所得減額（第20条）を課税所得とし、国の税率表（第63条）と
+// マドリード州の税率表（州法第1条）でそれぞれ課税し、本人控除（国€5,550・州€5,956.65）に相当する税額を差し引きます。
+// 低所得の給与所得者の税額控除（追加規定第61条、2026年）を反映。州独自の税額控除（家賃など）は未反映です。
+const SPAIN_MAX_MONTHLY_BASE_2026 = 5_101.2;
+const spainStateScale: TaxSlice[] = [
+  { limit: 12_450, rate: 0.095 }, { limit: 20_200, rate: 0.12 }, { limit: 35_200, rate: 0.15 }, { limit: 60_000, rate: 0.185 }, { limit: 300_000, rate: 0.225 }, { limit: Number.POSITIVE_INFINITY, rate: 0.245 },
+];
+const madridScale: TaxSlice[] = [
+  { limit: 13_362.22, rate: 0.085 }, { limit: 19_004.63, rate: 0.107 }, { limit: 35_425.68, rate: 0.128 }, { limit: 57_320.4, rate: 0.174 }, { limit: Number.POSITIVE_INFINITY, rate: 0.205 },
+];
+
+export function calculateSpainMadridPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const monthly = gross / 12;
+  const excess = Math.max(0, monthly - SPAIN_MAX_MONTHLY_BASE_2026);
+  const solidarity = taxFromAnnualBrackets(excess, [
+    { limit: SPAIN_MAX_MONTHLY_BASE_2026 * 0.1, rate: 0.0115 }, { limit: SPAIN_MAX_MONTHLY_BASE_2026 * 0.5, rate: 0.0125 }, { limit: Number.POSITIVE_INFINITY, rate: 0.0146 },
+  ]) * (4.7 / 28.3);
+  const socialSecurity = (Math.min(monthly, SPAIN_MAX_MONTHLY_BASE_2026) * 0.065 + solidarity) * 12;
+  const netWork = gross - socialSecurity;
+  const reduction = netWork <= 14_852 ? 7_302
+    : netWork <= 17_673.52 ? 7_302 - 1.75 * (netWork - 14_852)
+      : netWork < 19_747.5 ? 2_364.34 - 1.14 * (netWork - 17_673.52) : 0;
+  const taxable = Math.max(0, netWork - 2_000 - reduction);
+  const stateTax = Math.max(0, taxFromAnnualBrackets(taxable, spainStateScale) - taxFromAnnualBrackets(Math.min(taxable, 5_550), spainStateScale));
+  const regionalTax = Math.max(0, taxFromAnnualBrackets(taxable, madridScale) - taxFromAnnualBrackets(Math.min(taxable, 5_956.65), madridScale));
+  // 追加規定第61条：給与€17,094以下は€590.89、€20,048.45未満は€590.89−0.2×(給与−€17,094)。国・州の税額の合計が上限。
+  const workCredit = Math.min(stateTax + regionalTax, gross <= 17_094 ? 590.89 : gross < 20_048.45 ? 590.89 - 0.2 * (gross - 17_094) : 0);
+  return { stateTax: Math.max(0, stateTax - workCredit), regionalTax: regionalTax - Math.max(0, workCredit - stateTax), socialSecurity, taxable };
+}
+
+// コロンビア・2026課税年度（居住者・単身、通常給与。salario integralではない）。UVT＝$52,374、最低賃金＝$1,750,905（政令0159/2026、暫定）。
+// 本人負担の社会保険（年収を12で割った月額を最低賃金1倍〜25倍の範囲に収めた額が基礎）：年金4%、医療4%、
+// 年金連帯基金（最低賃金4倍以上で1%、16倍以上は0.2〜1%を上乗せ）。年金改革法（法律2381/2024）は2027年4月1日から施行。
+// 課税所得＝給与−社会保険料（非課税）−給与の25%の非課税所得（年790 UVTまで。控除合計は40%・1,340 UVTが上限）。第241条の税率表（UVT建て）。
+// 扶養控除、任意年金・AFC、電子インボイスの購入額1%控除、賞与・手当の区別は未反映です。
+const COLOMBIA_UVT_2026 = 52_374;
+const COLOMBIA_MINIMUM_WAGE_2026 = 1_750_905;
+const colombiaTariffUvt = [
+  { lower: 31_000, rate: 0.39, fixed: 10_352 }, { lower: 18_970, rate: 0.37, fixed: 5_901 }, { lower: 8_670, rate: 0.35, fixed: 2_296 },
+  { lower: 4_100, rate: 0.33, fixed: 788 }, { lower: 1_700, rate: 0.28, fixed: 116 }, { lower: 1_090, rate: 0.19, fixed: 0 },
+] as const;
+
+export function calculateColombiaPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const monthly = gross / 12;
+  const base = monthly > 0 ? Math.min(Math.max(monthly, COLOMBIA_MINIMUM_WAGE_2026), 25 * COLOMBIA_MINIMUM_WAGE_2026) : 0;
+  const wages = base / COLOMBIA_MINIMUM_WAGE_2026;
+  const solidarityFund = (wages >= 4 ? 0.01 : 0) + (wages > 20 ? 0.01 : wages >= 19 ? 0.008 : wages >= 18 ? 0.006 : wages >= 17 ? 0.004 : wages >= 16 ? 0.002 : 0);
+  const pension = base * (0.04 + solidarityFund) * 12;
+  const health = base * 0.04 * 12;
+  const netIncome = Math.max(0, gross - pension - health);
+  const exempt = Math.min(netIncome * 0.25, 790 * COLOMBIA_UVT_2026, netIncome * 0.4, 1_340 * COLOMBIA_UVT_2026);
+  const taxableUvt = (netIncome - exempt) / COLOMBIA_UVT_2026;
+  const row = colombiaTariffUvt.find((item) => taxableUvt > item.lower);
+  const incomeTax = row ? ((taxableUvt - row.lower) * row.rate + row.fixed) * COLOMBIA_UVT_2026 : 0;
+  return { incomeTax, pension, health };
+}
+
+// アルゼンチン・2026年（居住者・単身の給与所得者）。年収は月給12か月分とSAC（13か月目の給与）の合計として扱い、月給＝年収÷13。
+// 本人負担：年金11%・PAMI 3%・社会保障医療3%。拠出の月額上限は物価連動で毎月改定され、11・12月分が未公表のため、
+// 月給が2026年1月の上限$3,823,372.95（ANSES決議381/2025）以下の場合だけ計算し、それを超える給与はnull（計算不能）を返します。
+// 所得税（Ganancias）：ARCAの2026年分の年間表（最低課税所得・特別控除（第30条c)2、4.8倍）と、その合計の1/12の加算）と第94条の年間税率表。
+// 家族控除・その他の控除は未反映です。
+export const ARGENTINA_MIN_VERIFIED_MONTHLY_CAP_2026 = 3_823_372.95;
+const ARGENTINA_PERSONAL_DEDUCTIONS_2026 = (6_019_671.36 + 28_894_422.56) * (13 / 12);
+const argentinaScale2026: TaxSlice[] = [
+  { limit: 2_168_491.89, rate: 0.05 }, { limit: 4_336_983.77, rate: 0.09 }, { limit: 6_505_475.65, rate: 0.12 }, { limit: 9_758_213.49, rate: 0.15 }, { limit: 19_516_426.99, rate: 0.19 },
+  { limit: 29_274_640.48, rate: 0.23 }, { limit: 43_911_960.73, rate: 0.27 }, { limit: 65_867_941.1, rate: 0.31 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
+];
+
+export function calculateArgentinaPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  if (gross / 13 > ARGENTINA_MIN_VERIFIED_MONTHLY_CAP_2026) return null;
+  const socialSecurity = gross * 0.17;
+  const incomeTax = taxFromAnnualBrackets(Math.max(0, gross - socialSecurity - ARGENTINA_PERSONAL_DEDUCTIONS_2026), argentinaScale2026);
+  // PAMI（高齢者医療）は医療保険として表示します。
+  return { incomeTax, pension: gross * 0.11, health: gross * 0.06 };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
+  if (city.taxSystem === "spain" && city.taxRegion !== "madrid") return "unavailable";
   if (city.taxSystem === "china" && !["beijing", "shanghai"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "canada" && !["britishColumbia", "ontario", "alberta", "quebec"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington", "massachusetts", "illinois", "districtOfColumbia"].includes(city.taxRegion)) return "unavailable";
@@ -485,6 +602,26 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
     const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "portugal") {
+    const { incomeTax, socialSecurity } = calculatePortugalPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (incomeTax + socialSecurity) / 12 };
+  }
+  if (city.taxSystem === "spain") {
+    const { stateTax, regionalTax, socialSecurity } = calculateSpainMadridPayroll(grossAnnual);
+    const totalTax = stateTax + regionalTax;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: stateTax / 12, residentTaxMonthly: regionalTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (totalTax + socialSecurity) / 12 };
+  }
+  if (city.taxSystem === "colombia") {
+    const { incomeTax, pension, health } = calculateColombiaPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
+  }
+  if (city.taxSystem === "argentina") {
+    // 拠出上限が未公表の月（11・12月）に影響する給与帯は計算しません。
+    const payroll = calculateArgentinaPayroll(grossAnnual);
+    if (payroll === null) return null;
+    const { incomeTax, pension, health } = payroll;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
   }
   if (city.taxSystem === "malaysia") {
     const { incomeTax, epf } = calculateMalaysiaPayroll(grossAnnual);

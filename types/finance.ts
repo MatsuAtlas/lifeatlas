@@ -47,7 +47,7 @@ export type TaxBreakdown = {
 };
 
 export type CalculationCity = {
-  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia" | "singapore" | "uae" | "hongKong" | "ireland" | "germany" | "thailand" | "china" | "philippines" | "vietnam" | "brazil" | "india" | "saudiArabia" | "netherlands" | "taiwan" | "indonesia" | "malaysia" | "estimate";
+  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia" | "singapore" | "uae" | "hongKong" | "ireland" | "germany" | "thailand" | "china" | "philippines" | "vietnam" | "brazil" | "india" | "saudiArabia" | "netherlands" | "taiwan" | "indonesia" | "malaysia" | "portugal" | "spain" | "colombia" | "argentina" | "estimate";
   taxRegion: string;
   insurance: InsuranceConfig;
   averageAnnualIncome: number;
