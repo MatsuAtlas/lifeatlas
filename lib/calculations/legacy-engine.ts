@@ -536,7 +536,8 @@ export function calculatePortugalPayroll(grossAnnual: number) {
 }
 
 // スペイン・マドリード州・2026年（居住者・単身、65歳未満、給与以外の所得なし）。社会保険（本人）：共通6.50%
-// （共通4.70%＋失業1.55%＋職業訓練0.10%＋MEI 0.15%、上限は月€5,101.20）と、上限超過分の連帯追加保険料（1.15/1.25/1.46%の本人負担分4.70/28.30）。
+// （共通4.70%＋失業1.55%＋職業訓練0.10%＋MEI 0.15%、上限は月€5,101.20）と、上限超過分の連帯追加保険料の本人負担
+// （1.15%／1.25%／1.46%のうち本人0.19%／0.21%／0.24%。Orden PJC/297/2026が明記する本人負担分）。
 // 所得税（IRPF）：給与−社会保険料−必要経費€2,000−勤労所得減額（第20条）を課税所得とし、国の税率表（第63条）と
 // マドリード州の税率表（州法第1条）でそれぞれ課税し、本人控除（国€5,550・州€5,956.65）に相当する税額を差し引きます。
 // 低所得の給与所得者の税額控除（追加規定第61条、2026年）を反映。州独自の税額控除（家賃など）は未反映です。
@@ -553,8 +554,8 @@ export function calculateSpainMadridPayroll(grossAnnual: number) {
   const monthly = gross / 12;
   const excess = Math.max(0, monthly - SPAIN_MAX_MONTHLY_BASE_2026);
   const solidarity = taxFromAnnualBrackets(excess, [
-    { limit: SPAIN_MAX_MONTHLY_BASE_2026 * 0.1, rate: 0.0115 }, { limit: SPAIN_MAX_MONTHLY_BASE_2026 * 0.5, rate: 0.0125 }, { limit: Number.POSITIVE_INFINITY, rate: 0.0146 },
-  ]) * (4.7 / 28.3);
+    { limit: SPAIN_MAX_MONTHLY_BASE_2026 * 0.1, rate: 0.0019 }, { limit: SPAIN_MAX_MONTHLY_BASE_2026 * 0.5, rate: 0.0021 }, { limit: Number.POSITIVE_INFINITY, rate: 0.0024 },
+  ]);
   const socialSecurity = (Math.min(monthly, SPAIN_MAX_MONTHLY_BASE_2026) * 0.065 + solidarity) * 12;
   const netWork = gross - socialSecurity;
   const reduction = netWork <= 14_852 ? 7_302
