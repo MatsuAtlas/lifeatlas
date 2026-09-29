@@ -268,19 +268,24 @@ export function calculateGermanyPayroll(grossAnnual: number, household: keyof ty
 
 // オランダ・2026年（AOW年齢未満の居住者、給与所得者）。Box 1は€38,883まで35.75%（所得税8.10%＋国民保険27.65%）、
 // €78,426まで37.56%、それを超える部分は49.50%。ここから一般税額控除（最大€3,115、€29,736超で超過分の6.398%ずつ減り
-// €78,426以上で0）と労働税額控除（最大€5,685、€45,592超で超過分の6.51%ずつ減る）を差し引きます。
-// 労働税額控除の€45,592以下の積み上げ区間は公式表の原文を確認できていないため、この範囲の給与ではnull（計算不能）を返します。
+// €78,426以上で0）と労働税額控除（Tabel arbeidskorting 2026の5区間）を差し引きます。
 // 30%ルール（外国人専門職の非課税手当）と年金基金の掛金は未反映。基礎医療保険の定額保険料は生活費側で扱います。
-export const NETHERLANDS_MIN_VERIFIED_LABOR_INCOME = 45_592;
+export function netherlandsLabourCredit2026(labourIncome: number) {
+  const x = Math.max(0, labourIncome);
+  if (x <= 11_965) return x * 0.08324;
+  if (x <= 25_845) return 996 + (x - 11_965) * 0.31009;
+  if (x <= 45_592) return 5_300 + (x - 25_845) * 0.0195;
+  if (x <= 132_920) return Math.max(0, 5_685 - (x - 45_592) * 0.0651);
+  return 0;
+}
 
 export function calculateNetherlandsPayroll(grossAnnual: number) {
   const gross = Math.max(0, grossAnnual);
-  if (gross < NETHERLANDS_MIN_VERIFIED_LABOR_INCOME) return null;
   const box1 = taxFromAnnualBrackets(gross, [
     { limit: 38_883, rate: 0.3575 }, { limit: 78_426, rate: 0.3756 }, { limit: Number.POSITIVE_INFINITY, rate: 0.495 },
   ]);
   const generalCredit = gross >= 78_426 ? 0 : Math.max(0, 3_115 - Math.max(0, gross - 29_736) * 0.06398);
-  const labourCredit = Math.max(0, 5_685 - (gross - NETHERLANDS_MIN_VERIFIED_LABOR_INCOME) * 0.0651);
+  const labourCredit = netherlandsLabourCredit2026(gross);
   // 税額控除はBox 1の税額（所得税＋国民保険料）を超えて還付されません。
   const box1AfterCredits = Math.max(0, box1 - generalCredit - labourCredit);
   return { box1, generalCredit, labourCredit, box1AfterCredits };
@@ -386,6 +391,48 @@ export function calculateTaiwanPayroll(grossAnnual: number) {
     { limit: 610_000, rate: 0.05 }, { limit: 1_380_000, rate: 0.12 }, { limit: 2_770_000, rate: 0.2 }, { limit: 5_190_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.4 },
   ]);
   return { incomeTax, laborInsurance, healthInsurance };
+}
+
+// 韓国・2026年（居住者・単身の給与所得者）。社会保険（本人負担）：国民年金4.75%（料率9.5%の半分。基準所得月額は1〜6月が
+// 40万〜637万ウォン、7〜12月が41万〜659万ウォン）、健康保険3.595%（7.19%の半分）、長期療養保険は健康保険料×0.9448/7.19、
+// 雇用保険0.9%（失業給付1.8%の半分）。所得税＝(総給与−勤労所得控除（上限2,000万）−基本控除150万−年金保険料−健康・長期療養・
+// 雇用保険料)に基本税率を掛け、勤労所得税額控除を差し引きます。保険料の特別所得控除を申請するため標準税額控除（13万）は使いません。
+// 地方所得税は所得税の10%。非課税手当（食事代など）、健康保険料の上下限、扶養家族、その他の所得・税額控除は未反映です。
+export function koreaEarnedIncomeDeduction2026(totalSalary: number) {
+  const x = Math.max(0, totalSalary);
+  const deduction = x <= 5_000_000 ? x * 0.7
+    : x <= 15_000_000 ? 3_500_000 + (x - 5_000_000) * 0.4
+      : x <= 45_000_000 ? 7_500_000 + (x - 15_000_000) * 0.15
+        : x <= 100_000_000 ? 12_000_000 + (x - 45_000_000) * 0.05
+          : 14_750_000 + (x - 100_000_000) * 0.02;
+  return Math.min(deduction, 20_000_000, x);
+}
+
+export function koreaEarnedIncomeTaxCredit2026(calculatedTax: number, totalSalary: number) {
+  const credit = calculatedTax <= 1_300_000 ? calculatedTax * 0.55 : 715_000 + (calculatedTax - 1_300_000) * 0.3;
+  const cap = totalSalary <= 33_000_000 ? 740_000
+    : totalSalary <= 70_000_000 ? Math.max(660_000, 740_000 - (totalSalary - 33_000_000) * 0.008)
+      : totalSalary <= 120_000_000 ? Math.max(500_000, 660_000 - (totalSalary - 70_000_000) / 2)
+        : Math.max(200_000, 500_000 - (totalSalary - 120_000_000) / 2);
+  return Math.min(credit, cap);
+}
+
+export function calculateKoreaPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const monthly = gross / 12;
+  const pension = monthly > 0 ? (Math.min(Math.max(monthly, 400_000), 6_370_000) * 6 + Math.min(Math.max(monthly, 410_000), 6_590_000) * 6) * 0.0475 : 0;
+  const health = gross * 0.03595;
+  const longTermCare = health * 0.9448 / 7.19;
+  const employment = gross * 0.009;
+  const earnedIncome = gross - koreaEarnedIncomeDeduction2026(gross);
+  const taxable = Math.max(0, earnedIncome - 1_500_000 - pension - health - longTermCare - employment);
+  const calculatedTax = taxFromAnnualBrackets(taxable, [
+    { limit: 14_000_000, rate: 0.06 }, { limit: 50_000_000, rate: 0.15 }, { limit: 88_000_000, rate: 0.24 }, { limit: 150_000_000, rate: 0.35 },
+    { limit: 300_000_000, rate: 0.38 }, { limit: 500_000_000, rate: 0.4 }, { limit: 1_000_000_000, rate: 0.42 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 },
+  ]);
+  const incomeTax = Math.max(0, calculatedTax - koreaEarnedIncomeTaxCredit2026(calculatedTax, gross));
+  const localIncomeTax = incomeTax * 0.1;
+  return { incomeTax, localIncomeTax, pension, health: health + longTermCare, employment };
 }
 
 // インドネシア・2026年（居住者・単身、PTKP Rp54,000,000）。従業員の社会保険：JHT 2%（上限なし）、JP 1%（月額上限は1〜2月Rp10,547,400、
@@ -631,6 +678,12 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     const { incomeTax, pension, health } = calculateIndonesiaPayroll(grossAnnual);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
   }
+  if (city.taxSystem === "korea") {
+    const { incomeTax, localIncomeTax, pension, health, employment } = calculateKoreaPayroll(grossAnnual);
+    const totalTax = incomeTax + localIncomeTax;
+    const totalInsurance = pension + health + employment;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: localIncomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: employment / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
+  }
   if (city.taxSystem === "taiwan") {
     const { incomeTax, laborInsurance, healthInsurance } = calculateTaiwanPayroll(grossAnnual);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: healthInsurance / 12, pensionMonthly: laborInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (laborInsurance + healthInsurance) / 12, totalDeductionsMonthly: (incomeTax + laborInsurance + healthInsurance) / 12 };
@@ -662,9 +715,9 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: usc / 12, pensionMonthly: prsi / 12, totalTaxMonthly: (incomeTax + usc) / 12, totalInsuranceMonthly: prsi / 12, totalDeductionsMonthly: (incomeTax + usc + prsi) / 12 };
   }
   if (city.taxSystem === "netherlands") {
-    // 未確認の区間（労働所得€45,592未満）とAOW年齢の可能性がある65歳以上は計算しません。
-    const payroll = ageBand === "65plus" ? null : calculateNetherlandsPayroll(grossAnnual);
-    if (payroll === null) return null;
+    // 年齢帯からAOW年齢（2026年は67歳）以上かを判定できないため、65歳以上は計算しません。
+    if (ageBand === "65plus") return null;
+    const payroll = calculateNetherlandsPayroll(grossAnnual);
     // Box 1は所得税と国民保険料を一体で課税し、税額控除も合算額から差し引くため、1行の税額として示します。
     const levy = payroll.box1AfterCredits;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: levy / 12, totalTaxMonthly: levy / 12, totalDeductionsMonthly: levy / 12 };
@@ -749,7 +802,9 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "italy") {
     const pension = grossAnnual * city.insurance.pensionRateEmployee + Math.min(Math.max(0, grossAnnual - 56_224), 66_071) * 0.01;
     const taxableIncome = Math.max(0, grossAnnual - pension);
-    const nationalTax = taxFromAnnualBrackets(taxableIncome, [{ limit: 15_000, rate: 0.23 }, { limit: 28_000, rate: 0.33 }, { limit: Number.POSITIVE_INFINITY, rate: 0.43 }]);
+    // IRPEF 2026（2026年予算法で第2段階を35%→33%に引き下げ）：€28,000まで23%、€50,000まで33%、超過分43%。
+    // 給与所得者の税額控除（detrazioni）と税負担軽減措置（cuneo fiscale）は未反映。
+    const nationalTax = taxFromAnnualBrackets(taxableIncome, [{ limit: 28_000, rate: 0.23 }, { limit: 50_000, rate: 0.33 }, { limit: Number.POSITIVE_INFINITY, rate: 0.43 }]);
     // 地方税：ローマ（ラツィオ州）は州・市の合計2.63%の固定概算。ミラノはロンバルディア州の累進税率
     // （1.23/1.58/1.72/1.73%）と、課税所得€23,000超で所得全体にかかる市税0.8%。
     const localTax = city.taxRegion === "lombardy"
