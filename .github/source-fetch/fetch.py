@@ -22,7 +22,7 @@ for url in [line.strip() for line in open(sys.argv[1]) if line.strip() and not l
     print(f"\n===== BEGIN {url}", flush=True)
     signal.alarm(45)
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (LifeAtlas source check)"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (LifeAtlas source check)", "Accept": "application/xml" if "datosabiertos" in url else "text/html,application/xhtml+xml,*/*"})
         body = urllib.request.urlopen(req, timeout=30).read()
         if url.lower().endswith(".pdf") or body[:4] == b"%PDF":
             from pypdf import PdfReader

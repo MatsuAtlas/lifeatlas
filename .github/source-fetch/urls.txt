@@ -1,9 +1,5 @@
 https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOCM-m-2010-90068/texto/bloque/a1
-https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOCM-m-2010-90068/texto/bloque/a2
-https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOCM-m-2010-90068/metadatos
 https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2006-20764/texto/bloque/a63
 https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2006-20764/texto/bloque/a57
-https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2006-20764/texto/bloque/a19
-https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2006-20764/texto/bloque/a20
-https://www.comunidad.madrid/transparencia/anteproyecto-ley-reduccion-escala-comunidad-madrid-irpf-que-se-modifica-texto-refundido
+https://www.boe.es/buscar/act.php?id=BOCM-m-2010-90068
 https://www.boe.es/diario_boe/txt.php?id=BOE-A-2026-7296
