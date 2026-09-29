@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateColombiaPayroll, calculateArgentinaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -459,6 +459,72 @@ test("Malaysia 2026 applies the LHDN MTD table with the RM400 rebate and the for
   // 年RM600,000：EPF控除は上限RM4,000、課税所得587,000 → 187,000×26%＋84,400
   close(calculateMalaysiaPayroll(600_000).incomeTax, 187_000 * 0.26 + 84_400);
   assert.equal(taxCalculationStatus(cities.kualaLumpur), "official-rate-estimate");
+});
+
+test("Portugal 2026 applies the CIRS brackets, the specific deduction, the minimum-existence rule and the €250 credit", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // €28,000：社会保険3,080、給与所得控除IAS×8.54＝4,587.0902、課税所得23,412.9098
+  const middle = calculatePortugalPayroll(28_000);
+  close(middle.socialSecurity, 3_080);
+  close(middle.incomeTax, 8_342 * 0.125 + 4_245 * 0.157 + 5_251 * 0.212 + 5_251 * 0.241 + (28_000 - 537.13 * 8.54 - 23_089) * 0.311 - 250);
+  // €12,880（参照額）：最低生活保障で課税所得は€2,000になり、€250の税額控除で0
+  close(calculatePortugalPayroll(12_880).incomeTax, 0);
+  // €14,000：参照額〜Lの区間。控除額＝12,880−2.6×1,120−(4,587.0902＋2,000)、課税所得6,032
+  close(calculatePortugalPayroll(14_000).incomeTax, 6_032 * 0.125 - 250);
+  // €120,000：課税所得106,800。€86,634までの税額30,197.047に48%、€80,000超の連帯付加税2.5%
+  close(calculatePortugalPayroll(120_000).incomeTax, 30_197.047 + 20_166 * 0.48 - 250 + 26_800 * 0.025);
+  assert.equal(taxCalculationStatus(cities.lisbon), "official-rate-estimate");
+});
+
+test("Madrid 2026 applies the state and Madrid scales, the work reduction and the low-earner credit", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // €34,000：社会保険6.5%＝2,210、課税所得29,790
+  const middle = calculateSpainMadridPayroll(34_000);
+  close(middle.socialSecurity, 2_210);
+  close(middle.stateTax, 1_182.75 + 7_750 * 0.12 + 9_590 * 0.15 - 5_550 * 0.095);
+  close(middle.regionalTax, 13_362.22 * 0.085 + 5_642.41 * 0.107 + (29_790 - 19_004.63) * 0.128 - 5_956.65 * 0.085);
+  // €18,000：勤労所得減額7,302−1.75×1,978、課税所得10,989.5。国の税額516.75から税額控除590.89−0.2×906を差し引く
+  const low = calculateSpainMadridPayroll(18_000);
+  close(low.stateTax, (10_989.5 - 5_550) * 0.095 - (590.89 - 0.2 * 906));
+  close(low.regionalTax, (10_989.5 - 5_956.65) * 0.085);
+  // €100,000：上限€5,101.20超の部分に連帯追加保険料（本人負担4.70/28.30）
+  const excess = 100_000 / 12 - 5_101.2;
+  close(calculateSpainMadridPayroll(100_000).socialSecurity, (5_101.2 * 0.065 + (510.12 * 0.0115 + 2_040.48 * 0.0125 + (excess - 2_550.6) * 0.0146) * 4.7 / 28.3) * 12);
+  assert.equal(taxCalculationStatus(cities.madrid), "official-rate-estimate");
+});
+
+test("Colombia 2026 applies Law 100 contributions, the 25% exemption capped at 790 UVT and the article 241 table", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1, `${actual} != ${expected}`);
+  // 月$10,000,000（最低賃金の5.7倍）：年金4%＋連帯基金1%、医療4%。課税所得81,900,000＝1,563.75 UVT
+  const middle = calculateColombiaPayroll(120_000_000);
+  close(middle.pension, 6_000_000);
+  close(middle.health, 4_800_000);
+  close(middle.incomeTax, (81_900_000 / 52_374 - 1_090) * 0.19 * 52_374);
+  // 月$50,000,000：基礎は最低賃金25倍が上限、連帯基金2%。25%非課税は790 UVTまで
+  const high = calculateColombiaPayroll(600_000_000);
+  const base = 25 * 1_750_905;
+  close(high.pension, base * 0.06 * 12);
+  const taxable = 600_000_000 - base * 0.1 * 12 - 790 * 52_374;
+  close(high.incomeTax, ((taxable / 52_374 - 8_670) * 0.35 + 2_296) * 52_374);
+  assert.equal(calculateColombiaPayroll(60_000_000).incomeTax, 0);
+  assert.equal(taxCalculationStatus(cities.bogota), "official-rate-estimate");
+});
+
+test("Argentina 2026 uses ARCA's annual tables and stays unavailable above the lowest published contribution cap", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 年$49,000,000（月給3,769,231）：拠出17%、控除(6,019,671.36＋28,894,422.56)×13/12
+  const payroll = calculateArgentinaPayroll(49_000_000);
+  assert.ok(payroll);
+  close(payroll.pension + payroll.health, 49_000_000 * 0.17);
+  const taxable = 49_000_000 * 0.83 - (6_019_671.36 + 28_894_422.56) * 13 / 12;
+  close(payroll.incomeTax, 108_424.59 + (taxable - 2_168_491.89) * 0.09);
+  assert.equal(calculateArgentinaPayroll(12_000_000)?.incomeTax, 0);
+  // 月給が1月の上限$3,823,372.95を超えると、未公表の11・12月の上限に左右されるため計算不能
+  assert.equal(calculateArgentinaPayroll(50_000_000), null);
+  const result = calculateCity(cities.buenosAires, 50_000_000, "single", "onebed", "balanced", "under40");
+  assert.equal(result.taxCalculationStatus, "unavailable");
+  assert.equal(result.netMonthly, null);
+  assert.equal(taxCalculationStatus(cities.buenosAires), "official-rate-estimate");
 });
 
 test("Edinburgh uses the 2026-27 Scottish income tax bands with UK National Insurance", () => {
