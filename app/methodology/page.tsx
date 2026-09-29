@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { cityOrder } from "../../data/cities";
 import { CALCULATION_VERSION } from "../../lib/calculations/calculate-scenario";
 import { LIFE_ATLAS_SCORE_WEIGHTS } from "../../lib/scoring/life-atlas-score";
+
+const CITY_COUNT = cityOrder.length;
 
 export const metadata: Metadata = {
   title: "Calculation methodology | Life Atlas",
@@ -29,7 +32,7 @@ export default async function MethodologyPage({ searchParams }: { searchParams: 
     toolsTitle: "What-If, break-even and AI",
     toolsText: "What-If reruns the same engine after explicit changes. Break-even searches for the salary at which the chosen metric matches the winner. AI receives structured results only and cannot alter calculations or invent missing tax data.",
     warning: "Results are estimates and do not fully reflect individual deductions, immigration status, benefits, private insurance or professional advice. Check current official sources before acting.",
-    data: "See all 50 cities and data coverage",
+    data: `See all ${CITY_COUNT} cities and data coverage`,
     analyze: "Open Offer Analyzer",
   } : {
     eyebrow: "計算方法",
@@ -48,7 +51,7 @@ export default async function MethodologyPage({ searchParams }: { searchParams: 
     toolsTitle: "What-If・逆転給与・AI",
     toolsText: "What-Ifは変更条件で同じエンジンを再実行します。逆転給与は指定指標が首位に並ぶ給与を探索します。AIは構造化済み結果だけを受け取り、計算の変更や未整備税制の創作はできません。",
     warning: "結果は概算です。個別控除、在留資格、福利厚生、任意保険などを完全には反映せず、専門助言ではありません。行動前に最新の公式資料を確認してください。",
-    data: "50都市のデータ範囲を見る",
+    data: `${CITY_COUNT}都市のデータ範囲を見る`,
     analyze: "Offer Analyzerを開く",
   };
 

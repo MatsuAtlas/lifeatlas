@@ -19,12 +19,17 @@ LifeAtlasは、複数の仕事・移住候補のうち「どれを選ぶべき�
 
 ## アーキテクチャ
 - Next.js 16 App Router + React 19 + TypeScript。本番はVercel。`vercel.json` の `git.deploymentEnabled` で `main` だけを自動デプロイし、他のブランチのプレビューは作らない。旧公開先OpenAI Sites向けのファイル（`.openai/`、`worker/`、`vite.config.ts`）は移行完了まで残している。
-- `data/cities.ts`（50都市・静的・出典付き）、`data/currencies.ts`（保存参考為替）
+- `data/cities.ts`（71都市・静的・出典付き）、`data/currencies.ts`（保存参考為替）
 - `lib/scoring/life-atlas-score.ts`（財務45・暮らし20・優先軸25・信頼度10、決定的な順位）
 - `lib/calculations/what-if.ts`、`break-even.ts`（What-Ifの条件変更は `buildWhatIfChanges` を画面とAIで共用）
 - `lib/billing/entitlements.ts` に権限判定を集約。プラン名の判定をUIへ散らさない。Pro機能はAPI側でも確認する。
 - Supabaseは `lib/supabase-server.ts` からRESTで利用。RLSを緩めない。service roleキーはサーバー専用。
 - 主要UIは `app/page.tsx` と `components/offer-analyzer/offer-analyzer.tsx`（大きいが、全面リファクタリングはしない。必要な範囲だけ抽出する）。
+
+## デザイン原則（研究機関のレポート型）
+- 紙のような背景・細い罫線・控えめなアクセント（深緑）・見出しは明朝／セリフ、数値は等幅数字。写真・グラデーション・強い影・大きな角丸は使わない。
+- 最初に見せるのは雰囲気ではなく「結論・主要指標・出典」。数値はカタログから計算し、手入力の宣伝用数字を載せない。
+- 既定はライトテーマ。ダークテーマは同じ構成で色だけを切り替える。テーマの色は `app/globals.css` 末尾の Research theme の変数で管理する。
 
 ## コマンド
 ```bash
@@ -42,6 +47,11 @@ UI変更はビルド成功だけで完了扱いにせず、実際の描画（日
 - force push・履歴の書き換え・ユーザーデータ削除はしない。
 - 本番設定は `GET /api/operations/diagnostics?probe=1`（Bearerトークン必須）で確認し、推測で「設定済み」と言わない。
 - 新しい依存は既存スタックで代替できない場合だけ追加する。
+
+## 作業範囲の制限（オーナーの明示指示・最優先）
+- LifeAtlasのリポジトリのフォルダ以外は開かない・読まない・変更しない。オーナーのMacで作業するときも、ホーム・書類・デスクトップ・ダウンロード・iCloud・他のリポジトリを一覧・検索しない。
+- 大学関係のファイル・アカウント・フォルダ（大学のメール、LMS、大学のGoogle/Microsoft/GitHubなど）には絶対に触れない。
+- VercelはLifeAtlas用のプロジェクト（チーム life-atlas1 / プロジェクト lifeatlas）だけ、Supabase・StripeもLifeAtlas用のものだけを操作する。どれか判別できないときは推測せずオーナーに聞く。
 
 ## 運用体制（オーナーは監督役）
 オーナーは作業者ではなく監督役（ストッパー）です。実装・検証・PR作成・CI対応・マージ・本番確認はClaudeが自律的に進め、オーナーには結果だけを短く報告します。

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateColombiaPayroll, calculateArgentinaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -41,9 +41,9 @@ function city(overrides: Partial<CalculationCity>): CalculationCity {
   };
 }
 
-test("keeps the complete 50-city catalog available to every product surface", () => {
-  assert.equal(cityOrder.length, 50);
-  assert.equal(new Set(cityOrder).size, 50);
+test("keeps the complete 71-city catalog available to every product surface", () => {
+  assert.equal(cityOrder.length, 71);
+  assert.equal(new Set(cityOrder).size, 71);
   assert.deepEqual(Object.keys(cities).sort(), [...cityOrder].sort());
   for (const cityId of cityOrder) {
     assert.equal(cities[cityId].id, cityId);
@@ -164,4 +164,403 @@ test("Ireland 2026 payroll tax applies bands, credits, USC and time-weighted PRS
   // €20,000（週€384.62）はPRSIクレジットが一部残る
   close(calculateIrelandPayrollTax(20_000).prsi, (20_000 / 52 * 0.042375 - (12 - (20_000 / 52 - 352) / 6)) * 52);
   assert.equal(taxCalculationStatus(cities.dublin), "official-rate-estimate");
+});
+
+test("Netherlands 2026 Box 1 applies bands and both tax credits, and stays unavailable for ages that may be past the AOW age", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // €60,000：Box 1 38,883×35.75%＋21,117×37.56%＝21,832.22、一般控除 3,115−30,264×6.398%＝1,178.71、
+  // 労働控除 5,685−14,408×6.51%＝4,747.04 → 15,906.47
+  const middle = calculateNetherlandsPayroll(60_000);
+  assert.ok(middle);
+  close(middle.box1, 21_832.2177);
+  close(middle.generalCredit, 1_178.70928);
+  close(middle.labourCredit, 4_747.0392);
+  close(middle.box1AfterCredits, 15_906.46922);
+  // €100,000：49.50%帯、€78,426以上で一般控除0、労働控除 5,685−54,408×6.51%＝2,143.04
+  const high = calculateNetherlandsPayroll(100_000);
+  assert.ok(high);
+  close(high.box1, 39_432.1533);
+  assert.equal(high.generalCredit, 0);
+  close(high.labourCredit, 2_143.0392);
+  close(high.box1AfterCredits, 37_289.1141);
+  // 労働控除は負にならない（€140,000では0）
+  assert.equal(calculateNetherlandsPayroll(140_000)?.labourCredit, 0);
+  // €45,592ちょうどは労働控除が最大€5,685（3区間目の上限）
+  const boundary = calculateNetherlandsPayroll(45_592);
+  close(boundary.labourCredit, 5_685.0665);
+  close(boundary.generalCredit, 2_100.53312);
+  // 労働控除の積み上げ区間（Tabel arbeidskorting 2026）
+  close(netherlandsLabourCredit2026(10_000), 832.4);
+  close(netherlandsLabourCredit2026(11_965), 995.9666);
+  close(netherlandsLabourCredit2026(20_000), 996 + 8_035 * 0.31009);
+  close(netherlandsLabourCredit2026(25_845), 996 + 13_880 * 0.31009);
+  close(netherlandsLabourCredit2026(30_000), 5_381.0225);
+  assert.equal(netherlandsLabourCredit2026(132_921), 0);
+  // €30,000：Box 1 10,725、一般控除 3,115−264×6.398%＝3,098.11、労働控除 5,300＋4,155×1.95%＝5,381.02 → 2,245.87
+  close(calculateNetherlandsPayroll(30_000).box1AfterCredits, 2_245.86822);
+  // €10,000：控除合計がBox 1の税額を超えるため0（還付しない）
+  assert.equal(calculateNetherlandsPayroll(10_000).box1AfterCredits, 0);
+
+  const amsterdam = cities.amsterdam;
+  assert.equal(taxCalculationStatus(amsterdam), "official-rate-estimate");
+  const result = calculateCity(amsterdam, 60_000, "single", "onebed", "balanced", "under40");
+  close(result.taxMonthly ?? Number.NaN, 15_906.46922 / 12);
+  close(result.netMonthly ?? Number.NaN, (60_000 - 15_906.46922) / 12);
+  assert.equal(result.calculationUnavailableReason, null);
+  close(calculateCity(amsterdam, 30_000, "single", "onebed", "balanced", "under40").taxMonthly ?? Number.NaN, 2_245.86822 / 12);
+  // AOW年齢（67歳）以上かを年齢帯から判定できない65歳以上は、推測せず計算不能にします。
+  for (const unavailable of [calculateCity(amsterdam, 60_000, "single", "onebed", "balanced", "65plus")]) {
+    assert.equal(unavailable.taxBreakdown, null);
+    assert.equal(unavailable.netMonthly, null);
+    assert.equal(unavailable.taxCalculationStatus, "unavailable");
+    assert.equal(unavailable.calculationUnavailableReason, "tax");
+  }
+  assert.ok(amsterdam.dataSources.some((item) => /Life Atlas保存参考値/.test(item.source)));
+  assert.ok(amsterdam.dataSources.some((item) => item.url.includes("tabel-arbeidskorting-2026")));
+});
+
+test("Korea 2026 payroll applies the earned-income deduction, basic deduction, premiums, tax credit and 10% local income tax", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 勤労所得控除の各区間と上限2,000万ウォン
+  close(koreaEarnedIncomeDeduction2026(5_000_000), 3_500_000);
+  close(koreaEarnedIncomeDeduction2026(20_000_000), 8_250_000);
+  close(koreaEarnedIncomeDeduction2026(55_000_000), 12_500_000);
+  close(koreaEarnedIncomeDeduction2026(100_000_000), 14_750_000);
+  assert.equal(koreaEarnedIncomeDeduction2026(1_000_000_000), 20_000_000);
+  // 勤労所得税額控除：130万以下は55%、上限は総給与で74万→66万→50万→20万
+  close(koreaEarnedIncomeTaxCredit2026(1_000_000, 30_000_000), 550_000);
+  close(koreaEarnedIncomeTaxCredit2026(4_000_000, 30_000_000), 740_000);
+  close(koreaEarnedIncomeTaxCredit2026(4_000_000, 55_000_000), 660_000);
+  close(koreaEarnedIncomeTaxCredit2026(10_000_000, 100_000_000), 500_000);
+  close(koreaEarnedIncomeTaxCredit2026(30_000_000, 200_000_000), 200_000);
+  // 5,500万ウォン：年金 55,000,000×4.75%＝2,612,500、健康 1,977,250＋長期療養 275,000×0.9448＝259,820、雇用 495,000。
+  // 課税標準 42,500,000−1,500,000−2,612,500−2,237,070−495,000＝35,655,430 → 算出税額 840,000＋21,655,430×15%＝4,088,314.5、
+  // 税額控除は上限66万 → 所得税 3,428,314.5、地方所得税 342,831.45
+  const middle = calculateKoreaPayroll(55_000_000);
+  close(middle.pension, 2_612_500);
+  close(middle.health, 2_237_070);
+  close(middle.employment, 495_000);
+  close(middle.incomeTax, 3_428_314.5);
+  close(middle.localIncomeTax, 342_831.45);
+  // 1億ウォン：年金は基準所得月額の上限（1〜6月637万、7〜12月659万）、24%帯、税額控除は最低50万
+  const high = calculateKoreaPayroll(100_000_000);
+  close(high.pension, (6_370_000 + 6_590_000) * 6 * 0.0475);
+  close(high.incomeTax, 6_240_000 + (75_089_000 - 50_000_000) * 0.24 - 500_000);
+  // 2,000万ウォン：6%帯、税額控除55%
+  close(calculateKoreaPayroll(20_000_000).incomeTax, 8_306_520 * 0.06 * 0.45);
+  assert.deepEqual(calculateKoreaPayroll(0), { incomeTax: 0, localIncomeTax: 0, pension: 0, health: 0, employment: 0 });
+
+  const seoul = cities.seoul;
+  assert.equal(taxCalculationStatus(seoul), "official-rate-estimate");
+  const result = calculateCity(seoul, 55_000_000, "single", "onebed", "balanced", "under40");
+  close(result.taxMonthly ?? Number.NaN, (3_428_314.5 + 342_831.45 + 2_612_500 + 2_237_070 + 495_000) / 12);
+  assert.equal(result.calculationUnavailableReason, null);
+  assert.ok(seoul.dataSources.some((item) => /Life Atlas保存参考値/.test(item.source)));
+  assert.ok(seoul.dataSources.some((item) => item.url.startsWith("https://www.law.go.kr/")));
+});
+
+test("Massachusetts, Illinois and DC 2026 state income tax is added to the federal tax", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  const incomeTax = (cityId: "boston" | "chicago" | "washingtonDc", gross: number) => (calculateCity(cities[cityId], gross, "single", "onebed", "balanced", "under40").taxBreakdown?.incomeTaxMonthly ?? 0) * 12;
+  // 連邦（$100,000・標準控除$16,100）：1,240+4,560+7,370=13,170
+  close(incomeTax("boston", 100_000), 13_170 + (100_000 - 4_400) * 0.05);
+  close(incomeTax("chicago", 100_000), 13_170 + (100_000 - 2_925) * 0.0495);
+  close(incomeTax("washingtonDc", 100_000), 13_170 + 400 + 1_800 + 1_300 + 23_900 * 0.085);
+  // イリノイは連邦AGI$250,000超で控除なし。マサチューセッツは課税所得$1,107,750超に4%加算。
+  const federal300k = incomeTax("chicago", 300_000) - 300_000 * 0.0495;
+  close(incomeTax("boston", 300_000) - federal300k, (300_000 - 4_400) * 0.05);
+  const federal2m = incomeTax("chicago", 2_000_000) - 2_000_000 * 0.0495;
+  close(incomeTax("boston", 2_000_000) - federal2m, 1_995_600 * 0.05 + (1_995_600 - 1_107_750) * 0.04);
+  for (const cityId of ["boston", "chicago", "washingtonDc"] as const) assert.equal(taxCalculationStatus(cities[cityId]), "official-rate-estimate");
+});
+
+test("Alberta 2026 provincial tax uses the 8% first bracket and an 8% basic personal credit", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  const incomeTax = (gross: number) => (calculateCity(cities.calgary, gross, "single", "onebed", "balanced", "under40").taxBreakdown?.incomeTaxMonthly ?? 0) * 12;
+  // 連邦（$100,000・基礎控除$16,452）：58,523×14% + 25,025×20.5% = 13,323.345
+  // 州：61,200×8% + 38,800×10% − 22,769×8% = 6,954.48
+  close(incomeTax(100_000), 13_323.345 + 6_954.48);
+  // $300,000：4,896 + 9,305.9 + 3,702.24 + 8,021.26 + 7,446.18 − 1,821.52 = 31,550.06
+  const federal300k = 8_193.22 + (117_045 - 58_523) * 0.205 + (181_440 - 117_045) * 0.26 + (258_482 - 181_440) * 0.29 + (300_000 - 16_452 - 258_482) * 0.33;
+  close(incomeTax(300_000), federal300k + 31_550.06);
+  // 基礎控除以下では州税0
+  close(incomeTax(20_000), (20_000 - 16_452) * 0.14);
+  assert.equal(taxCalculationStatus(cities.calgary), "official-rate-estimate");
+});
+
+test("Quebec 2026 applies the federal abatement, Quebec brackets, QPP, Quebec EI and QPIP", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  const breakdown = calculateCity(cities.montreal, 100_000, "single", "onebed", "balanced", "under40").taxBreakdown;
+  // 連邦基本税13,323.345×(1−16.5%)＋州税（7,608.3＋8,674.45−18,952×14%）
+  close((breakdown?.incomeTaxMonthly ?? 0) * 12, 13_323.345 * 0.835 + 13_629.47);
+  // QPP：上限4,479.30＋QPP2 10,400×4%＝416
+  close((breakdown?.pensionMonthly ?? 0) * 12, 4_895.3);
+  // EI（ケベック上限895.70）＋QPIP 100,000×0.455%
+  close((breakdown?.employmentInsuranceMonthly ?? 0) * 12, 895.7 + 455);
+  assert.equal(taxCalculationStatus(cities.montreal), "official-rate-estimate");
+});
+
+test("Germany 2026 applies the §32a tariff, solidarity surcharge and capped social insurance", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 税率表の各区間
+  assert.equal(germanIncomeTax2026(12_348), 0);
+  assert.equal(germanIncomeTax2026(46_674), 9_399);
+  assert.equal(germanIncomeTax2026(131_770), 44_207);
+  // €60,000・子どもなし：年金5,580、失業780、医療5,250、介護1,440。課税所得 60,000−1,266−(5,580+5,040+1,440)=46,674
+  const middle = calculateGermanyPayroll(60_000, "single");
+  close(middle.pension, 5_580);
+  close(middle.unemployment, 780);
+  close(middle.health, 5_250);
+  close(middle.care, 1_440);
+  assert.equal(middle.incomeTax, 9_399);
+  assert.equal(middle.solidarity, 0);
+  // €150,000：上限額が効き、所得税44,207、連帯付加税 44,207×5.5%
+  const high = calculateGermanyPayroll(150_000, "single");
+  close(high.pension, 101_400 * 0.093);
+  close(high.health, 69_750 * 0.0875);
+  assert.equal(high.incomeTax, 44_207);
+  close(high.solidarity, 44_207 * 0.055);
+  // 子ども2人は介護保険料率1.55%
+  close(calculateGermanyPayroll(60_000, "family").care, 60_000 * 0.0155);
+  assert.equal(taxCalculationStatus(cities.berlin), "official-rate-estimate");
+});
+
+test("Thailand 2026 caps social security at 875 baht a month and applies the progressive rates", () => {
+  // ฿1,200,000：社会保険 875×12=10,500、課税所得 1,200,000−100,000−60,000−10,500=1,029,500
+  // 税額 7,500+20,000+37,500+50,000+29,500×25%=122,375
+  assert.deepEqual(calculateThailandPayroll(1_200_000), { incomeTax: 122_375, socialSecurity: 10_500 });
+  // ฿300,000：課税所得129,500は非課税枠内
+  assert.deepEqual(calculateThailandPayroll(300_000), { incomeTax: 0, socialSecurity: 10_500 });
+  // 月給฿10,000は上限未満：社会保険は5%
+  assert.equal(calculateThailandPayroll(120_000).socialSecurity, 6_000);
+  assert.equal(taxCalculationStatus(cities.bangkok), "official-rate-estimate");
+});
+
+test("China 2026 uses city contribution bases (time-weighted) and the comprehensive income tax table", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 北京¥600,000（上限超）：(35,811×10.5%+3)×6 + (36,348×10.5%+3)×6 = 45,496.17
+  const beijing = calculateChinaPayroll(600_000, "beijing");
+  close(beijing.socialInsurance, 45_496.17);
+  // 課税所得494,503.83：1,080+10,800+31,200+30,000+74,503.83×30%
+  close(beijing.incomeTax, 95_431.149);
+  // 上海¥120,000（月¥10,000は上下限内）：社会保険12,600、課税所得47,400 → 1,080+1,140
+  const shanghai = calculateChinaPayroll(120_000, "shanghai");
+  close(shanghai.socialInsurance, 12_600);
+  close(shanghai.incomeTax, 2_220);
+  // 下限未満は下限の基数で計算
+  close(calculateChinaPayroll(60_000, "shanghai").socialInsurance, 7_460 * 0.105 * 6 + 7_546 * 0.105 * 6);
+  assert.equal(taxCalculationStatus(cities.beijing), "official-rate-estimate");
+  assert.equal(taxCalculationStatus(cities.shanghai), "official-rate-estimate");
+});
+
+test("Philippines 2026 deducts SSS, PhilHealth and Pag-IBIG before the progressive tax", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // ₱1,200,000（月₱100,000）：SSS 1,750、PhilHealth 2,500、Pag-IBIG 200 → 年53,400。課税所得1,146,600
+  const high = calculatePhilippinesPayroll(1_200_000);
+  close(high.socialInsurance, 53_400);
+  close(high.incomeTax, 22_500 + 80_000 + 346_600 * 0.25);
+  // ₱300,000（月₱25,000）：SSS 1,250、PhilHealth 625、Pag-IBIG 200 → 年24,900。課税所得275,100
+  const low = calculatePhilippinesPayroll(300_000);
+  close(low.socialInsurance, 24_900);
+  close(low.incomeTax, 25_100 * 0.15);
+  assert.equal(taxCalculationStatus(cities.manila), "official-rate-estimate");
+});
+
+test("Vietnam 2026 applies the five-bracket monthly table, the new personal deduction and capped insurance", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1, `${actual} != ${expected}`);
+  // 月₫100百万：1〜6月 保険 46.8百万×9.5%＋1百万=5.446百万、課税79.054百万 → 0.5+3+7.5+19.054×30%
+  //            7〜12月 保険 50.6百万×9.5%＋1百万=5.807百万、課税78.693百万 → 0.5+3+7.5+18.693×30%
+  const high = calculateVietnamPayroll(1_200_000_000);
+  close(high.socialInsurance, (5_446_000 + 5_807_000) * 6);
+  close(high.incomeTax, (16_716_200 + 16_607_900) * 6);
+  // 月₫20百万：保険2.1百万、課税2.4百万×5%
+  const low = calculateVietnamPayroll(240_000_000);
+  close(low.socialInsurance, 2_100_000 * 12);
+  close(low.incomeTax, 120_000 * 12);
+  assert.equal(taxCalculationStatus(cities.hoChiMinh), "official-rate-estimate");
+});
+
+test("Brazil 2026 applies progressive INSS, the monthly table and the Law 15.270 reduction", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.05, `${actual} != ${expected}`);
+  const inssAtCeiling = 1_621 * 0.075 + 1_281.84 * 0.09 + 1_451.43 * 0.12 + 4_121.28 * 0.14;
+  // 月R$20,000：INSSは上限、所得税は27.5%帯（公式の控除額908.73とも一致）
+  const high = calculateBrazilPayroll(240_000);
+  close(high.socialInsurance / 12, inssAtCeiling);
+  close(high.incomeTax / 12, (20_000 - inssAtCeiling) * 0.275 - 908.73);
+  // 月R$6,000：減額 978.62−0.133145×6,000
+  const middle = calculateBrazilPayroll(72_000);
+  const inss6000 = 1_621 * 0.075 + 1_281.84 * 0.09 + 1_451.43 * 0.12 + (6_000 - 4_354.27) * 0.14;
+  close(middle.incomeTax / 12, (6_000 - inss6000) * 0.275 - 908.73 - (978.62 - 0.133145 * 6_000));
+  // 月R$5,000以下は所得税0
+  assert.equal(calculateBrazilPayroll(60_000).incomeTax, 0);
+  assert.equal(taxCalculationStatus(cities.saoPaulo), "official-rate-estimate");
+});
+
+test("Taiwan 2026 applies the 115 tax brackets, labor insurance and NHI caps", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 年NT$1,200,000：課税所得736,000 → 30,500＋126,000×12%。労保は上限45,800×2.5%、健保は月100,000×1.551%
+  const middle = calculateTaiwanPayroll(1_200_000);
+  close(middle.incomeTax, 45_620);
+  close(middle.laborInsurance, 1_145 * 12);
+  close(middle.healthInsurance, 1_551 * 12);
+  // 年NT$6,000,000：課税所得5,536,000 → 1,126,900＋346,000×40%。健保は上限313,000
+  const high = calculateTaiwanPayroll(6_000_000);
+  close(high.incomeTax, 1_265_300);
+  close(high.healthInsurance, 313_000 * 0.0517 * 0.3 * 12);
+  // 年NT$400,000：控除合計464,000以下なので所得税0
+  const low = calculateTaiwanPayroll(400_000);
+  assert.equal(low.incomeTax, 0);
+  close(low.laborInsurance, 10_000);
+  assert.equal(taxCalculationStatus(cities.taipei), "official-rate-estimate");
+});
+
+test("Indonesia 2026 adds employer BPJS premiums to gross and applies the UU HPP brackets", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 月Rp20,000,000：JHT 400,000、JP 1%（1〜2月10,547,400・3〜12月11,086,300が上限）、JKN上限12,000,000
+  const middle = calculateIndonesiaPayroll(240_000_000);
+  close(middle.pension, 4_800_000 + 105_474 * 2 + 110_863 * 10);
+  close(middle.health, 120_000 * 12);
+  // 総額240M＋会社負担（JKK48,000・JKM60,000・JKN480,000）×12＝247,056,000。職務費用6M、JHT・JP控除後にPTKP54M → 180,936,000
+  close(middle.incomeTax, 60_000_000 * 0.05 + 120_936_000 * 0.15);
+  // 月Rp5,000,000：課税所得3,787,000×5%
+  close(calculateIndonesiaPayroll(60_000_000).incomeTax, 189_350);
+  assert.equal(taxCalculationStatus(cities.jakarta), "official-rate-estimate");
+});
+
+test("India new regime applies the standard deduction, the 87A rebate, surcharge relief and 4% cess", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 課税所得₹12 lakh以下（給与₹12.75 lakhまで）は87条Aで0
+  assert.equal(calculateIndiaIncomeTax(1_275_000), 0);
+  // 給与₹13 lakh → 課税₹12.25 lakh。税率表では₹63,750だが、₹12 lakh超過分₹25,000までに抑える
+  close(calculateIndiaIncomeTax(1_300_000), 25_000 * 1.04);
+  // 給与₹20 lakh → 課税₹19.25 lakh：20,000+40,000+60,000+325,000×20%
+  close(calculateIndiaIncomeTax(2_000_000), 185_000 * 1.04);
+  // 課税₹51.25 lakh：付加税10%は₹50 lakh超過分₹125,000までに抑える
+  close(calculateIndiaIncomeTax(5_200_000), (1_080_000 + 125_000) * 1.04);
+  assert.equal(taxCalculationStatus(cities.bangalore), "official-rate-estimate");
+});
+
+test("Riyadh and Abu Dhabi deduct no income tax or employee social insurance for foreign employees", () => {
+  for (const cityId of ["riyadh", "abuDhabi"] as const) {
+    assert.equal(taxCalculationStatus(cities[cityId]), "official-scenario");
+    const result = calculateCity(cities[cityId], 200_000, "single", "onebed", "balanced", "under40");
+    assert.equal(result.taxBreakdown?.totalDeductionsMonthly, 0);
+  }
+});
+
+test("Malaysia 2026 applies the LHDN MTD table with the RM400 rebate and the foreign-employee EPF", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 年RM84,000：EPF 1,680、課税所得84,000−9,000−1,680＝73,320 → (73,320−70,000)×19%＋3,700
+  const middle = calculateMalaysiaPayroll(84_000);
+  close(middle.epf, 1_680);
+  close(middle.incomeTax, 3_320 * 0.19 + 3_700);
+  // 年RM30,000：課税所得20,400 → 400×3%−250 は負になるため0（RM400の税額控除）
+  assert.equal(calculateMalaysiaPayroll(30_000).incomeTax, 0);
+  // 年RM600,000：EPF控除は上限RM4,000、課税所得587,000 → 187,000×26%＋84,400
+  close(calculateMalaysiaPayroll(600_000).incomeTax, 187_000 * 0.26 + 84_400);
+  assert.equal(taxCalculationStatus(cities.kualaLumpur), "official-rate-estimate");
+});
+
+test("Portugal 2026 applies the CIRS brackets, the specific deduction, the minimum-existence rule and the €250 credit", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // €28,000：社会保険3,080、給与所得控除IAS×8.54＝4,587.0902、課税所得23,412.9098
+  const middle = calculatePortugalPayroll(28_000);
+  close(middle.socialSecurity, 3_080);
+  close(middle.incomeTax, 8_342 * 0.125 + 4_245 * 0.157 + 5_251 * 0.212 + 5_251 * 0.241 + (28_000 - 537.13 * 8.54 - 23_089) * 0.311 - 250);
+  // €12,880（参照額）：最低生活保障で課税所得は€2,000になり、€250の税額控除で0
+  close(calculatePortugalPayroll(12_880).incomeTax, 0);
+  // €14,000：参照額〜Lの区間。控除額＝12,880−2.6×1,120−(4,587.0902＋2,000)、課税所得6,032
+  close(calculatePortugalPayroll(14_000).incomeTax, 6_032 * 0.125 - 250);
+  // €120,000：課税所得106,800。€86,634までの税額30,197.047に48%、€80,000超の連帯付加税2.5%
+  close(calculatePortugalPayroll(120_000).incomeTax, 30_197.047 + 20_166 * 0.48 - 250 + 26_800 * 0.025);
+  assert.equal(taxCalculationStatus(cities.lisbon), "official-rate-estimate");
+});
+
+test("Madrid 2026 applies the state and Madrid scales, the work reduction and the low-earner credit", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // €34,000：社会保険6.5%＝2,210、課税所得29,790
+  const middle = calculateSpainMadridPayroll(34_000);
+  close(middle.socialSecurity, 2_210);
+  close(middle.stateTax, 1_182.75 + 7_750 * 0.12 + 9_590 * 0.15 - 5_550 * 0.095);
+  close(middle.regionalTax, 13_362.22 * 0.085 + 5_642.41 * 0.107 + (29_790 - 19_004.63) * 0.128 - 5_956.65 * 0.085);
+  // €18,000：勤労所得減額7,302−1.75×1,978、課税所得10,989.5。国の税額516.75から税額控除590.89−0.2×906を差し引く
+  const low = calculateSpainMadridPayroll(18_000);
+  close(low.stateTax, (10_989.5 - 5_550) * 0.095 - (590.89 - 0.2 * 906));
+  close(low.regionalTax, (10_989.5 - 5_956.65) * 0.085);
+  // €100,000：上限€5,101.20超の部分に連帯追加保険料（本人負担4.70/28.30）
+  const excess = 100_000 / 12 - 5_101.2;
+  close(calculateSpainMadridPayroll(100_000).socialSecurity, (5_101.2 * 0.065 + (510.12 * 0.0115 + 2_040.48 * 0.0125 + (excess - 2_550.6) * 0.0146) * 4.7 / 28.3) * 12);
+  assert.equal(taxCalculationStatus(cities.madrid), "official-rate-estimate");
+});
+
+test("Colombia 2026 applies Law 100 contributions, the 25% exemption capped at 790 UVT and the article 241 table", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1, `${actual} != ${expected}`);
+  // 月$10,000,000（最低賃金の5.7倍）：年金4%＋連帯基金1%、医療4%。課税所得81,900,000＝1,563.75 UVT
+  const middle = calculateColombiaPayroll(120_000_000);
+  close(middle.pension, 6_000_000);
+  close(middle.health, 4_800_000);
+  close(middle.incomeTax, (81_900_000 / 52_374 - 1_090) * 0.19 * 52_374);
+  // 月$50,000,000：基礎は最低賃金25倍が上限、連帯基金2%。25%非課税は790 UVTまで
+  const high = calculateColombiaPayroll(600_000_000);
+  const base = 25 * 1_750_905;
+  close(high.pension, base * 0.06 * 12);
+  const taxable = 600_000_000 - base * 0.1 * 12 - 790 * 52_374;
+  close(high.incomeTax, ((taxable / 52_374 - 8_670) * 0.35 + 2_296) * 52_374);
+  assert.equal(calculateColombiaPayroll(60_000_000).incomeTax, 0);
+  assert.equal(taxCalculationStatus(cities.bogota), "official-rate-estimate");
+});
+
+test("Argentina 2026 uses ARCA's annual tables and stays unavailable above the lowest published contribution cap", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 年$49,000,000（月給3,769,231）：拠出17%、控除(6,019,671.36＋28,894,422.56)×13/12
+  const payroll = calculateArgentinaPayroll(49_000_000);
+  assert.ok(payroll);
+  close(payroll.pension + payroll.health, 49_000_000 * 0.17);
+  const taxable = 49_000_000 * 0.83 - (6_019_671.36 + 28_894_422.56) * 13 / 12;
+  close(payroll.incomeTax, 108_424.59 + (taxable - 2_168_491.89) * 0.09);
+  assert.equal(calculateArgentinaPayroll(12_000_000)?.incomeTax, 0);
+  // 月給が1月の上限$3,823,372.95を超えると、未公表の11・12月の上限に左右されるため計算不能
+  assert.equal(calculateArgentinaPayroll(50_000_000), null);
+  const result = calculateCity(cities.buenosAires, 50_000_000, "single", "onebed", "balanced", "under40");
+  assert.equal(result.taxCalculationStatus, "unavailable");
+  assert.equal(result.netMonthly, null);
+  assert.equal(taxCalculationStatus(cities.buenosAires), "official-rate-estimate");
+});
+
+test("Edinburgh uses the 2026-27 Scottish income tax bands with UK National Insurance", () => {
+  const result = calculateCity(cities.edinburgh, 50_000, "single", "onebed", "balanced", "under40");
+  // 課税所得37,430：3,967×19%＋12,989×20%＋14,136×21%＋6,338×42%
+  const expectedTax = 3_967 * 0.19 + 12_989 * 0.2 + 14_136 * 0.21 + 6_338 * 0.42;
+  assert.ok(Math.abs((result.taxBreakdown?.incomeTaxMonthly ?? 0) * 12 - expectedTax) < 0.01);
+  const london = calculateCity(cities.london, 50_000, "single", "onebed", "balanced", "under40");
+  assert.equal(result.taxBreakdown?.employmentInsuranceMonthly, london.taxBreakdown?.employmentInsuranceMonthly);
+  assert.equal(taxCalculationStatus(cities.edinburgh), "official-rate-estimate");
+});
+
+test("Milan applies the Lombardy progressive surcharge and Milan's 0.8% municipal surcharge above €23,000", () => {
+  const result = calculateCity(cities.milan, 42_000, "single", "onebed", "balanced", "under40");
+  const taxable = 42_000 - 42_000 * 0.0919;
+  const expectedLocal = 15_000 * 0.0123 + 13_000 * 0.0158 + (taxable - 28_000) * 0.0172 + taxable * 0.008;
+  assert.ok(Math.abs((result.taxBreakdown?.residentTaxMonthly ?? 0) * 12 - expectedLocal) < 0.01);
+  // 課税所得€23,000以下は市税が免除され、州税だけになる
+  const low = calculateCity(cities.milan, 25_000, "single", "onebed", "balanced", "under40");
+  const lowTaxable = 25_000 - 25_000 * 0.0919;
+  assert.ok(Math.abs((low.taxBreakdown?.residentTaxMonthly ?? 0) * 12 - (15_000 * 0.0123 + (lowTaxable - 15_000) * 0.0158)) < 0.01);
+});
+
+test("Italy 2026 IRPEF uses 23% to €28,000, 33% to €50,000 and 43% above", () => {
+  const result = calculateCity(cities.rome, 60_000, "single", "onebed", "balanced", "under40");
+  const pension = 60_000 * 0.0919 + (60_000 - 56_224) * 0.01;
+  const taxable = 60_000 - pension;
+  const expected = 28_000 * 0.23 + 22_000 * 0.33 + (taxable - 50_000) * 0.43;
+  assert.ok(Math.abs((result.taxBreakdown?.incomeTaxMonthly ?? 0) * 12 - expected) < 0.01);
+});
+
+test("Japanese cities use the FY2026 Kyokai Kenpo health insurance rate of their prefecture", () => {
+  const expected = { tokyo: 0.0985, osaka: 0.1013, sapporo: 0.1028, fukuoka: 0.1011, yokohama: 0.0992, nagoya: 0.0993, kyoto: 0.0989 } as const;
+  for (const [cityId, rate] of Object.entries(expected) as Array<[keyof typeof expected, number]>) {
+    assert.ok(Math.abs(cities[cityId].insurance.healthRateEmployee - rate / 2) < 1e-9, cityId);
+    const result = calculateCity(cities[cityId], 6_000_000, "single", "onebed", "balanced", "under40");
+    assert.ok(Math.abs((result.taxBreakdown?.healthInsuranceMonthly ?? 0) * 12 - 6_000_000 * rate / 2) < 0.01, cityId);
+  }
 });

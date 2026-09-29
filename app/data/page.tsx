@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { cities } from "../../data/cities";
+import { cities, cityOrder } from "../../data/cities";
 import { localizedCity, localizedUpdatedAt } from "../../lib/cities/localization";
 import { buildCatalogCoverage } from "../../lib/data/catalog-coverage";
 import { citySlug } from "../../lib/seo/city-slugs";
 
+const CITY_COUNT = cityOrder.length;
+
 export const metadata: Metadata = {
   title: "Data coverage and freshness | Life Atlas",
-  description: "LifeAtlas 50都市の出典範囲、計算対応、保存推定値、確認日、データ信頼度を公開します。",
+  description: `LifeAtlas ${CITY_COUNT}都市の出典範囲、計算対応、保存推定値、確認日、データ信頼度を公開します。`,
 };
 
 export default async function DataPage({ searchParams }: { searchParams: Promise<{ lang?: string }> }) {
@@ -23,7 +25,7 @@ export default async function DataPage({ searchParams }: { searchParams: Promise
 
   return <main className="growth-page reference-page">
     <header className="growth-header"><Link href="/">✦ Life Atlas</Link><nav><Link href="/analyze">Analyzer</Link><Link href={`/methodology${en ? "?lang=en" : ""}`}>Method</Link><Link href={en ? "/data" : "/data?lang=en"}>{en ? "日本語" : "English"}</Link></nav></header>
-    <section className="growth-hero reference-hero"><p className="eyebrow">DATA COVERAGE</p><h1>{en ? "Know what each number can—and cannot—say." : "その数字が、どこまで言えるかを明示します。"}</h1><p>{en ? "LifeAtlas covers 50 cities, but does not pretend every input has equal precision. This page separates supported calculations, saved estimates, source periods and catalog-review dates." : "LifeAtlasは50都市を扱いますが、すべての値を同じ精度には見せません。計算対応、保存推定値、各出典の参照期間、カタログ確認日を分けて表示します。"}</p></section>
+    <section className="growth-hero reference-hero"><p className="eyebrow">DATA COVERAGE</p><h1>{en ? "Know what each number can—and cannot—say." : "その数字が、どこまで言えるかを明示します。"}</h1><p>{en ? `LifeAtlas covers ${CITY_COUNT} cities, but does not pretend every input has equal precision. This page separates supported calculations, saved estimates, source periods and catalog-review dates.` : `LifeAtlasは${CITY_COUNT}都市を扱いますが、すべての値を同じ精度には見せません。計算対応、保存推定値、各出典の参照期間、カタログ確認日を分けて表示します。`}</p></section>
     <section className="reference-summary-grid">
       <div><strong>{summary.cityCount}</strong><span>{en ? "cities" : "対象都市"}</span></div>
       <div><strong>{summary.calculationAvailable}</strong><span>{en ? "financial calculations available" : "金額計算に対応"}</span></div>

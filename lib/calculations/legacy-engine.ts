@@ -116,6 +116,22 @@ function calculateCanadaTax(city: City, grossAnnual: number) {
     ]);
     return { federalTax, provincialTax, healthPremium: 0 };
   }
+  if (city.taxRegion === "quebec") {
+    // ケベック州2026：連邦税は基本連邦税の16.5%を減額（Québec abatement）。州税は14/19/24/25.75%、
+    // 区切り$54,345/$108,680/$132,245、基礎控除$18,952（14%の税額控除）。労働者控除などは未反映。
+    const provincialTax = Math.max(0, taxFromAnnualBrackets(grossAnnual, [
+      { limit: 54_345, rate: 0.14 }, { limit: 108_680, rate: 0.19 }, { limit: 132_245, rate: 0.24 }, { limit: Number.POSITIVE_INFINITY, rate: 0.2575 },
+    ]) - 18_952 * 0.14);
+    return { federalTax: federalTax * (1 - 0.165), provincialTax, healthPremium: 0 };
+  }
+  if (city.taxRegion === "alberta") {
+    // 2026年：2025年の公式区切りをCRA公表の指数2.0%で調整（基礎控除$22,769は公式値と一致）。
+    // 非還付控除は最低税率8%で計算します。
+    const provincialTax = Math.max(0, taxFromAnnualBrackets(grossAnnual, [
+      { limit: 61_200, rate: 0.08 }, { limit: 154_259, rate: 0.1 }, { limit: 185_111, rate: 0.12 }, { limit: 246_813, rate: 0.13 }, { limit: 370_220, rate: 0.14 }, { limit: Number.POSITIVE_INFINITY, rate: 0.15 },
+    ]) - 22_769 * 0.08);
+    return { federalTax, provincialTax, healthPremium: 0 };
+  }
   const taxable = Math.max(0, grossAnnual - 12_989);
   const provincialTaxBeforeSurtax = taxFromAnnualBrackets(taxable, [
     { limit: 53_891, rate: 0.0505 }, { limit: 107_785, rate: 0.0915 }, { limit: 150_000, rate: 0.1116 }, { limit: 220_000, rate: 0.1216 }, { limit: Number.POSITIVE_INFINITY, rate: 0.1316 },
@@ -142,6 +158,21 @@ function calculateUsIncomeTax(city: City, grossAnnual: number) {
       { limit: 12_000, rate: 0.03078 }, { limit: 25_000, rate: 0.03762 }, { limit: 50_000, rate: 0.03819 }, { limit: Number.POSITIVE_INFINITY, rate: 0.03876 },
     ]);
     return federalTax + stateTax + cityTax;
+  }
+  // 2026課税年度・単身。マサチューセッツ：5%（控除$4,400、課税所得$1,107,750超に4%加算）。
+  // イリノイ：4.95%（控除$2,925、連邦AGI$250,000超は控除なし）。DC：4%〜10.75%の7段階（標準控除$16,100）。
+  if (city.taxRegion === "massachusetts") {
+    const taxable = Math.max(0, grossAnnual - 4_400);
+    return federalTax + taxable * 0.05 + Math.max(0, taxable - 1_107_750) * 0.04;
+  }
+  if (city.taxRegion === "illinois") {
+    const exemption = grossAnnual > 250_000 ? 0 : 2_925;
+    return federalTax + Math.max(0, grossAnnual - exemption) * 0.0495;
+  }
+  if (city.taxRegion === "districtOfColumbia") {
+    return federalTax + taxFromAnnualBrackets(Math.max(0, grossAnnual - 16_100), [
+      { limit: 10_000, rate: 0.04 }, { limit: 40_000, rate: 0.06 }, { limit: 60_000, rate: 0.065 }, { limit: 250_000, rate: 0.085 }, { limit: 500_000, rate: 0.0925 }, { limit: 1_000_000, rate: 0.0975 }, { limit: Number.POSITIVE_INFINITY, rate: 0.1075 },
+    ]);
   }
   return federalTax;
 }
@@ -196,11 +227,398 @@ export function calculateIrelandPayrollTax(grossAnnual: number) {
   return { incomeTax, usc, prsi };
 }
 
+// ドイツ・2026年（単身の基本税率表、教会税なし）。社会保険料（従業員負担）：年金9.3%・失業1.3%（上限€101,400）、
+// 医療7.3%＋平均追加保険料の半分1.45%（上限€69,750）、介護1.8%（子どもなし＋0.6%、2人目以降の子1人につき−0.25%）。
+// 課税所得＝給与−被用者控除€1,230−特別支出控除€36−社会保険料控除（年金全額・医療の96%・介護）。
+const GERMANY_PENSION_CEILING = 101_400;
+const GERMANY_HEALTH_CEILING = 69_750;
+const germanyChildren = { single: 0, couple: 0, singleParent: 1, coupleOneChild: 1, family: 2, familyThreeChildren: 3 } as const;
+
+export function germanIncomeTax2026(taxableIncome: number) {
+  const x = Math.floor(Math.max(0, taxableIncome));
+  if (x <= 12_348) return 0;
+  if (x <= 17_799) {
+    const y = (x - 12_348) / 10_000;
+    return Math.floor((914.51 * y + 1_400) * y);
+  }
+  if (x <= 69_878) {
+    const z = (x - 17_799) / 10_000;
+    return Math.floor((173.10 * z + 2_397) * z + 1_034.87);
+  }
+  if (x <= 277_825) return Math.floor(0.42 * x - 11_135.63);
+  return Math.floor(0.45 * x - 19_470.38);
+}
+
+export function calculateGermanyPayroll(grossAnnual: number, household: keyof typeof householdMultipliers) {
+  const gross = Math.max(0, grossAnnual);
+  const pensionBase = Math.min(gross, GERMANY_PENSION_CEILING);
+  const healthBase = Math.min(gross, GERMANY_HEALTH_CEILING);
+  const children = germanyChildren[household];
+  const careRate = children === 0 ? 0.024 : 0.018 - Math.max(0, children - 1) * 0.0025;
+  const pension = pensionBase * 0.093;
+  const unemployment = pensionBase * 0.013;
+  const health = healthBase * (0.073 + 0.0145);
+  const care = healthBase * careRate;
+  const taxable = gross - 1_230 - 36 - (pension + health * 0.96 + care);
+  const incomeTax = germanIncomeTax2026(taxable);
+  // 連帯付加税：所得税€20,350以下は免除、超過分は差額の11.9%を上限に5.5%。
+  const solidarity = incomeTax <= 20_350 ? 0 : Math.min(incomeTax * 0.055, (incomeTax - 20_350) * 0.119);
+  return { incomeTax, solidarity, pension, unemployment, health, care };
+}
+
+// オランダ・2026年（AOW年齢未満の居住者、給与所得者）。Box 1は€38,883まで35.75%（所得税8.10%＋国民保険27.65%）、
+// €78,426まで37.56%、それを超える部分は49.50%。ここから一般税額控除（最大€3,115、€29,736超で超過分の6.398%ずつ減り
+// €78,426以上で0）と労働税額控除（Tabel arbeidskorting 2026の5区間）を差し引きます。
+// 30%ルール（外国人専門職の非課税手当）と年金基金の掛金は未反映。基礎医療保険の定額保険料は生活費側で扱います。
+export function netherlandsLabourCredit2026(labourIncome: number) {
+  const x = Math.max(0, labourIncome);
+  if (x <= 11_965) return x * 0.08324;
+  if (x <= 25_845) return 996 + (x - 11_965) * 0.31009;
+  if (x <= 45_592) return 5_300 + (x - 25_845) * 0.0195;
+  if (x <= 132_920) return Math.max(0, 5_685 - (x - 45_592) * 0.0651);
+  return 0;
+}
+
+export function calculateNetherlandsPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const box1 = taxFromAnnualBrackets(gross, [
+    { limit: 38_883, rate: 0.3575 }, { limit: 78_426, rate: 0.3756 }, { limit: Number.POSITIVE_INFINITY, rate: 0.495 },
+  ]);
+  const generalCredit = gross >= 78_426 ? 0 : Math.max(0, 3_115 - Math.max(0, gross - 29_736) * 0.06398);
+  const labourCredit = netherlandsLabourCredit2026(gross);
+  // 税額控除はBox 1の税額（所得税＋国民保険料）を超えて還付されません。
+  const box1AfterCredits = Math.max(0, box1 - generalCredit - labourCredit);
+  return { box1, generalCredit, labourCredit, box1AfterCredits };
+}
+
+// タイ・2026課税年度（居住者・単身）。社会保険（第33条）は賃金の5%で、2026年1月から月額上限は賃金฿17,500（最大฿875）。
+// 課税所得＝給与−給与所得控除（50%・上限฿100,000）−基礎控除฿60,000−社会保険料。配偶者・子どもの控除は未反映。
+export function calculateThailandPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const socialSecurity = Math.min(gross / 12, 17_500) * 0.05 * 12;
+  const taxable = Math.max(0, gross - Math.min(gross * 0.5, 100_000) - 60_000 - socialSecurity);
+  const incomeTax = taxFromAnnualBrackets(taxable, [
+    { limit: 150_000, rate: 0 }, { limit: 300_000, rate: 0.05 }, { limit: 500_000, rate: 0.1 }, { limit: 750_000, rate: 0.15 },
+    { limit: 1_000_000, rate: 0.2 }, { limit: 2_000_000, rate: 0.25 }, { limit: 5_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
+  ]);
+  return { incomeTax, socialSecurity };
+}
+
+// 中国・2026年（居住者の総合所得、単身）。個人所得税は3〜45%の7段階、基本控除¥60,000。
+// 社会保険（従業員）：年金8%・医療2%・失業0.5%。月額の基数は都市ごとの上下限の間に収め、2026年は1〜6月を
+// 2025年度、7〜12月を2026年度の上下限で按分します。北京は医療の大額互助金として月¥3を加えます。
+// 住宅積立金（勤務先により5〜12%）、専項付加控除、外国人の非課税手当は未反映です。
+const chinaContributionBases = {
+  beijing: [{ months: 6, lower: 7_162, upper: 35_811 }, { months: 6, lower: 7_270, upper: 36_348 }],
+  shanghai: [{ months: 6, lower: 7_460, upper: 37_302 }, { months: 6, lower: 7_546, upper: 37_731 }],
+} as const;
+
+export function calculateChinaPayroll(grossAnnual: number, region: keyof typeof chinaContributionBases) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  const socialInsurance = chinaContributionBases[region].reduce((total, period) => {
+    const base = Math.min(Math.max(monthly, period.lower), period.upper);
+    return total + (base * (0.08 + 0.02 + 0.005) + (region === "beijing" ? 3 : 0)) * period.months;
+  }, 0);
+  const incomeTax = taxFromAnnualBrackets(Math.max(0, grossAnnual - 60_000 - socialInsurance), [
+    { limit: 36_000, rate: 0.03 }, { limit: 144_000, rate: 0.1 }, { limit: 300_000, rate: 0.2 }, { limit: 420_000, rate: 0.25 },
+    { limit: 660_000, rate: 0.3 }, { limit: 960_000, rate: 0.35 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 },
+  ]);
+  return { incomeTax, socialInsurance };
+}
+
+// フィリピン・2026年（居住者・単身）。所得税は2023年以降の累進税率。従業員の社会保険：SSS 5%（月額給与クレジット
+// ₱5,000〜₱35,000）、PhilHealth 2.5%（月収₱10,000〜₱100,000）、Pag-IBIG 月₱200。社会保険料は課税所得から除外します。
+// 13か月給与などの非課税枠（₱90,000）は未反映です。
+export function calculatePhilippinesPayroll(grossAnnual: number) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  const sss = Math.min(Math.max(monthly, 5_000), 35_000) * 0.05;
+  const philHealth = Math.min(Math.max(monthly, 10_000), 100_000) * 0.025;
+  const pagIbig = Math.min(monthly, 10_000) * 0.02;
+  const socialInsurance = monthly > 0 ? (sss + philHealth + pagIbig) * 12 : 0;
+  const incomeTax = taxFromAnnualBrackets(Math.max(0, grossAnnual - socialInsurance), [
+    { limit: 250_000, rate: 0 }, { limit: 400_000, rate: 0.15 }, { limit: 800_000, rate: 0.2 }, { limit: 2_000_000, rate: 0.25 }, { limit: 8_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
+  ]);
+  return { incomeTax, socialInsurance };
+}
+
+// ベトナム・2026年（居住者・単身、ホーチミン市＝地域I）。所得税は法律109/2025/QH15の5段階（月額、2026年1月から）、
+// 本人控除は月₫15,500,000。社会保険（従業員）：年金等8%＋医療1.5%（上限は基本給の20倍：1〜6月₫46.8百万、7〜12月₫50.6百万）、
+// 失業1%（上限は地域I最低賃金₫5.31百万の20倍）。扶養控除と外国人の失業保険対象外は未反映です。
+export function calculateVietnamPayroll(grossAnnual: number) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  let incomeTax = 0;
+  let socialInsurance = 0;
+  for (const cap of [46_800_000, 50_600_000]) {
+    const insurance = Math.min(monthly, cap) * 0.095 + Math.min(monthly, 106_200_000) * 0.01;
+    const tax = taxFromAnnualBrackets(Math.max(0, monthly - insurance - 15_500_000), [
+      { limit: 10_000_000, rate: 0.05 }, { limit: 30_000_000, rate: 0.15 }, { limit: 60_000_000, rate: 0.25 }, { limit: 100_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
+    ]);
+    incomeTax += tax * 6;
+    socialInsurance += insurance * 6;
+  }
+  return { incomeTax, socialInsurance };
+}
+
+// ブラジル・2026年（月給×12、13か月目の給与は未反映）。INSS（従業員）は7.5/9/12/14%の累進、上限R$8,475.55。
+// 所得税の基礎＝月給−max(INSS, 簡易控除R$607.20)。月額累進表（R$2,428.80まで非課税〜27.5%）の税額から、
+// 法律15.270/2025の減額（月収R$5,000以下は最大R$312.89、R$7,350以下はR$978.62−0.133145×月収）を差し引きます。
+export function calculateBrazilPayroll(grossAnnual: number) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  const inss = taxFromAnnualBrackets(Math.min(monthly, 8_475.55), [
+    { limit: 1_621, rate: 0.075 }, { limit: 2_902.84, rate: 0.09 }, { limit: 4_354.27, rate: 0.12 }, { limit: 8_475.55, rate: 0.14 },
+  ]);
+  const base = Math.max(0, monthly - Math.max(inss, 607.2));
+  const tableTax = taxFromAnnualBrackets(base, [
+    { limit: 2_428.8, rate: 0 }, { limit: 2_826.65, rate: 0.075 }, { limit: 3_751.05, rate: 0.15 }, { limit: 4_664.68, rate: 0.225 }, { limit: Number.POSITIVE_INFINITY, rate: 0.275 },
+  ]);
+  const reduction = monthly <= 5_000 ? 312.89 : monthly <= 7_350 ? Math.max(0, 978.62 - 0.133145 * monthly) : 0;
+  // 源泉徴収はセンターボ単位のため、月額税額を1センターボ単位に丸めます。
+  const incomeTax = Math.round(Math.max(0, tableTax - reduction) * 100) / 100;
+  return { incomeTax: incomeTax * 12, socialInsurance: inss * 12 };
+}
+
+// 台湾・115年度（2026年、居住者・単身・標準控除）。課税所得＝給与−免税額NT$101,000−標準控除NT$136,000−給与特別控除（上限NT$227,000）。
+// 労工保険（普通事故11.5%＋就業保険1%＝12.5%）の本人負担20%、健康保険（5.17%）の本人負担30%。投保額は月給を
+// 下限NT$29,500（最低賃金）と上限（労保NT$45,800・健保NT$313,000）の間に収めた概算で、実際の等級表の刻みは省略します。
+// 外国人の就業保険対象外、健保の補充保険料、扶養家族分の健保料は未反映です。
+export function calculateTaiwanPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const monthly = gross / 12;
+  const laborInsurance = monthly > 0 ? Math.min(Math.max(monthly, 29_500), 45_800) * 0.125 * 0.2 * 12 : 0;
+  const healthInsurance = monthly > 0 ? Math.min(Math.max(monthly, 29_500), 313_000) * 0.0517 * 0.3 * 12 : 0;
+  const taxable = Math.max(0, gross - 101_000 - 136_000 - Math.min(gross, 227_000));
+  const incomeTax = taxFromAnnualBrackets(taxable, [
+    { limit: 610_000, rate: 0.05 }, { limit: 1_380_000, rate: 0.12 }, { limit: 2_770_000, rate: 0.2 }, { limit: 5_190_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.4 },
+  ]);
+  return { incomeTax, laborInsurance, healthInsurance };
+}
+
+// 韓国・2026年（居住者・単身の給与所得者）。社会保険（本人負担）：国民年金4.75%（料率9.5%の半分。基準所得月額は1〜6月が
+// 40万〜637万ウォン、7〜12月が41万〜659万ウォン）、健康保険3.595%（7.19%の半分）、長期療養保険は健康保険料×0.9448/7.19、
+// 雇用保険0.9%（失業給付1.8%の半分）。所得税＝(総給与−勤労所得控除（上限2,000万）−基本控除150万−年金保険料−健康・長期療養・
+// 雇用保険料)に基本税率を掛け、勤労所得税額控除を差し引きます。保険料の特別所得控除を申請するため標準税額控除（13万）は使いません。
+// 地方所得税は所得税の10%。非課税手当（食事代など）、健康保険料の上下限、扶養家族、その他の所得・税額控除は未反映です。
+export function koreaEarnedIncomeDeduction2026(totalSalary: number) {
+  const x = Math.max(0, totalSalary);
+  const deduction = x <= 5_000_000 ? x * 0.7
+    : x <= 15_000_000 ? 3_500_000 + (x - 5_000_000) * 0.4
+      : x <= 45_000_000 ? 7_500_000 + (x - 15_000_000) * 0.15
+        : x <= 100_000_000 ? 12_000_000 + (x - 45_000_000) * 0.05
+          : 14_750_000 + (x - 100_000_000) * 0.02;
+  return Math.min(deduction, 20_000_000, x);
+}
+
+export function koreaEarnedIncomeTaxCredit2026(calculatedTax: number, totalSalary: number) {
+  const credit = calculatedTax <= 1_300_000 ? calculatedTax * 0.55 : 715_000 + (calculatedTax - 1_300_000) * 0.3;
+  const cap = totalSalary <= 33_000_000 ? 740_000
+    : totalSalary <= 70_000_000 ? Math.max(660_000, 740_000 - (totalSalary - 33_000_000) * 0.008)
+      : totalSalary <= 120_000_000 ? Math.max(500_000, 660_000 - (totalSalary - 70_000_000) / 2)
+        : Math.max(200_000, 500_000 - (totalSalary - 120_000_000) / 2);
+  return Math.min(credit, cap);
+}
+
+export function calculateKoreaPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const monthly = gross / 12;
+  const pension = monthly > 0 ? (Math.min(Math.max(monthly, 400_000), 6_370_000) * 6 + Math.min(Math.max(monthly, 410_000), 6_590_000) * 6) * 0.0475 : 0;
+  const health = gross * 0.03595;
+  const longTermCare = health * 0.9448 / 7.19;
+  const employment = gross * 0.009;
+  const earnedIncome = gross - koreaEarnedIncomeDeduction2026(gross);
+  const taxable = Math.max(0, earnedIncome - 1_500_000 - pension - health - longTermCare - employment);
+  const calculatedTax = taxFromAnnualBrackets(taxable, [
+    { limit: 14_000_000, rate: 0.06 }, { limit: 50_000_000, rate: 0.15 }, { limit: 88_000_000, rate: 0.24 }, { limit: 150_000_000, rate: 0.35 },
+    { limit: 300_000_000, rate: 0.38 }, { limit: 500_000_000, rate: 0.4 }, { limit: 1_000_000_000, rate: 0.42 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 },
+  ]);
+  const incomeTax = Math.max(0, calculatedTax - koreaEarnedIncomeTaxCredit2026(calculatedTax, gross));
+  const localIncomeTax = incomeTax * 0.1;
+  return { incomeTax, localIncomeTax, pension, health: health + longTermCare, employment };
+}
+
+// インドネシア・2026年（居住者・単身、PTKP Rp54,000,000）。従業員の社会保険：JHT 2%（上限なし）、JP 1%（月額上限は1〜2月Rp10,547,400、
+// 3〜12月Rp11,086,300）、JKN（医療）1%（月額上限Rp12,000,000）。会社負担のJKK（最低リスク0.24%と仮定）・JKM 0.30%・JKN 4%は課税所得に加算します。
+// 課税所得＝総額−職務費用（5%・上限年Rp6,000,000）−JHT・JP−PTKP（千ルピア未満切り捨て）。外国人のJP対象外、扶養控除は未反映です。
+export function calculateIndonesiaPayroll(grossAnnual: number) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  const jht = monthly * 0.02 * 12;
+  const jp = Math.min(monthly, 10_547_400) * 0.01 * 2 + Math.min(monthly, 11_086_300) * 0.01 * 10;
+  const jkn = Math.min(monthly, 12_000_000) * 0.01 * 12;
+  const employerPremiums = (monthly * (0.0024 + 0.003) + Math.min(monthly, 12_000_000) * 0.04) * 12;
+  const bruto = monthly * 12 + employerPremiums;
+  const netto = bruto - Math.min(bruto * 0.05, 6_000_000) - jht - jp;
+  const taxable = Math.floor(Math.max(0, netto - 54_000_000) / 1_000) * 1_000;
+  const incomeTax = taxFromAnnualBrackets(taxable, [
+    { limit: 60_000_000, rate: 0.05 }, { limit: 250_000_000, rate: 0.15 }, { limit: 500_000_000, rate: 0.25 }, { limit: 5_000_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
+  ]);
+  return { incomeTax, pension: jht + jp, health: jkn };
+}
+
+// インド・新税制（既定の税制）。2025年予算で改定され、2026-27年度も据え置き。給与所得者の標準控除₹75,000、
+// 課税所得₹12 lakh以下は87条Aの税額控除（上限₹60,000）で0、わずかに超える場合は超過額までに抑えます（marginal relief）。
+// 付加税は₹50 lakh超10%・₹1 crore超15%・₹2 crore超25%（新税制の上限）で、閾値でのmarginal reliefを反映。最後に教育目的税4%。
+// EPF（従業員積立基金）は基本給の構成や加入区分で大きく変わるため含めません。
+const INDIA_SLABS: TaxSlice[] = [
+  { limit: 400_000, rate: 0 }, { limit: 800_000, rate: 0.05 }, { limit: 1_200_000, rate: 0.1 }, { limit: 1_600_000, rate: 0.15 },
+  { limit: 2_000_000, rate: 0.2 }, { limit: 2_400_000, rate: 0.25 }, { limit: Number.POSITIVE_INFINITY, rate: 0.3 },
+];
+const INDIA_SURCHARGE = [{ threshold: 20_000_000, rate: 0.25 }, { threshold: 10_000_000, rate: 0.15 }, { threshold: 5_000_000, rate: 0.1 }];
+
+function indiaTaxWithSurcharge(taxable: number): number {
+  const base = taxFromAnnualBrackets(taxable, INDIA_SLABS);
+  const tier = INDIA_SURCHARGE.find((item) => taxable > item.threshold);
+  if (!tier) return base;
+  return Math.min(base * (1 + tier.rate), indiaTaxWithSurcharge(tier.threshold) + (taxable - tier.threshold));
+}
+
+export function calculateIndiaIncomeTax(grossAnnual: number) {
+  const taxable = Math.max(0, grossAnnual - 75_000);
+  const tax = taxable <= 1_200_000 ? 0 : Math.min(indiaTaxWithSurcharge(taxable), taxable - 1_200_000);
+  return tax * 1.04;
+}
+
+// マレーシア・2026課税年度（居住者・単身、外国人被用者）。課税所得＝給与−本人控除RM9,000−EPF（上限RM4,000）。
+// 税額は内国歳入庁PCB仕様書（2026年）の表1（P・M・R・B）どおり、(P−M)×R＋B。課税所得RM35,000以下のBはRM400の税額控除を含みます。
+// 外国人のEPF本人負担は2%（2025年10月分の給与から）。SOCSOの労災部門は雇用主負担、EISは外国人に適用されません。
+const malaysiaTaxTable = [
+  { from: 2_000_000, rate: 0.3, base: 528_400 }, { from: 600_000, rate: 0.28, base: 136_400 }, { from: 400_000, rate: 0.26, base: 84_400 },
+  { from: 100_000, rate: 0.25, base: 9_400 }, { from: 70_000, rate: 0.19, base: 3_700 }, { from: 50_000, rate: 0.11, base: 1_500 },
+  { from: 35_000, rate: 0.06, base: 600 }, { from: 20_000, rate: 0.03, base: -250 }, { from: 5_000, rate: 0.01, base: -400 },
+] as const;
+
+export function calculateMalaysiaPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const epf = gross * 0.02;
+  const chargeable = Math.max(0, gross - 9_000 - Math.min(epf, 4_000));
+  const row = malaysiaTaxTable.find((item) => chargeable > item.from);
+  const incomeTax = row ? Math.max(0, (chargeable - row.from) * row.rate + row.base) : 0;
+  return { incomeTax, epf };
+}
+
+// ポルトガル・2026年（居住者・単身の給与所得者、IRS Jovemなどの特例なし）。社会保険（Segurança Social）は本人11%（上限なし）。
+// 所得税法（CIRS）：給与所得控除＝max(IAS×8.54, 社会保険料)（第25条、IAS 2026＝€537.13）。最低生活保障（第70条）の控除を
+// 課税所得から差し引き、第68条の税率表（法律73-A/2025による現行法）で累進課税。課税所得€80,000超は連帯付加税（第68-A条）。
+// 一般家計支出の税額控除（第78-B条：支出の35%、上限€250）は満額使えると仮定します。2026年9月に閣議決定された
+// 1〜6段階の税率引き下げ法案は、国会で成立していないため反映していません。
+const PORTUGAL_IAS_2026 = 537.13;
+const PORTUGAL_FIRST_BRACKET = { limit: 8_342, rate: 0.125 };
+const PORTUGAL_GENERAL_EXPENSES_CREDIT = 250;
+const portugalBrackets: TaxSlice[] = [
+  PORTUGAL_FIRST_BRACKET, { limit: 12_587, rate: 0.157 }, { limit: 17_838, rate: 0.212 }, { limit: 23_089, rate: 0.241 }, { limit: 29_397, rate: 0.311 },
+  { limit: 43_090, rate: 0.349 }, { limit: 46_566, rate: 0.431 }, { limit: 86_634, rate: 0.446 }, { limit: Number.POSITIVE_INFINITY, rate: 0.48 },
+];
+
+export function calculatePortugalPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const socialSecurity = gross * 0.11;
+  const specificDeduction = Math.min(gross, Math.max(PORTUGAL_IAS_2026 * 8.54, socialSecurity));
+  // 第70条：参照額は€12,880と1.5×14×IASの大きい方。総収入が2.2×14×IASを超える場合は適用しません。
+  const reference = Math.max(12_880, 1.5 * 14 * PORTUGAL_IAS_2026);
+  const generalExpensesAsIncome = PORTUGAL_GENERAL_EXPENSES_CREDIT / PORTUGAL_FIRST_BRACKET.rate;
+  const upperLimit = reference - PORTUGAL_GENERAL_EXPENSES_CREDIT / (PORTUGAL_FIRST_BRACKET.rate * 3.6) + PORTUGAL_FIRST_BRACKET.limit / 3.6;
+  let minimumExistence = 0;
+  if (gross <= 2.2 * 14 * PORTUGAL_IAS_2026) {
+    const raw = gross <= reference ? reference - (specificDeduction + generalExpensesAsIncome)
+      : gross <= upperLimit ? reference - 2.6 * (gross - reference) - (specificDeduction + generalExpensesAsIncome)
+        : upperLimit - PORTUGAL_FIRST_BRACKET.limit - 1.35 * (gross - upperLimit) - specificDeduction;
+    minimumExistence = Math.min(Math.max(0, raw), gross - specificDeduction);
+  }
+  const taxable = Math.max(0, gross - specificDeduction - minimumExistence);
+  const normalTax = Math.max(0, taxFromAnnualBrackets(taxable, portugalBrackets) - PORTUGAL_GENERAL_EXPENSES_CREDIT);
+  const solidarity = Math.max(0, Math.min(taxable, 250_000) - 80_000) * 0.025 + Math.max(0, taxable - 250_000) * 0.05;
+  return { incomeTax: normalTax + solidarity, socialSecurity, taxable };
+}
+
+// スペイン・マドリード州・2026年（居住者・単身、65歳未満、給与以外の所得なし）。社会保険（本人）：共通6.50%
+// （共通4.70%＋失業1.55%＋職業訓練0.10%＋MEI 0.15%、上限は月€5,101.20）と、上限超過分の連帯追加保険料（1.15/1.25/1.46%の本人負担分4.70/28.30）。
+// 所得税（IRPF）：給与−社会保険料−必要経費€2,000−勤労所得減額（第20条）を課税所得とし、国の税率表（第63条）と
+// マドリード州の税率表（州法第1条）でそれぞれ課税し、本人控除（国€5,550・州€5,956.65）に相当する税額を差し引きます。
+// 低所得の給与所得者の税額控除（追加規定第61条、2026年）を反映。州独自の税額控除（家賃など）は未反映です。
+const SPAIN_MAX_MONTHLY_BASE_2026 = 5_101.2;
+const spainStateScale: TaxSlice[] = [
+  { limit: 12_450, rate: 0.095 }, { limit: 20_200, rate: 0.12 }, { limit: 35_200, rate: 0.15 }, { limit: 60_000, rate: 0.185 }, { limit: 300_000, rate: 0.225 }, { limit: Number.POSITIVE_INFINITY, rate: 0.245 },
+];
+const madridScale: TaxSlice[] = [
+  { limit: 13_362.22, rate: 0.085 }, { limit: 19_004.63, rate: 0.107 }, { limit: 35_425.68, rate: 0.128 }, { limit: 57_320.4, rate: 0.174 }, { limit: Number.POSITIVE_INFINITY, rate: 0.205 },
+];
+
+export function calculateSpainMadridPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const monthly = gross / 12;
+  const excess = Math.max(0, monthly - SPAIN_MAX_MONTHLY_BASE_2026);
+  const solidarity = taxFromAnnualBrackets(excess, [
+    { limit: SPAIN_MAX_MONTHLY_BASE_2026 * 0.1, rate: 0.0115 }, { limit: SPAIN_MAX_MONTHLY_BASE_2026 * 0.5, rate: 0.0125 }, { limit: Number.POSITIVE_INFINITY, rate: 0.0146 },
+  ]) * (4.7 / 28.3);
+  const socialSecurity = (Math.min(monthly, SPAIN_MAX_MONTHLY_BASE_2026) * 0.065 + solidarity) * 12;
+  const netWork = gross - socialSecurity;
+  const reduction = netWork <= 14_852 ? 7_302
+    : netWork <= 17_673.52 ? 7_302 - 1.75 * (netWork - 14_852)
+      : netWork < 19_747.5 ? 2_364.34 - 1.14 * (netWork - 17_673.52) : 0;
+  const taxable = Math.max(0, netWork - 2_000 - reduction);
+  const stateTax = Math.max(0, taxFromAnnualBrackets(taxable, spainStateScale) - taxFromAnnualBrackets(Math.min(taxable, 5_550), spainStateScale));
+  const regionalTax = Math.max(0, taxFromAnnualBrackets(taxable, madridScale) - taxFromAnnualBrackets(Math.min(taxable, 5_956.65), madridScale));
+  // 追加規定第61条：給与€17,094以下は€590.89、€20,048.45未満は€590.89−0.2×(給与−€17,094)。国・州の税額の合計が上限。
+  const workCredit = Math.min(stateTax + regionalTax, gross <= 17_094 ? 590.89 : gross < 20_048.45 ? 590.89 - 0.2 * (gross - 17_094) : 0);
+  return { stateTax: Math.max(0, stateTax - workCredit), regionalTax: regionalTax - Math.max(0, workCredit - stateTax), socialSecurity, taxable };
+}
+
+// コロンビア・2026課税年度（居住者・単身、通常給与。salario integralではない）。UVT＝$52,374、最低賃金＝$1,750,905（政令0159/2026、暫定）。
+// 本人負担の社会保険（年収を12で割った月額を最低賃金1倍〜25倍の範囲に収めた額が基礎）：年金4%、医療4%、
+// 年金連帯基金（最低賃金4倍以上で1%、16倍以上は0.2〜1%を上乗せ）。年金改革法（法律2381/2024）は2027年4月1日から施行。
+// 課税所得＝給与−社会保険料（非課税）−給与の25%の非課税所得（年790 UVTまで。控除合計は40%・1,340 UVTが上限）。第241条の税率表（UVT建て）。
+// 扶養控除、任意年金・AFC、電子インボイスの購入額1%控除、賞与・手当の区別は未反映です。
+const COLOMBIA_UVT_2026 = 52_374;
+const COLOMBIA_MINIMUM_WAGE_2026 = 1_750_905;
+const colombiaTariffUvt = [
+  { lower: 31_000, rate: 0.39, fixed: 10_352 }, { lower: 18_970, rate: 0.37, fixed: 5_901 }, { lower: 8_670, rate: 0.35, fixed: 2_296 },
+  { lower: 4_100, rate: 0.33, fixed: 788 }, { lower: 1_700, rate: 0.28, fixed: 116 }, { lower: 1_090, rate: 0.19, fixed: 0 },
+] as const;
+
+export function calculateColombiaPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const monthly = gross / 12;
+  const base = monthly > 0 ? Math.min(Math.max(monthly, COLOMBIA_MINIMUM_WAGE_2026), 25 * COLOMBIA_MINIMUM_WAGE_2026) : 0;
+  const wages = base / COLOMBIA_MINIMUM_WAGE_2026;
+  const solidarityFund = (wages >= 4 ? 0.01 : 0) + (wages > 20 ? 0.01 : wages >= 19 ? 0.008 : wages >= 18 ? 0.006 : wages >= 17 ? 0.004 : wages >= 16 ? 0.002 : 0);
+  const pension = base * (0.04 + solidarityFund) * 12;
+  const health = base * 0.04 * 12;
+  const netIncome = Math.max(0, gross - pension - health);
+  const exempt = Math.min(netIncome * 0.25, 790 * COLOMBIA_UVT_2026, netIncome * 0.4, 1_340 * COLOMBIA_UVT_2026);
+  const taxableUvt = (netIncome - exempt) / COLOMBIA_UVT_2026;
+  const row = colombiaTariffUvt.find((item) => taxableUvt > item.lower);
+  const incomeTax = row ? ((taxableUvt - row.lower) * row.rate + row.fixed) * COLOMBIA_UVT_2026 : 0;
+  return { incomeTax, pension, health };
+}
+
+// アルゼンチン・2026年（居住者・単身の給与所得者）。年収は月給12か月分とSAC（13か月目の給与）の合計として扱い、月給＝年収÷13。
+// 本人負担：年金11%・PAMI 3%・社会保障医療3%。拠出の月額上限は物価連動で毎月改定され、11・12月分が未公表のため、
+// 月給が2026年1月の上限$3,823,372.95（ANSES決議381/2025）以下の場合だけ計算し、それを超える給与はnull（計算不能）を返します。
+// 所得税（Ganancias）：ARCAの2026年分の年間表（最低課税所得・特別控除（第30条c)2、4.8倍）と、その合計の1/12の加算）と第94条の年間税率表。
+// 家族控除・その他の控除は未反映です。
+export const ARGENTINA_MIN_VERIFIED_MONTHLY_CAP_2026 = 3_823_372.95;
+const ARGENTINA_PERSONAL_DEDUCTIONS_2026 = (6_019_671.36 + 28_894_422.56) * (13 / 12);
+const argentinaScale2026: TaxSlice[] = [
+  { limit: 2_168_491.89, rate: 0.05 }, { limit: 4_336_983.77, rate: 0.09 }, { limit: 6_505_475.65, rate: 0.12 }, { limit: 9_758_213.49, rate: 0.15 }, { limit: 19_516_426.99, rate: 0.19 },
+  { limit: 29_274_640.48, rate: 0.23 }, { limit: 43_911_960.73, rate: 0.27 }, { limit: 65_867_941.1, rate: 0.31 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
+];
+
+export function calculateArgentinaPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  if (gross / 13 > ARGENTINA_MIN_VERIFIED_MONTHLY_CAP_2026) return null;
+  const socialSecurity = gross * 0.17;
+  const incomeTax = taxFromAnnualBrackets(Math.max(0, gross - socialSecurity - ARGENTINA_PERSONAL_DEDUCTIONS_2026), argentinaScale2026);
+  // PAMI（高齢者医療）は医療保険として表示します。
+  return { incomeTax, pension: gross * 0.11, health: gross * 0.06 };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
-  if (city.taxSystem === "canada" && !["britishColumbia", "ontario"].includes(city.taxRegion)) return "unavailable";
-  if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington"].includes(city.taxRegion)) return "unavailable";
-  if (["singapore", "uae"].includes(city.taxSystem)) return "official-scenario";
+  if (city.taxSystem === "spain" && city.taxRegion !== "madrid") return "unavailable";
+  if (city.taxSystem === "china" && !["beijing", "shanghai"].includes(city.taxRegion)) return "unavailable";
+  if (city.taxSystem === "canada" && !["britishColumbia", "ontario", "alberta", "quebec"].includes(city.taxRegion)) return "unavailable";
+  if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington", "massachusetts", "illinois", "districtOfColumbia"].includes(city.taxRegion)) return "unavailable";
+  if (city.taxSystem === "uk" && !["england", "scotland"].includes(city.taxRegion)) return "unavailable";
+  if (city.taxSystem === "italy" && !["lazio", "lombardy"].includes(city.taxRegion)) return "unavailable";
+  if (["singapore", "uae", "saudiArabia"].includes(city.taxSystem)) return "official-scenario";
   return "official-rate-estimate";
 }
 
@@ -222,10 +640,87 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     ]);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
   }
-  if (city.taxSystem === "uae") return emptyTaxBreakdown();
+  // UAE・サウジアラビアは給与に個人所得税がなく、外国人従業員の社会保険の本人負担もありません。
+  if (city.taxSystem === "uae" || city.taxSystem === "saudiArabia") return emptyTaxBreakdown();
+  if (city.taxSystem === "india") {
+    const incomeTax = calculateIndiaIncomeTax(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
+  }
+  if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
+    const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "portugal") {
+    const { incomeTax, socialSecurity } = calculatePortugalPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (incomeTax + socialSecurity) / 12 };
+  }
+  if (city.taxSystem === "spain") {
+    const { stateTax, regionalTax, socialSecurity } = calculateSpainMadridPayroll(grossAnnual);
+    const totalTax = stateTax + regionalTax;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: stateTax / 12, residentTaxMonthly: regionalTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (totalTax + socialSecurity) / 12 };
+  }
+  if (city.taxSystem === "colombia") {
+    const { incomeTax, pension, health } = calculateColombiaPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
+  }
+  if (city.taxSystem === "argentina") {
+    // 拠出上限が未公表の月（11・12月）に影響する給与帯は計算しません。
+    const payroll = calculateArgentinaPayroll(grossAnnual);
+    if (payroll === null) return null;
+    const { incomeTax, pension, health } = payroll;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
+  }
+  if (city.taxSystem === "malaysia") {
+    const { incomeTax, epf } = calculateMalaysiaPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: epf / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: epf / 12, totalDeductionsMonthly: (incomeTax + epf) / 12 };
+  }
+  if (city.taxSystem === "indonesia") {
+    const { incomeTax, pension, health } = calculateIndonesiaPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
+  }
+  if (city.taxSystem === "korea") {
+    const { incomeTax, localIncomeTax, pension, health, employment } = calculateKoreaPayroll(grossAnnual);
+    const totalTax = incomeTax + localIncomeTax;
+    const totalInsurance = pension + health + employment;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: localIncomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: employment / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
+  }
+  if (city.taxSystem === "taiwan") {
+    const { incomeTax, laborInsurance, healthInsurance } = calculateTaiwanPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: healthInsurance / 12, pensionMonthly: laborInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (laborInsurance + healthInsurance) / 12, totalDeductionsMonthly: (incomeTax + laborInsurance + healthInsurance) / 12 };
+  }
+  if (city.taxSystem === "brazil") {
+    const { incomeTax, socialInsurance } = calculateBrazilPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "vietnam") {
+    const { incomeTax, socialInsurance } = calculateVietnamPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "philippines") {
+    const { incomeTax, socialInsurance } = calculatePhilippinesPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
+  }
+  if (city.taxSystem === "thailand") {
+    const { incomeTax, socialSecurity } = calculateThailandPayroll(grossAnnual);
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (incomeTax + socialSecurity) / 12 };
+  }
+  if (city.taxSystem === "germany") {
+    const { incomeTax, solidarity, pension, unemployment, health, care } = calculateGermanyPayroll(grossAnnual, household);
+    const totalTax = incomeTax + solidarity;
+    const totalInsurance = pension + unemployment + health + care;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, reconstructionSurtaxMonthly: solidarity / 12, healthInsuranceMonthly: health / 12, careInsuranceMonthly: care / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: unemployment / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
+  }
   if (city.taxSystem === "ireland") {
     const { incomeTax, usc, prsi } = calculateIrelandPayrollTax(grossAnnual);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: usc / 12, pensionMonthly: prsi / 12, totalTaxMonthly: (incomeTax + usc) / 12, totalInsuranceMonthly: prsi / 12, totalDeductionsMonthly: (incomeTax + usc + prsi) / 12 };
+  }
+  if (city.taxSystem === "netherlands") {
+    // 年齢帯からAOW年齢（2026年は67歳）以上かを判定できないため、65歳以上は計算しません。
+    if (ageBand === "65plus") return null;
+    const payroll = calculateNetherlandsPayroll(grossAnnual);
+    // Box 1は所得税と国民保険料を一体で課税し、税額控除も合算額から差し引くため、1行の税額として示します。
+    const levy = payroll.box1AfterCredits;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: levy / 12, totalTaxMonthly: levy / 12, totalDeductionsMonthly: levy / 12 };
   }
   if (city.taxSystem === "hongKong") {
     const { salariesTax, mpf } = calculateHongKongSalariesTax(grossAnnual, household);
@@ -268,7 +763,9 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "canada") {
     const tax = calculateCanadaTax(city, grossAnnual);
     const pension = calculateCanadaPension(grossAnnual, city.insurance);
-    const employment = Math.min(grossAnnual * city.insurance.employmentRateEmployee, city.insurance.employmentCap ?? 1_123.07);
+    // ケベック州はEIの料率が低い代わりに、親保険（QPIP 0.455%、上限所得$103,000）を加えます。
+    const parentalInsurance = city.taxRegion === "quebec" ? Math.min(grossAnnual, 103_000) * 0.00455 : 0;
+    const employment = Math.min(grossAnnual * city.insurance.employmentRateEmployee, city.insurance.employmentCap ?? 1_123.07) + parentalInsurance;
     const totalTax = tax.federalTax + tax.provincialTax;
     const totalInsurance = pension + employment + tax.healthPremium;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: totalTax / 12, healthInsuranceMonthly: tax.healthPremium / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: employment / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
@@ -285,7 +782,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "uk") {
     const allowance = grossAnnual > 100_000 ? Math.max(0, 12_570 - (grossAnnual - 100_000) / 2) : 12_570;
     const taxableIncome = Math.max(0, grossAnnual - allowance);
-    const incomeTax = taxFromAnnualBrackets(taxableIncome, [{ limit: 37_700, rate: 0.2 }, { limit: 125_140 - 12_570, rate: 0.4 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 }]);
+    // スコットランド2026-27：課税所得（個人控除後）に19/20/21/42/45/47%の6段階。国民保険は英国共通。
+    const incomeTax = city.taxRegion === "scotland"
+      ? taxFromAnnualBrackets(taxableIncome, [{ limit: 3_967, rate: 0.19 }, { limit: 16_956, rate: 0.2 }, { limit: 31_092, rate: 0.21 }, { limit: 62_430, rate: 0.42 }, { limit: 125_140, rate: 0.45 }, { limit: Number.POSITIVE_INFINITY, rate: 0.47 }])
+      : taxFromAnnualBrackets(taxableIncome, [{ limit: 37_700, rate: 0.2 }, { limit: 125_140 - 12_570, rate: 0.4 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 }]);
     const ni = Math.max(0, Math.min(grossAnnual, 50_270) - 12_570) * 0.08 + Math.max(0, grossAnnual - 50_270) * 0.02;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, employmentInsuranceMonthly: ni / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: ni / 12, totalDeductionsMonthly: (incomeTax + ni) / 12 };
   }
@@ -302,8 +802,14 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "italy") {
     const pension = grossAnnual * city.insurance.pensionRateEmployee + Math.min(Math.max(0, grossAnnual - 56_224), 66_071) * 0.01;
     const taxableIncome = Math.max(0, grossAnnual - pension);
-    const nationalTax = taxFromAnnualBrackets(taxableIncome, [{ limit: 15_000, rate: 0.23 }, { limit: 28_000, rate: 0.33 }, { limit: Number.POSITIVE_INFINITY, rate: 0.43 }]);
-    const localTax = taxableIncome * 0.0263;
+    // IRPEF 2026（2026年予算法で第2段階を35%→33%に引き下げ）：€28,000まで23%、€50,000まで33%、超過分43%。
+    // 給与所得者の税額控除（detrazioni）と税負担軽減措置（cuneo fiscale）は未反映。
+    const nationalTax = taxFromAnnualBrackets(taxableIncome, [{ limit: 28_000, rate: 0.23 }, { limit: 50_000, rate: 0.33 }, { limit: Number.POSITIVE_INFINITY, rate: 0.43 }]);
+    // 地方税：ローマ（ラツィオ州）は州・市の合計2.63%の固定概算。ミラノはロンバルディア州の累進税率
+    // （1.23/1.58/1.72/1.73%）と、課税所得€23,000超で所得全体にかかる市税0.8%。
+    const localTax = city.taxRegion === "lombardy"
+      ? taxFromAnnualBrackets(taxableIncome, [{ limit: 15_000, rate: 0.0123 }, { limit: 28_000, rate: 0.0158 }, { limit: 50_000, rate: 0.0172 }, { limit: Number.POSITIVE_INFINITY, rate: 0.0173 }]) + (taxableIncome > 23_000 ? taxableIncome * 0.008 : 0)
+      : taxableIncome * 0.0263;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: nationalTax / 12, residentTaxMonthly: localTax / 12, pensionMonthly: pension / 12, totalTaxMonthly: (nationalTax + localTax) / 12, totalInsuranceMonthly: pension / 12, totalDeductionsMonthly: (nationalTax + localTax + pension) / 12 };
   }
   if (city.taxSystem === "mexico") {
@@ -325,9 +831,10 @@ export function calculateCity<TCity extends City>(city: TCity, grossAnnual: numb
   const housingMultiplier = housingMultipliers[housing];
   const lifestyleMultiplier = lifestyleMultipliers[lifestyle];
   const grossMonthly = grossAnnual === null ? null : grossAnnual / 12;
-  const calculationStatus = taxCalculationStatus(city);
-  const calculationUnavailableReason = grossAnnual === null ? "salary" : calculationStatus === "unavailable" ? "tax" : null;
   const taxBreakdown = grossAnnual === null ? null : estimateTaxBreakdown(city, grossAnnual, ageBand, household);
+  // 税制度は対応していても、公式値を確認できていない給与帯・年齢では計算不能として扱います。
+  const calculationStatus = grossAnnual !== null && taxBreakdown === null ? "unavailable" : taxCalculationStatus(city);
+  const calculationUnavailableReason = grossAnnual === null ? "salary" : calculationStatus === "unavailable" ? "tax" : null;
   const rent = city.costs.rent * housingMultiplier;
   const livingCosts = (city.costs.food + city.costs.utilities + city.costs.internet + city.costs.transport + city.costs.medical + city.costs.leisure) * householdMultiplier * lifestyleMultiplier;
   const totalMonthlyCosts = rent + livingCosts;

@@ -33,6 +33,8 @@ import type { HousingType, LifestyleType } from "../../types/finance";
 import type { UserProfile } from "../../types/profile";
 import type { PriorityKey, ScenarioHousehold, ScenarioInput, ScenarioResult, ScenarioScore, UserPriorities } from "../../types/scenario";
 
+const CITY_COUNT = cityOrder.length;
+
 type Language = "ja" | "en";
 
 const initialScenarios: ScenarioInput[] = [
@@ -121,7 +123,7 @@ const copy = {
     title: "どのオファーが、あなたの将来を強くするか。",
     intro: "2〜5件の仕事・移住案を、同じ計算エンジンで比較します。AIに数字を作らせず、税金・生活費・貯蓄・長期資産から順位を決めます。",
     live: "入力と同時に再計算",
-    coverage: "世界50都市",
+    coverage: `世界${CITY_COUNT}都市`,
     scenarios: "比較するオファー",
     scenarioNote: "給与は各オファーの通貨で入力してください。税制度が未対応の都市は、推定手取りを表示しません。",
     add: "オファーを追加",
@@ -512,7 +514,7 @@ function makeScenario(index: number): ScenarioInput {
 
 export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } = {}) {
   const [language, setLanguage] = useState<Language>("ja");
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const [scenarios, setScenarios] = useState<ScenarioInput[]>(initialScenarios);
   const [priorities, setPriorities] = useState<UserPriorities>(DEFAULT_PRIORITIES);
   const [whatIfScenarioId, setWhatIfScenarioId] = useState(initialScenarios[1].id);
