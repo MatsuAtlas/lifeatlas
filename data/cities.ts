@@ -219,7 +219,14 @@ const usStateTaxSource = (state: "california" | "texas" | "florida" | "washingto
   florida: source("州所得税", "州", "2026年確認", "Florida Department of Revenue・個人所得税なし", "https://floridarevenue.com/taxes/Pages/default.aspx"),
   washington: source("州所得税", "州", "2026年確認", "Washington State Department of Revenue・給与への州所得税なし", "https://dor.wa.gov/taxes-rates"),
 })[state];
-const japanRegionalLabel = "所得税・住民税・社会保険は2026年の国の制度に基づく概算です（健康保険料率は標準的な値で、都道府県別の料率ではありません）。人口・給与・家賃・生活費は保存した参考値で、自動更新値ではありません。";
+// 協会けんぽ 令和8年度（2026年3月分から）の都道府県単位保険料率の労使折半（本人負担）。
+const JAPAN_HEALTH_RATE_EMPLOYEE_2026: Record<string, number> = { tokyo: 0.0985 / 2, osaka: 0.1013 / 2, hokkaido: 0.1028 / 2, kanagawa: 0.0992 / 2, aichi: 0.0993 / 2, kyoto: 0.0989 / 2, fukuoka: 0.1011 / 2 };
+const japanHealthRateEmployee = (prefecture: string) => {
+  const rate = JAPAN_HEALTH_RATE_EMPLOYEE_2026[prefecture];
+  if (rate === undefined) throw new Error(`協会けんぽの料率が未登録の都道府県です: ${prefecture}`);
+  return rate;
+};
+const japanRegionalLabel = "所得税・住民税・社会保険は2026年の国の制度に基づく概算です（健康保険料率は協会けんぽ令和8年度の都道府県別料率）。人口・給与・家賃・生活費は保存した参考値で、自動更新値ではありません。";
 const australiaCityLabel = "所得税・Medicare levy・退職積立は2026-27年度の国の制度に基づく概算です。人口・給与・家賃・生活費は保存した参考値で、自動更新値ではありません。";
 const usCityLabel = "連邦・州所得税、社会保障・Medicareは2026年の公式資料に基づく単身者の概算です。人口・給与・家賃・生活費は保存した参考値で、自動更新値ではありません。";
 
@@ -319,7 +326,7 @@ const estimatedCity = (config: EstimatedCityConfig): City => ({
     config.population,
     config.taxSystem,
     config.taxRegion,
-    config.taxSystem === "japan" ? japanInsurance(0.05065) : config.taxSystem === "canada" ? (config.taxRegion === "quebec" ? quebecInsurance : canadaInsurance) : config.taxSystem === "us" ? usInsurance : config.taxSystem === "australia" ? australiaInsurance : config.taxSystem === "france" ? franceInsurance : config.taxSystem === "italy" ? italyInsurance : config.taxSystem === "uk" ? ukInsurance : config.taxSystem === "singapore" || config.taxSystem === "uae" || config.taxSystem === "saudiArabia" ? foreignEmployeeNoPayrollInsurance : config.taxSystem === "india" ? indiaInsurance : estimateInsurance,
+    config.taxSystem === "japan" ? japanInsurance(japanHealthRateEmployee(config.taxRegion)) : config.taxSystem === "canada" ? (config.taxRegion === "quebec" ? quebecInsurance : canadaInsurance) : config.taxSystem === "us" ? usInsurance : config.taxSystem === "australia" ? australiaInsurance : config.taxSystem === "france" ? franceInsurance : config.taxSystem === "italy" ? italyInsurance : config.taxSystem === "uk" ? ukInsurance : config.taxSystem === "singapore" || config.taxSystem === "uae" || config.taxSystem === "saudiArabia" ? foreignEmployeeNoPayrollInsurance : config.taxSystem === "india" ? indiaInsurance : estimateInsurance,
     config.averageAnnualIncome,
     { rent: config.rent, ...config.costs },
     { "IT職": Math.round(config.averageAnnualIncome * 1.35), "エンジニア": Math.round(config.averageAnnualIncome * 1.28), "営業": Math.round(config.averageAnnualIncome * 1.05), "一般事務": Math.round(config.averageAnnualIncome * 0.78) },
