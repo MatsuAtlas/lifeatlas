@@ -6,3 +6,4 @@ https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2006-20764
 https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2006-20764/texto/bloque/a19
 https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2006-20764/texto/bloque/a20
 https://www.comunidad.madrid/transparencia/anteproyecto-ley-reduccion-escala-comunidad-madrid-irpf-que-se-modifica-texto-refundido
+https://www.boe.es/diario_boe/txt.php?id=BOE-A-2026-7296
