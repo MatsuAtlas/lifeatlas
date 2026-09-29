@@ -489,3 +489,12 @@ test("Italy 2026 IRPEF uses 23% to €28,000, 33% to €50,000 and 43% above", (
   const expected = 28_000 * 0.23 + 22_000 * 0.33 + (taxable - 50_000) * 0.43;
   assert.ok(Math.abs((result.taxBreakdown?.incomeTaxMonthly ?? 0) * 12 - expected) < 0.01);
 });
+
+test("Japanese cities use the FY2026 Kyokai Kenpo health insurance rate of their prefecture", () => {
+  const expected = { tokyo: 0.0985, osaka: 0.1013, sapporo: 0.1028, fukuoka: 0.1011, yokohama: 0.0992, nagoya: 0.0993, kyoto: 0.0989 } as const;
+  for (const [cityId, rate] of Object.entries(expected) as Array<[keyof typeof expected, number]>) {
+    assert.ok(Math.abs(cities[cityId].insurance.healthRateEmployee - rate / 2) < 1e-9, cityId);
+    const result = calculateCity(cities[cityId], 6_000_000, "single", "onebed", "balanced", "under40");
+    assert.ok(Math.abs((result.taxBreakdown?.healthInsuranceMonthly ?? 0) * 12 - 6_000_000 * rate / 2) < 0.01, cityId);
+  }
+});
