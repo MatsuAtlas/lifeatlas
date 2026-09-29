@@ -63,6 +63,10 @@
 - 未使用の依存・定義：`drizzle-orm`、`drizzle-kit`、`react-loading-skeleton`、Worker内のD1定義（テンプレートの名残）。
 - SEOページは静的生成のため保存参考為替を使用。
 
+## 公開状態（2026-09-29確認）
+- 本番サイトは**未公開**（オーナーの判断）。Vercelの Deployment Protection（Vercel Authentication）が有効で、`lifeatlas-life-atlas1.vercel.app` などチーム life-atlas1 のアドレスはVercelのログイン画面へ転送される。一般公開はオーナーの承認を得てから行う。
+- `lifeatlas.vercel.app` は **LifeAtlasではない別人のサイト**（Vite製の別アプリ）。案内や設定（Supabase・StripeのURL）に使わないこと。本番アドレスはVercelのプロジェクト設定（Settings → Domains）で確認する。
+
 ## 本番化の残作業
 1. 公開先をOpenAI SitesからVercelへ移行（`main` へのマージで本番デプロイ）。Vercelに環境変数（Production）を登録し、Supabase AuthのRedirect URLとStripe WebhookのURLを新ドメインへ変更。
 2. Vercelに `LIFEATLAS_DIAGNOSTICS_TOKEN` を登録し、`?probe=1` でSupabase・Stripe（test mode）・AI Gatewayの設定を確認。
