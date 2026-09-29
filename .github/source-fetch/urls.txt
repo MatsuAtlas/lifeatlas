@@ -1,3 +1,1 @@
-https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2006-20764/texto/bloque/a19
-https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2006-20764/texto/bloque/a20
-https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2006-20764/texto/bloque/a81bis
+https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2006-20764/texto/bloque/a80bis
