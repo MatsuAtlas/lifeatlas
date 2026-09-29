@@ -296,6 +296,23 @@ test("exposes validated deterministic decision APIs without duplicating the calc
 
   const crossOrigin = await fetch(`${baseUrl}/api/calculate`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://attacker.invalid" }, body: JSON.stringify({ scenario: tokyo }) });
   assert.equal(crossOrigin.status, 403);
+
+  // アカウント削除：他サイトからの送信と確認語なしは拒否し、Supabase未設定では何も消さずに準備中を返します。
+  const deleteCrossOrigin = await fetch(`${baseUrl}/api/account/delete`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://attacker.invalid" }, body: JSON.stringify({ confirm: "削除" }) });
+  assert.equal(deleteCrossOrigin.status, 403);
+  const deleteUnconfirmed = await fetch(`${baseUrl}/api/account/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: "yes" }) });
+  assert.equal(deleteUnconfirmed.status, 400);
+  const deleteUnconfigured = await fetch(`${baseUrl}/api/account/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: "削除" }) });
+  assert.equal(deleteUnconfigured.status, 503);
+
+  const privacy = await fetch(`${baseUrl}/privacy`);
+  assert.equal(privacy.status, 200);
+  const privacyHtml = await privacy.text();
+  assert.match(privacyHtml, /プライバシーポリシー/);
+  assert.match(privacyHtml, /カード番号はStripeの画面で入力され、LifeAtlasでは一切保存しません/);
+  assert.match(privacyHtml, /お問い合わせ先は、一般公開までにここへ掲載します/);
+  const privacyEn = await (await fetch(`${baseUrl}/privacy?lang=en`)).text();
+  assert.match(privacyEn, /Privacy policy/);
 });
 
 test("publishes typed city catalog APIs with coverage and source metadata", async () => {
