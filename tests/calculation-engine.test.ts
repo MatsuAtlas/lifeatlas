@@ -489,7 +489,7 @@ test("Madrid 2026 applies the state and Madrid scales, the work reduction and th
   close(low.regionalTax, (10_989.5 - 5_956.65) * 0.085);
   // €100,000：上限€5,101.20超の部分に連帯追加保険料（本人負担4.70/28.30）
   const excess = 100_000 / 12 - 5_101.2;
-  close(calculateSpainMadridPayroll(100_000).socialSecurity, (5_101.2 * 0.065 + (510.12 * 0.0115 + 2_040.48 * 0.0125 + (excess - 2_550.6) * 0.0146) * 4.7 / 28.3) * 12);
+  close(calculateSpainMadridPayroll(100_000).socialSecurity, (5_101.2 * 0.065 + 510.12 * 0.0019 + 2_040.48 * 0.0021 + (excess - 2_550.6) * 0.0024) * 12);
   assert.equal(taxCalculationStatus(cities.madrid), "official-rate-estimate");
 });
 
