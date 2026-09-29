@@ -396,7 +396,8 @@ export function calculateTaiwanPayroll(grossAnnual: number) {
 // 韓国・2026年（居住者・単身の給与所得者）。社会保険（本人負担）：国民年金4.75%（料率9.5%の半分。基準所得月額は1〜6月が
 // 40万〜637万ウォン、7〜12月が41万〜659万ウォン）、健康保険3.595%（7.19%の半分）、長期療養保険は健康保険料×0.9448/7.19、
 // 雇用保険0.9%（失業給付1.8%の半分）。所得税＝(総給与−勤労所得控除（上限2,000万）−基本控除150万−年金保険料−健康・長期療養・
-// 雇用保険料)に基本税率を掛け、勤労所得税額控除を差し引きます。保険料の特別所得控除を申請するため標準税額控除（13万）は使いません。
+// 雇用保険料)に基本税率を掛け、勤労所得税額控除を差し引きます。保険料の特別所得控除（第52条）と標準税額控除13万（第59条の4第9項）は
+// 併用できないため、両方を計算して税額が小さい方を採ります（低い年収では標準税額控除が有利）。
 // 地方所得税は所得税の10%。非課税手当（食事代など）、健康保険料の上下限、扶養家族、その他の所得・税額控除は未反映です。
 export function koreaEarnedIncomeDeduction2026(totalSalary: number) {
   const x = Math.max(0, totalSalary);
@@ -425,12 +426,18 @@ export function calculateKoreaPayroll(grossAnnual: number) {
   const longTermCare = health * 0.9448 / 7.19;
   const employment = gross * 0.009;
   const earnedIncome = gross - koreaEarnedIncomeDeduction2026(gross);
-  const taxable = Math.max(0, earnedIncome - 1_500_000 - pension - health - longTermCare - employment);
-  const calculatedTax = taxFromAnnualBrackets(taxable, [
-    { limit: 14_000_000, rate: 0.06 }, { limit: 50_000_000, rate: 0.15 }, { limit: 88_000_000, rate: 0.24 }, { limit: 150_000_000, rate: 0.35 },
-    { limit: 300_000_000, rate: 0.38 }, { limit: 500_000_000, rate: 0.4 }, { limit: 1_000_000_000, rate: 0.42 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 },
-  ]);
-  const incomeTax = Math.max(0, calculatedTax - koreaEarnedIncomeTaxCredit2026(calculatedTax, gross));
+  const baseTaxable = earnedIncome - 1_500_000 - pension;
+  const taxAfterCredits = (taxable: number, standardCredit: number) => {
+    const calculatedTax = taxFromAnnualBrackets(Math.max(0, taxable), [
+      { limit: 14_000_000, rate: 0.06 }, { limit: 50_000_000, rate: 0.15 }, { limit: 88_000_000, rate: 0.24 }, { limit: 150_000_000, rate: 0.35 },
+      { limit: 300_000_000, rate: 0.38 }, { limit: 500_000_000, rate: 0.4 }, { limit: 1_000_000_000, rate: 0.42 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 },
+    ]);
+    return Math.max(0, calculatedTax - koreaEarnedIncomeTaxCredit2026(calculatedTax, gross) - standardCredit);
+  };
+  const incomeTax = Math.min(
+    taxAfterCredits(baseTaxable - health - longTermCare - employment, 0),
+    taxAfterCredits(baseTaxable, 130_000),
+  );
   const localIncomeTax = incomeTax * 0.1;
   return { incomeTax, localIncomeTax, pension, health: health + longTermCare, employment };
 }

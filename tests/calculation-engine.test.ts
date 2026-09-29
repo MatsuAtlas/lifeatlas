@@ -246,8 +246,9 @@ test("Korea 2026 payroll applies the earned-income deduction, basic deduction, p
   const high = calculateKoreaPayroll(100_000_000);
   close(high.pension, (6_370_000 + 6_590_000) * 6 * 0.0475);
   close(high.incomeTax, 6_240_000 + (75_089_000 - 50_000_000) * 0.24 - 500_000);
-  // 2,000万ウォン：6%帯、税額控除55%
-  close(calculateKoreaPayroll(20_000_000).incomeTax, 8_306_520 * 0.06 * 0.45);
+  // 2,000万ウォン：保険料の特別所得控除（8,306,520×6%×45%＝224,276.04）より、
+  // 標準税額控除13万（9,300,000×6%×45%−130,000＝121,100）の方が小さいため後者を採用
+  close(calculateKoreaPayroll(20_000_000).incomeTax, 121_100);
   assert.deepEqual(calculateKoreaPayroll(0), { incomeTax: 0, localIncomeTax: 0, pension: 0, health: 0, employment: 0 });
 
   const seoul = cities.seoul;
