@@ -112,6 +112,22 @@ export async function supabaseAdminRestRequest(path: string, init: RequestInit =
   });
 }
 
+// Supabase Authの管理API（ユーザー削除など）。service roleキーはサーバー内だけで使います。
+export async function supabaseAdminAuthRequest(path: string, init: RequestInit = {}) {
+  const { url } = getConfig();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!serviceRoleKey) throw new SupabaseNotConfiguredError();
+  const headers = new Headers(init.headers);
+  applySupabaseAdminAuthHeaders(headers, serviceRoleKey);
+  headers.set("Accept", "application/json");
+  return fetch(new URL(`auth/v1/admin/${path.replace(/^\/+/, "")}`, `${url}/`), {
+    ...init,
+    headers,
+    cache: "no-store",
+    signal: init.signal ?? AbortSignal.timeout(10_000),
+  });
+}
+
 export async function getAccessToken() {
   const cookieStore = await cookies();
   return cookieStore.get(ACCESS_TOKEN_COOKIE)?.value ?? null;

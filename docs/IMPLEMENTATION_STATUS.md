@@ -68,6 +68,11 @@
 - 本番サイトは**未公開**（オーナーの判断）。Vercelの Deployment Protection（Vercel Authentication）が有効で、`lifeatlas-life-atlas1.vercel.app` などチーム life-atlas1 のアドレスはVercelのログイン画面へ転送される。一般公開はオーナーの承認を得てから行う。
 - `lifeatlas.vercel.app` は **LifeAtlasではない別人のサイト**（Vite製の別アプリ）。案内や設定（Supabase・StripeのURL）に使わないこと。本番アドレスはVercelのプロジェクト設定（Settings → Domains）で確認する。
 
+## プライバシー・アカウント削除（2026-09-29）
+- `/privacy`（日英）を追加。取得情報・利用目的・委託先（Supabase・Stripe・Vercel/AI Gateway）・Cookieと端末内保存・共有リンク・削除方法を実装どおりに記載。問い合わせ先は環境変数 `LIFEATLAS_CONTACT_EMAIL`（オーナーが決めるまで未設定で「一般公開までに掲載」と表示）。運営者の氏名・住所は「請求があれば遅滞なく開示」。
+- アカウント削除 `POST /api/account/delete`（本人のみ、確認語「削除」/`DELETE`、同一オリジンのみ）。Stripe顧客を先に削除（定期課金の即時解約・カード情報の削除）→ Supabase Authのユーザーを削除し、各テーブルは on delete cascade で消去、利用状況は user_id を null にして匿名化。Stripeを操作できない場合は課金だけが残らないよう削除を止める。削除後に届くStripeの解約通知は外部キー違反（23503）として無視。
+- 公開前の残り：問い合わせ先メールの決定、特定商取引法に基づく表記（live課金の前）、本番での削除の動作確認（Supabase・Stripe設定後）。
+
 ## 本番化の残作業
 1. 公開先をOpenAI SitesからVercelへ移行（`main` へのマージで本番デプロイ）。Vercelに環境変数（Production）を登録し、Supabase AuthのRedirect URLとStripe WebhookのURLを新ドメインへ変更。
 2. Vercelに `LIFEATLAS_DIAGNOSTICS_TOKEN` を登録し、`?probe=1` でSupabase・Stripe（test mode）・AI Gatewayの設定を確認。

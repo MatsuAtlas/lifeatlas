@@ -28,6 +28,8 @@ export function AccountClient({ checkoutReturned = false, authStatus }: { checko
   const [profileSaving, setProfileSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const ja = language === "ja";
 
   useEffect(() => {
@@ -89,6 +91,21 @@ export function AccountClient({ checkoutReturned = false, authStatus }: { checko
     }
   }
 
+  async function deleteAccount() {
+    setMessage("");
+    setDeleting(true);
+    try {
+      const response = await fetch("/api/account/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: deleteConfirm }) });
+      if (!response.ok) throw new Error("ACCOUNT_DELETE_FAILED");
+      window.location.assign("/?account=deleted");
+    } catch {
+      setMessage(ja ? "アカウントを削除できませんでした。時間をおいて再度お試しください。" : "Your account could not be deleted. Please try again later.");
+      setDeleting(false);
+    }
+  }
+
+  const deleteKeyword = ja ? "削除" : "DELETE";
+
   const periodEnd = billing?.subscription.currentPeriodEnd
     ? new Intl.DateTimeFormat(ja ? "ja-JP" : "en-US", { dateStyle: "medium" }).format(new Date(billing.subscription.currentPeriodEnd))
     : null;
@@ -129,6 +146,14 @@ export function AccountClient({ checkoutReturned = false, authStatus }: { checko
             </div>
             <div className="profile-priority-grid">{priorityOrder.map((priority) => <label key={priority}><span>{priorityLabels[priority][language]}<strong>{profile.priorities[priority]}/5</strong></span><input type="range" min="0" max="5" step="1" value={profile.priorities[priority]} onChange={(event) => setProfile((current) => ({ ...current, priorities: { ...current.priorities, [priority]: Number(event.target.value) } }))} /></label>)}</div>
             <button className="primary-button" type="submit" disabled={profileSaving}>{profileSaving ? (ja ? "保存中…" : "Saving…") : (ja ? "プロフィールを保存" : "Save profile")}</button>
+          </form>
+          <form className="account-delete" onSubmit={(event) => { event.preventDefault(); void deleteAccount(); }}>
+            <p className="eyebrow">DELETE ACCOUNT</p>
+            <h2>{ja ? "アカウントを削除" : "Delete account"}</h2>
+            <p>{ja ? "ログイン情報、保存した比較、プロフィール、AIによる説明の履歴、共有リンク、契約情報をすぐに消去します。有効なProの契約は解約され、元に戻せません。この端末に保存した比較は、ブラウザの設定から削除できます。" : "This immediately erases your sign-in, saved comparisons, profile, AI explanation history, share links and subscription record. An active Pro subscription is cancelled. This cannot be undone. Comparisons saved on this device can be removed from your browser settings."}</p>
+            <label>{ja ? `確認のため「${deleteKeyword}」と入力` : `Type "${deleteKeyword}" to confirm`}<input value={deleteConfirm} onChange={(event) => setDeleteConfirm(event.target.value)} autoComplete="off" /></label>
+            <button className="danger-button" type="submit" disabled={deleting || deleteConfirm.trim() !== deleteKeyword}>{deleting ? (ja ? "削除中…" : "Deleting…") : (ja ? "アカウントを完全に削除" : "Permanently delete account")}</button>
+            <p><Link href={`/privacy${ja ? "" : "?lang=en"}`}>{ja ? "プライバシーポリシー" : "Privacy policy"}</Link></p>
           </form>
         </>}
       </section>

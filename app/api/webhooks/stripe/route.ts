@@ -59,7 +59,12 @@ async function syncSubscription(subscription: Stripe.Subscription, eventCreated:
       updated_at: new Date().toISOString(),
     }),
   });
-  if (!response.ok) throw new Error("BILLING_WEBHOOK_SAVE_FAILED");
+  if (!response.ok) {
+    // アカウント削除でユーザーが消えた後に届く解約通知は、保存先がないため無視します（外部キー違反 23503）。
+    const detail: unknown = await response.json().catch(() => null);
+    if (response.status === 409 && typeof detail === "object" && detail !== null && (detail as { code?: unknown }).code === "23503") return;
+    throw new Error("BILLING_WEBHOOK_SAVE_FAILED");
+  }
 }
 
 export async function POST(request: Request) {
