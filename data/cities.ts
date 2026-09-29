@@ -161,8 +161,8 @@ const brazilSources = (): DataSource[] => [
 const portugalSources = (): DataSource[] => [
   source("人口・物価・給与・家賃", "都市", "2026年時点の比較用推定", "Life Atlas保存参考値（自動更新対象外）", "https://data.worldbank.org/"),
   source("所得税の税率表（第68条）", "国", "2026年（法律73-A/2025）", "Portal das Finanças・Código do IRS artigo 68.º", "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs68.aspx"),
-  source("所得税の給与所得控除（IAS×8.54）", "国", "2026年", "Portal das Finanças・Código do IRS artigo 25.º", "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs25.aspx"),
-  source("最低生活保障", "国", "2026年", "Portal das Finanças・Código do IRS artigo 70.º", "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs70.aspx"),
+  source("所得税の控除（第25条・IAS×8.54）", "国", "2026年", "Portal das Finanças・Código do IRS artigo 25.º", "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs25.aspx"),
+  source("所得税の最低生活保障", "国", "2026年", "Portal das Finanças・Código do IRS artigo 70.º", "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs70.aspx"),
   source("連帯付加税", "国", "2026年", "Portal das Finanças・Código do IRS artigo 68.º-A", "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs68a.aspx"),
   source("一般家計支出の税額控除（上限€250）", "国", "2026年", "Portal das Finanças・Código do IRS artigo 78.º-B", "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs78b.aspx"),
   source("IAS €537.13", "国", "2026年1月1日以降", "Diário da República・Portaria n.º 480-A/2025/1", "https://diariodarepublica.pt/dr/detalhe/portaria/480-a-2025-993056222"),
@@ -174,14 +174,14 @@ const spainMadridSources = (): DataSource[] => [
   source("所得税（国の税率表・必要経費・勤労所得減額・本人控除・低所得者の税額控除）", "国", "2026年", "BOE・Ley 35/2006 del IRPF（texto consolidado）", "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764"),
   source("所得税（マドリード州の税率表・本人控除）", "州", "2026年", "BOE・Decreto Legislativo 1/2010 de la Comunidad de Madrid（texto consolidado）", "https://www.boe.es/buscar/act.php?id=BOCM-m-2010-90068"),
   source("社会保険（料率・上限€5,101.20）", "国", "2026年", "Seguridad Social・Bases y tipos de cotización 2026", "https://www.seg-social.es/wps/portal/wss/internet/Trabajadores/CotizacionRecaudacionTrabajadores/36537"),
-  source("MEI・連帯追加保険料の料率", "国", "2026年", "BOE・Real Decreto Legislativo 8/2015（LGSS）disposiciones transitorias 42.ª y 43.ª", "https://www.boe.es/buscar/act.php?id=BOE-A-2015-11724"),
+  source("MEI・連帯追加保険料の料率", "国", "2026年", "BOE・Real Decreto Legislativo 8/2015 (LGSS), disposiciones transitorias 42.ª y 43.ª", "https://www.boe.es/buscar/act.php?id=BOE-A-2015-11724"),
 ];
 
 const colombiaSources = (): DataSource[] => [
   source("人口・物価・給与・家賃", "都市", "2026年時点の比較用推定", "Life Atlas保存参考値（自動更新対象外）", "https://data.worldbank.org/"),
   source("所得税（第241条の税率表・第206条の25%非課税・第336条の上限）", "国", "2026課税年度", "DIAN・Estatuto Tributario（normograma）", "https://normograma.dian.gov.co/dian/compilacion/docs/estatuto_tributario.htm"),
   source("UVT $52,374", "国", "2026年", "DIAN・Resolución 000238 de 2025", "https://normograma.dian.gov.co/dian/compilacion/docs/resolucion_dian_0238_2025.htm"),
-  source("最低賃金 $1,750,905（暫定）", "国", "2026年", "Decreto 0159 de 2026", "https://www.cancilleria.gov.co/normograma/compilacion/docs/decreto_0159_2026.htm"),
+  source("保険料の基礎となる最低賃金 $1,750,905（暫定）", "国", "2026年", "Decreto 0159 de 2026", "https://www.cancilleria.gov.co/normograma/compilacion/docs/decreto_0159_2026.htm"),
   source("年金（本人4%・連帯基金）・医療（本人4%）", "国", "2026年（年金改革法は2027年4月1日施行）", "Secretaría del Senado・Ley 100 de 1993", "http://www.secretariasenado.gov.co/senado/basedoc/ley_0100_1993.html"),
   source("年金改革法の施行日", "国", "2026年8月25日判決", "Corte Constitucional・Sentencia C-264 de 2026", "https://www.corteconstitucional.gov.co/relatoria/2026/C-264-26.htm"),
 ];
@@ -190,11 +190,11 @@ const argentinaSources = (): DataSource[] => [
   source("人口・物価・給与・家賃", "都市", "2026年時点の比較用推定", "Life Atlas保存参考値（自動更新対象外）", "https://data.worldbank.org/"),
   source("所得税の控除（第30条・年間）", "国", "2026年", "ARCA・Deducciones personales art. 30 – liquidación anual 2026", "https://www.afip.gob.ar/gananciasYBienes/ganancias/personas-humanas-sucesiones-indivisas/deducciones/documentos/Deducciones-personales-art-30-liq-anual-2026.pdf"),
   source("所得税の税率表（第94条・年間累計）", "国", "2026年", "ARCA・Escala del artículo 94 – período julio a diciembre 2026", "https://www.afip.gob.ar/gananciasYBienes/ganancias/personas-humanas-sucesiones-indivisas/declaracion-jurada/documentos/Tabla-Art-94-LIG-per-jul-a-dic-2026.pdf"),
-  source("特別控除の1/12加算", "国", "2024年以降", "Argentina.gob.ar・Ley 27.743", "https://www.argentina.gob.ar/normativa/nacional/ley-27743-401268/texto"),
+  source("所得税の特別控除の1/12加算", "国", "2024年以降", "Argentina.gob.ar・Ley 27.743", "https://www.argentina.gob.ar/normativa/nacional/ley-27743-401268/texto"),
   source("年金11%", "国", "現行", "Argentina.gob.ar・Ley 24.241 artículo 11", "https://www.argentina.gob.ar/normativa/nacional/ley-24241-639/actualizacion"),
-  source("社会保障医療3%", "国", "現行", "Argentina.gob.ar・Ley 23.660 artículo 16", "https://www.argentina.gob.ar/normativa/nacional/ley-23660-62/actualizacion"),
-  source("PAMI 3%", "国", "現行", "Argentina.gob.ar・Ley 19.032 artículo 8", "https://www.argentina.gob.ar/normativa/nacional/ley-19032-16081/actualizacion"),
-  source("拠出の月額上限（2026年1月）", "国", "2026年1月分", "Boletín Oficial・ANSES Resolución 381/2025", "https://www.boletinoficial.gob.ar/detalleAviso/primera/336700/20251224"),
+  source("医療保険（obra social）3%", "国", "現行", "Argentina.gob.ar・Ley 23.660 artículo 16", "https://www.argentina.gob.ar/normativa/nacional/ley-23660-62/actualizacion"),
+  source("医療保険（PAMI）3%", "国", "現行", "Argentina.gob.ar・Ley 19.032 artículo 8", "https://www.argentina.gob.ar/normativa/nacional/ley-19032-16081/actualizacion"),
+  source("保険料の月額上限（2026年1月）", "国", "2026年1月分", "Boletín Oficial・ANSES Resolución 381/2025", "https://www.boletinoficial.gob.ar/detalleAviso/primera/336700/20251224"),
 ];
 
 const indiaSources = (): DataSource[] => [

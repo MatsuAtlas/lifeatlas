@@ -149,6 +149,12 @@ const SOURCE_PERIOD_EN: Record<string, string> = {
   "2026年1月1日施行": "In force from 1 January 2026",
   "2026年（上限は6月まで637万・7月から659万ウォン）": "2026 (cap ₩6.37m to June, ₩6.59m from July)",
   "2026年確認（施行令は2025年12月23日施行版）": "Checked 2026 (decree in force from 23 December 2025)",
+  "2026年（法律73-A/2025）": "2026 (Law 73-A/2025)",
+  "2026年（年金改革法は2027年4月1日施行）": "2026 (pension reform in force from 1 April 2027)",
+  "2026年8月25日判決": "Ruling of 25 August 2026",
+  "2026年1月分": "January 2026",
+  "2024年以降": "2024 onward",
+  "現行": "In force",
 };
 
 const JAPANESE_TEXT_ALL = /[\u3040-\u30ff\u3400-\u9fff]/g;
