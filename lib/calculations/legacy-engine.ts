@@ -196,59 +196,6 @@ export function calculateIrelandPayrollTax(grossAnnual: number) {
   return { incomeTax, usc, prsi };
 }
 
-// 韓国・2026年分の給与所得者（単身・本人の基本控除のみ）。総合所得税（所得税法第55条）から
-// 勤労所得税額控除（第59条）と標準税額控除（第59条の4第9項）を差し引き、地方所得税10%を加えます。
-// 健康・長期療養・雇用保険料の所得控除（第52条）と標準税額控除13万ウォンは併用できないため、税額が小さい方を採ります。
-// 国民年金は基準所得月額の上下限が7月に改定されるため、1〜6月と7〜12月で分けて計算します。
-// 扶養・子ども・特別税額控除、外国人勤労者の単一税率19%特例、健康保険料の月額上限は未反映です。
-const KOREA_BASIC_DEDUCTION = 1_500_000;
-const KOREA_STANDARD_TAX_CREDIT = 130_000;
-const KOREA_LOCAL_INCOME_TAX_RATE = 0.1;
-const KOREA_PENSION_RATE = 0.0475;
-const KOREA_PENSION_MONTHLY_LIMITS = [{ months: 6, min: 400_000, max: 6_370_000 }, { months: 6, min: 410_000, max: 6_590_000 }];
-const KOREA_HEALTH_RATE = 0.03595;
-const KOREA_LONG_TERM_CARE_RATE = 0.004724;
-const KOREA_EMPLOYMENT_RATE = 0.009;
-
-function koreaEarnedIncomeDeduction(gross: number) {
-  if (gross <= 5_000_000) return gross * 0.7;
-  if (gross <= 15_000_000) return 3_500_000 + (gross - 5_000_000) * 0.4;
-  if (gross <= 45_000_000) return 7_500_000 + (gross - 15_000_000) * 0.15;
-  if (gross <= 100_000_000) return 12_000_000 + (gross - 45_000_000) * 0.05;
-  return Math.min(20_000_000, 14_750_000 + (gross - 100_000_000) * 0.02);
-}
-
-function koreaEarnedIncomeTaxCreditCap(gross: number) {
-  if (gross <= 33_000_000) return 740_000;
-  if (gross <= 70_000_000) return Math.max(660_000, 740_000 - (gross - 33_000_000) * 0.008);
-  if (gross <= 120_000_000) return Math.max(500_000, 660_000 - (gross - 70_000_000) / 2);
-  return Math.max(200_000, 500_000 - (gross - 120_000_000) / 2);
-}
-
-export function calculateSouthKoreaPayrollTax(grossAnnual: number) {
-  const gross = Math.max(0, grossAnnual);
-  const monthly = gross / 12;
-  const pension = gross === 0 ? 0 : KOREA_PENSION_MONTHLY_LIMITS.reduce((sum, period) => sum + Math.min(Math.max(monthly, period.min), period.max) * KOREA_PENSION_RATE * period.months, 0);
-  const healthInsurance = gross * KOREA_HEALTH_RATE;
-  const longTermCare = gross * KOREA_LONG_TERM_CARE_RATE;
-  const employmentInsurance = gross * KOREA_EMPLOYMENT_RATE;
-  const earnedIncome = gross - koreaEarnedIncomeDeduction(gross);
-  const baseTaxable = earnedIncome - KOREA_BASIC_DEDUCTION - pension;
-  const nationalTax = (taxable: number, standardCredit: number) => {
-    const computed = taxFromAnnualBrackets(taxable, [
-      { limit: 14_000_000, rate: 0.06 }, { limit: 50_000_000, rate: 0.15 }, { limit: 88_000_000, rate: 0.24 }, { limit: 150_000_000, rate: 0.35 },
-      { limit: 300_000_000, rate: 0.38 }, { limit: 500_000_000, rate: 0.4 }, { limit: 1_000_000_000, rate: 0.42 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 },
-    ]);
-    const earnedCredit = Math.min(computed <= 1_300_000 ? computed * 0.55 : 715_000 + (computed - 1_300_000) * 0.3, koreaEarnedIncomeTaxCreditCap(gross));
-    return Math.max(0, computed - earnedCredit - standardCredit);
-  };
-  const incomeTax = Math.min(
-    nationalTax(baseTaxable - healthInsurance - longTermCare - employmentInsurance, 0),
-    nationalTax(baseTaxable, KOREA_STANDARD_TAX_CREDIT),
-  );
-  return { incomeTax, localIncomeTax: incomeTax * KOREA_LOCAL_INCOME_TAX_RATE, pension, healthInsurance, longTermCare, employmentInsurance };
-}
-
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "canada" && !["britishColumbia", "ontario"].includes(city.taxRegion)) return "unavailable";
@@ -279,12 +226,6 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "ireland") {
     const { incomeTax, usc, prsi } = calculateIrelandPayrollTax(grossAnnual);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: usc / 12, pensionMonthly: prsi / 12, totalTaxMonthly: (incomeTax + usc) / 12, totalInsuranceMonthly: prsi / 12, totalDeductionsMonthly: (incomeTax + usc + prsi) / 12 };
-  }
-  if (city.taxSystem === "southKorea") {
-    const { incomeTax, localIncomeTax, pension, healthInsurance, longTermCare, employmentInsurance } = calculateSouthKoreaPayrollTax(grossAnnual);
-    const totalTax = incomeTax + localIncomeTax;
-    const totalInsurance = pension + healthInsurance + longTermCare + employmentInsurance;
-    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: localIncomeTax / 12, healthInsuranceMonthly: healthInsurance / 12, careInsuranceMonthly: longTermCare / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: employmentInsurance / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
   }
   if (city.taxSystem === "hongKong") {
     const { salariesTax, mpf } = calculateHongKongSalariesTax(grossAnnual, household);

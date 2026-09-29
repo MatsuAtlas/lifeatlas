@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateSouthKoreaPayrollTax, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -164,37 +164,4 @@ test("Ireland 2026 payroll tax applies bands, credits, USC and time-weighted PRS
   // €20,000（週€384.62）はPRSIクレジットが一部残る
   close(calculateIrelandPayrollTax(20_000).prsi, (20_000 / 52 * 0.042375 - (12 - (20_000 / 52 - 352) / 6)) * 52);
   assert.equal(taxCalculationStatus(cities.dublin), "official-rate-estimate");
-});
-
-test("South Korea 2026 payroll tax applies earned income deduction, credits, local income tax and social insurance", () => {
-  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
-  // 5,000万ウォン：勤労所得控除1,225万→勤労所得3,775万−基本控除150万−国民年金237.5万=3,387.5万。
-  // 保険料所得控除（健康179.75万・療養23.62万・雇用45万）後3,139.13万の算出税額344.8695万−勤労所得税額控除66万（上限）。
-  // 標準税額控除を選ぶ場合（382.125万−66万−13万=303.125万）より小さいため、保険料所得控除を採用。
-  const middle = calculateSouthKoreaPayrollTax(50_000_000);
-  close(middle.pension, 2_375_000);
-  close(middle.healthInsurance, 1_797_500);
-  close(middle.longTermCare, 236_200);
-  close(middle.employmentInsurance, 450_000);
-  close(middle.incomeTax, 2_788_695);
-  close(middle.localIncomeTax, 278_869.5);
-  // 2,000万ウォン：保険料所得控除（49.83912万−27.411516万）より標準税額控除13万（55.8万−30.69万−13万=12.11万）が有利。
-  close(calculateSouthKoreaPayrollTax(20_000_000).incomeTax, 121_100);
-  // 2億ウォン：国民年金は上限（1〜6月637万・7〜12月659万）、勤労所得税額控除は下限20万、38%の税率帯。
-  const high = calculateSouthKoreaPayrollTax(200_000_000);
-  close(high.pension, 3_693_600);
-  close(high.incomeTax, 43_746_208);
-  assert.deepEqual(calculateSouthKoreaPayrollTax(0), { incomeTax: 0, localIncomeTax: 0, pension: 0, healthInsurance: 0, longTermCare: 0, employmentInsurance: 0 });
-});
-
-test("Seoul is calculable while keeping its salary benchmark and costs marked as stored estimates", () => {
-  const seoul = cities.seoul;
-  assert.equal(taxCalculationStatus(seoul), "official-rate-estimate");
-  const result = calculateCity(seoul, 50_000_000, "single", "onebed", "balanced", "under40");
-  const deductions = 2_788_695 + 278_869.5 + 2_375_000 + 1_797_500 + 236_200 + 450_000;
-  assert.ok(Math.abs(result.taxMonthly! - deductions / 12) < 0.01);
-  assert.ok(Math.abs(result.netMonthly! - (50_000_000 - deductions) / 12) < 0.01);
-  assert.equal(result.calculationUnavailableReason, null);
-  assert.ok(seoul.dataSources.some((item) => /Life Atlas保存参考値/.test(item.source)));
-  assert.ok(seoul.dataSources.some((item) => item.url.startsWith("https://law.go.kr/")));
 });
