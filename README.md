@@ -88,7 +88,7 @@ git diff --check
 
 秘密値は表示しません。live課金、スキーマ適用、削除は行いません。
 
-旧公開先のOpenAI Sites向けファイル（`.openai/hosting.json`、`vite.config.ts`、`worker/`、`build/sites-vite-plugin.ts`）は、移行が完了するまで残しています。
+旧公開先のOpenAI Sites向けファイルと開発用ツールは、2026-09-30に削除しました（オーナー指示。本番はVercelのみ）。
 
 ## 本番設定の診断
 

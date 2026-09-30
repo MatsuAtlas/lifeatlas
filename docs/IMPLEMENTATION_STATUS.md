@@ -62,7 +62,7 @@
 - FIRE目標は年間生活費×25（4%ルール）。取り崩し時の税・インフレは未考慮。
 - What-Ifはブラウザ内計算のため、Pro制限は画面上の制御。逆転給与APIとAI説明はサーバー側で制限。
 - `app/page.tsx` と `offer-analyzer.tsx` が巨大な単一コンポーネント。E2Eテストはない。
-- 2026-09-30：未使用の依存（`drizzle-orm`・`drizzle-kit`・`react-loading-skeleton`）を削除し、Next.jsを16.2.6→16.3.7へ更新（Middleware/Proxyのすり抜け・Server ActionsのDoS/SSRFなど critical を含む脆弱性の修正）。`npm audit --omit=dev`（本番に含まれる依存）は0件。残る開発用の指摘は旧公開先OpenAI Sites向けツール（vite・vinext・wrangler・@cloudflare/vite-plugin）のみで、Vercelの本番には含まれない。旧Sites向けファイルを削除すれば解消する。Worker内のD1定義もテンプレートの名残。
+- 2026-09-30：未使用の依存（`drizzle-orm`・`drizzle-kit`・`react-loading-skeleton`）を削除し、Next.jsを16.2.6→16.3.7へ更新（Middleware/Proxyのすり抜け・Server ActionsのDoS/SSRFなど critical を含む脆弱性の修正）。`npm audit --omit=dev`（本番に含まれる依存）は0件。旧公開先OpenAI Sites向けツールの指摘も、同日のファイル削除で解消し、開発用を含め0件。
 - SEOページは静的生成のため保存参考為替を使用。
 
 ## 公開状態（2026-09-29確認）
@@ -81,4 +81,4 @@
 1. 公開先をOpenAI SitesからVercelへ移行（`main` へのマージで本番デプロイ）。Vercelに環境変数（Production）を登録し、Supabase AuthのRedirect URLとStripe WebhookのURLを新ドメインへ変更。
 2. Vercelに `LIFEATLAS_DIAGNOSTICS_TOKEN` を登録し、`?probe=1` でSupabase・Stripe（test mode）・AI Gatewayの設定を確認。
 3. 本番E2E：Googleログイン、保存系操作、Stripe testでのCheckout→Webhook→Pro反映→Portal→解約、AI初回生成とキャッシュ、共有、日英、390px。
-4. 3の本番E2Eがすべて通ったら、旧公開先OpenAI Sites向けのファイル（`.openai/`・`worker/`・`vite.config.ts`・`build/sites-vite-plugin.ts`）と開発用依存（vite・vinext・wrangler・@cloudflare/vite-plugin・@vitejs/*・react-server-dom-webpack）を削除する（2026-09-30 オーナー承認済み。残る開発用の脆弱性指摘11件もこれで解消）。それまでは戻し先として残す。
+4. （完了）旧公開先OpenAI Sites向けのファイル（`.openai/`・`worker/`・`vite.config.ts`・`build/sites-vite-plugin.ts`）と開発用依存（vite・vinext・wrangler・@cloudflare/vite-plugin・@vitejs/*・react-server-dom-webpack）を2026-09-30に削除。オーナーが「脆弱性は見過ごせない」として本番E2E前の削除を指示。`npm audit` は開発用を含め0件。
