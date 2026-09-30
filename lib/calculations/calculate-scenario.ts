@@ -94,7 +94,7 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
   if (!Number.isFinite(ratesToJpy[input.salaryCurrency]) || ratesToJpy[input.salaryCurrency] <= 0) throw new RangeError("Missing salary currency rate.");
   if (!Number.isFinite(ratesToJpy[city.currency]) || ratesToJpy[city.currency] <= 0) throw new RangeError("Missing city currency rate.");
   const grossAnnual = convertCurrency(input.annualSalary + (input.bonus ?? 0), input.salaryCurrency, city.currency, ratesToJpy);
-  const legacy = calculateCity(city, grossAnnual, householdModel, input.housing, input.lifestyle, ageBand);
+  const legacy = calculateCity(city, grossAnnual, householdModel, input.housing, input.lifestyle, ageBand, { expatTaxRegime: input.expatTaxRegime === true });
   const rentMonthly = input.customRent ?? legacy.rent;
   const baselineSpendingMonthly = input.customMonthlySpending ?? legacy.livingCosts;
   const spendingMultiplier = householdMultipliers[householdModel] * lifestyleMultipliers[input.lifestyle];
@@ -184,6 +184,7 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
       annualReturnRate,
       projectionYears: [5, 10],
       calculationVersion: CALCULATION_VERSION,
+      expatTaxRegime: legacy.expatTaxRegime,
     },
   };
 }

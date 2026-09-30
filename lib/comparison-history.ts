@@ -46,7 +46,8 @@ export function isScenarioInput(value: unknown): value is ScenarioInput {
     && isOptionalFiniteInRange(value.customSavingsTarget, 0, 10_000_000_000_000)
     && isOptionalFiniteInRange(value.currentSavings, 0, 10_000_000_000_000)
     && isOptionalFiniteInRange(value.retirementAge, value.age as number, 100)
-    && isOptionalFiniteInRange(value.annualReturnRate, -0.5, 0.5);
+    && isOptionalFiniteInRange(value.annualReturnRate, -0.5, 0.5)
+    && (value.expatTaxRegime === undefined || typeof value.expatTaxRegime === "boolean");
 }
 
 export function isUserPriorities(value: unknown): value is Record<PriorityKey, number> {

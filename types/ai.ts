@@ -1,6 +1,6 @@
 import type { BreakEvenMetric } from "./break-even";
 import type { CityId, CurrencyCode } from "./city";
-import type { TaxCalculationStatus } from "./finance";
+import type { ExpatTaxRegimeStatus, TaxCalculationStatus } from "./finance";
 import type { PriorityKey, UserPriorities } from "./scenario";
 
 export type RecommendationLanguage = "ja" | "en";
@@ -15,6 +15,7 @@ export type RecommendationScenario = {
   rank: number;
   lifeAtlasScore: number;
   calculationStatus: TaxCalculationStatus;
+  expatTaxRegime: ExpatTaxRegimeStatus;
   financials: {
     grossAnnual: number;
     netAnnual: number | null;
