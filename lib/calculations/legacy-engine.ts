@@ -4,6 +4,7 @@ import type {
   InsuranceConfig,
   LegacyCityResult,
   TaxCalculationStatus,
+  ExpatTaxRegimeStatus,
 } from "../../types/finance";
 
 export const householdMultipliers = {
@@ -289,6 +290,87 @@ export function calculateNetherlandsPayroll(grossAnnual: number) {
   // 税額控除はBox 1の税額（所得税＋国民保険料）を超えて還付されません。
   const box1AfterCredits = Math.max(0, box1 - generalCredit - labourCredit);
   return { box1, generalCredit, labourCredit, box1AfterCredits };
+}
+
+// スイス・チューリッヒ市・2026年（単身・子どもなし・教会税なし・AHVの基準年齢65歳未満の給与所得者）。
+// 本人負担はAHV/IV/EO 5.3%、失業保険ALV 1.1%（年CHF 148,200まで）。業務外の労災保険（NBU）と企業年金（BVG）は
+// 勤務先ごとに料率が違うため、連邦税務当局（ESTV）とチューリッヒ州が2026年の源泉税の計算に使う連邦統計局の平均値
+// （NBU 1.0%・年CHF 148,200まで、BVG 6.5%）を使います。所得控除は同じ源泉税の標準的な想定（通勤費・昼食費・
+// 職業経費3%〈CHF 2,000〜4,000〉・保険料控除）で、国の直接連邦税（DBG第36条1項の2026年単身税率表）と、
+// 州法第35条1項の基本税率表（2026年1月1日施行）の単純税額×（州98%＋チューリッヒ市119%）、人頭税CHF 24を計算します。
+// 基礎医療保険（KVG）の保険料は人により違い、生活費の医療費側で扱います。州税の端数処理は未反映。
+export const SWITZERLAND_AHV_IV_EO_RATE_2026 = 0.053;
+export const SWITZERLAND_ALV_RATE_2026 = 0.011;
+export const SWITZERLAND_ALV_CEILING_2026 = 148_200;
+export const SWITZERLAND_NBU_AVERAGE_RATE_2026 = 0.01;
+export const SWITZERLAND_BVG_AVERAGE_RATE_2026 = 0.065;
+export const ZURICH_CANTON_MULTIPLIER_2026 = 0.98;
+export const ZURICH_CITY_MULTIPLIER_2026 = 1.19;
+
+// DBG第36条1項（2026年）の各区間の起点の税額と、そこからCHF 100ごとの税額。
+const swissFederalSingleTariff2026: { from: number; base: number; per100: number }[] = [
+  { from: 15_200, base: 0, per100: 0.77 }, { from: 33_200, base: 138.6, per100: 0.88 }, { from: 43_500, base: 229.2, per100: 2.64 },
+  { from: 58_000, base: 612, per100: 2.97 }, { from: 76_200, base: 1_152.5, per100: 5.94 }, { from: 82_100, base: 1_502.95, per100: 6.6 },
+  { from: 108_900, base: 3_271.75, per100: 8.8 }, { from: 141_500, base: 6_140.55, per100: 11 }, { from: 185_100, base: 10_936.55, per100: 13.2 },
+];
+
+export function swissFederalIncomeTax2026(taxableIncome: number) {
+  // ESTVの2026年表：CHF 100未満の端数は切り捨て、税額がCHF 25未満なら課税されません（表はCHF 18,500・25.41から）。
+  const x = Math.floor(Math.max(0, taxableIncome) / 100) * 100;
+  // CHF 793,900を超えると課税所得全体の11.5%で頭打ちになります。
+  if (x > 793_900) return x * 0.115;
+  const step = [...swissFederalSingleTariff2026].reverse().find((item) => x >= item.from);
+  const tax = step ? step.base + ((x - step.from) / 100) * step.per100 : 0;
+  return tax < 25 ? 0 : tax;
+}
+
+export function zurichSimpleStateTax2026(taxableIncome: number) {
+  return taxFromAnnualBrackets(Math.max(0, taxableIncome), [
+    { limit: 7_000, rate: 0 }, { limit: 12_000, rate: 0.02 }, { limit: 16_800, rate: 0.03 }, { limit: 24_800, rate: 0.04 },
+    { limit: 34_500, rate: 0.05 }, { limit: 45_700, rate: 0.06 }, { limit: 58_800, rate: 0.07 }, { limit: 76_400, rate: 0.08 },
+    { limit: 110_400, rate: 0.09 }, { limit: 144_100, rate: 0.1 }, { limit: 197_400, rate: 0.11 }, { limit: 266_700, rate: 0.12 },
+    { limit: Number.POSITIVE_INFINITY, rate: 0.13 },
+  ]);
+}
+
+export function calculateZurichPayroll(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  const capped = Math.min(gross, SWITZERLAND_ALV_CEILING_2026);
+  const ahv = gross * SWITZERLAND_AHV_IV_EO_RATE_2026;
+  const alv = capped * SWITZERLAND_ALV_RATE_2026;
+  const nbu = capped * SWITZERLAND_NBU_AVERAGE_RATE_2026;
+  const bvg = gross * SWITZERLAND_BVG_AVERAGE_RATE_2026;
+  const netWage = gross - ahv - alv - nbu - bvg;
+  const professionalFlat = Math.min(4_000, Math.max(2_000, netWage * 0.03));
+  // 連邦：通勤費CHF 800・昼食費CHF 3,200・職業経費・保険料控除CHF 1,800（BVG加入の単身者の上限）。
+  const federalTaxable = Math.max(0, netWage - 800 - 3_200 - professionalFlat - 1_800);
+  // 州：通勤費CHF 1,400・昼食費CHF 3,200・職業経費・保険料控除CHF 2,900（州法第31条1項g）。
+  const cantonalTaxable = Math.max(0, netWage - 1_400 - 3_200 - professionalFlat - 2_900);
+  const federalTax = swissFederalIncomeTax2026(federalTaxable);
+  const simpleTax = zurichSimpleStateTax2026(cantonalTaxable);
+  const cantonCityTax = simpleTax * (ZURICH_CANTON_MULTIPLIER_2026 + ZURICH_CITY_MULTIPLIER_2026) + 24;
+  return { ahv, alv, nbu, bvg, netWage, federalTaxable, cantonalTaxable, federalTax, simpleTax, cantonCityTax };
+}
+
+// オランダ・30%ルール（expatregeling、2026年）。条件（国外から採用された「ingekomen werknemer」であること、
+// 税務当局の決定）を満たすと本人が選んだ場合だけ使います。非課税手当は手当込みの給与の30%まで、上限€78,600
+// （給与€262,000で到達）で、手当を除く課税給与が€48,013を超えている必要があります（Belastingdienst「Inhoud van de
+// expatregeling」「Deskundigheidsvereiste」の例：手当込み€70,000→€21,000、€50,000→€1,987）。修士・30歳未満の低い
+// 給与基準（€36,497）は学位を入力で判定できないため使いません。手当はBox 1の課税対象（所得税・国民保険料）から外れます。
+export const NETHERLANDS_EXPAT_SALARY_NORM_2026 = 48_013;
+export const NETHERLANDS_EXPAT_ALLOWANCE_CAP_2026 = 78_600;
+
+export function netherlandsExpatAllowance2026(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  return Math.max(0, Math.min(gross * 0.3, NETHERLANDS_EXPAT_ALLOWANCE_CAP_2026, gross - NETHERLANDS_EXPAT_SALARY_NORM_2026));
+}
+
+// 移住者向けの税の特例の適用状況。off＝本人が選んでいない、applied＝適用、notEligible＝都市の特例はあるが
+// 給与などの条件を満たさない、notModeled＝この都市の特例は未実装（居住者の通常税制で計算）。
+export function expatTaxRegimeStatus(city: City, grossAnnual: number | null, requested: boolean): ExpatTaxRegimeStatus {
+  if (!requested) return "off";
+  if (city.taxSystem !== "netherlands") return "notModeled";
+  return grossAnnual !== null && netherlandsExpatAllowance2026(grossAnnual) > 0 ? "applied" : "notEligible";
 }
 
 // タイ・2026課税年度（居住者・単身）。社会保険（第33条）は賃金の5%で、2026年1月から月額上限は賃金฿17,500（最大฿875）。
@@ -646,6 +728,7 @@ export function calculateChilePayroll(grossAnnual: number) {
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "spain" && city.taxRegion !== "madrid") return "unavailable";
+  if (city.taxSystem === "switzerland" && city.taxRegion !== "zurich") return "unavailable";
   if (city.taxSystem === "china" && !["beijing", "shanghai"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "canada" && !["britishColumbia", "ontario", "alberta", "quebec"].includes(city.taxRegion)) return "unavailable";
   if (city.taxSystem === "us" && !["california", "newYork", "texas", "florida", "washington", "massachusetts", "illinois", "districtOfColumbia"].includes(city.taxRegion)) return "unavailable";
@@ -661,7 +744,7 @@ export function officialSalaryBenchmarkSource<TCity extends City>(city: TCity): 
   return salarySource;
 }
 
-function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand, household: keyof typeof householdMultipliers) {
+function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand, household: keyof typeof householdMultipliers, expatTaxRegime: boolean) {
   if (taxCalculationStatus(city) === "unavailable") return null;
   if (city.taxSystem === "singapore") {
     const incomeTax = taxFromAnnualBrackets(grossAnnual, [
@@ -755,10 +838,19 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "netherlands") {
     // 年齢帯からAOW年齢（2026年は67歳）以上かを判定できないため、65歳以上は計算しません。
     if (ageBand === "65plus") return null;
-    const payroll = calculateNetherlandsPayroll(grossAnnual);
+    const payroll = calculateNetherlandsPayroll(grossAnnual - (expatTaxRegime ? netherlandsExpatAllowance2026(grossAnnual) : 0));
     // Box 1は所得税と国民保険料を一体で課税し、税額控除も合算額から差し引くため、1行の税額として示します。
     const levy = payroll.box1AfterCredits;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: levy / 12, totalTaxMonthly: levy / 12, totalDeductionsMonthly: levy / 12 };
+  }
+  if (city.taxSystem === "switzerland") {
+    // 65歳以上はAHVの基準年齢に達し、AHVの控除額・失業保険・企業年金の扱いが変わるため計算しません。
+    if (ageBand === "65plus") return null;
+    const payroll = calculateZurichPayroll(grossAnnual);
+    const totalTax = payroll.federalTax + payroll.cantonCityTax;
+    const pension = payroll.ahv + payroll.bvg;
+    const totalInsurance = pension + payroll.alv + payroll.nbu;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: payroll.federalTax / 12, residentTaxMonthly: payroll.cantonCityTax / 12, healthInsuranceMonthly: payroll.nbu / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: payroll.alv / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
   }
   if (city.taxSystem === "hongKong") {
     const { salariesTax, mpf } = calculateHongKongSalariesTax(grossAnnual, household);
@@ -864,12 +956,13 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, medicareLevyMonthly: medicareLevy / 12, totalTaxMonthly: (incomeTax + medicareLevy) / 12, totalDeductionsMonthly: (incomeTax + medicareLevy) / 12, employerSuperMonthly: grossAnnual * city.insurance.employerSuperRate / 12 };
 }
 
-export function calculateCity<TCity extends City>(city: TCity, grossAnnual: number | null, household: keyof typeof householdMultipliers, housing: keyof typeof housingMultipliers, lifestyle: keyof typeof lifestyleMultipliers, ageBand: AgeBand): LegacyCityResult<TCity> {
+export function calculateCity<TCity extends City>(city: TCity, grossAnnual: number | null, household: keyof typeof householdMultipliers, housing: keyof typeof housingMultipliers, lifestyle: keyof typeof lifestyleMultipliers, ageBand: AgeBand, options: { expatTaxRegime?: boolean } = {}): LegacyCityResult<TCity> {
   const householdMultiplier = householdMultipliers[household];
   const housingMultiplier = housingMultipliers[housing];
   const lifestyleMultiplier = lifestyleMultipliers[lifestyle];
   const grossMonthly = grossAnnual === null ? null : grossAnnual / 12;
-  const taxBreakdown = grossAnnual === null ? null : estimateTaxBreakdown(city, grossAnnual, ageBand, household);
+  const expatTaxRegime = expatTaxRegimeStatus(city, grossAnnual, options.expatTaxRegime === true);
+  const taxBreakdown = grossAnnual === null ? null : estimateTaxBreakdown(city, grossAnnual, ageBand, household, expatTaxRegime === "applied");
   // 税制度は対応していても、公式値を確認できていない給与帯・年齢では計算不能として扱います。
   const calculationStatus = grossAnnual !== null && taxBreakdown === null ? "unavailable" : taxCalculationStatus(city);
   const calculationUnavailableReason = grossAnnual === null ? "salary" : calculationStatus === "unavailable" ? "tax" : null;
@@ -904,6 +997,7 @@ export function calculateCity<TCity extends City>(city: TCity, grossAnnual: numb
     taxCalculationStatus: calculationStatus,
     calculationUnavailableReason,
     taxBreakdown,
+    expatTaxRegime,
     scores: {
       livability: city.scores.livability,
       savings: savings === null ? null : Math.round(savings),

@@ -59,7 +59,7 @@ test("keeps a fixed bonus explicit while solving base salary", () => {
 test("reports unsupported and bounded-unreachable scenarios", () => {
   const unsupported = findBreakEvenSalary({
     reference: tokyo,
-    candidate: { ...vancouver, id: "zurich", cityId: "zurich", salaryCurrency: "CHF" },
+    candidate: { ...vancouver, id: "amsterdam-senior", cityId: "amsterdam", salaryCurrency: "EUR", annualSalary: 60_000, age: 70, retirementAge: 75 },
     metric: "disposableIncome",
   });
   assert.equal(unsupported.status, "calculation-unavailable");

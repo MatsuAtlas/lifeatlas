@@ -97,6 +97,8 @@ export function localizedSourceLevel(level: City["dataSources"][number]["level"]
 }
 
 const SOURCE_PERIOD_EN: Record<string, string> = {
+  "2026年1月1日施行（寒冷累進の調整後）": "In force from 1 January 2026 (after the inflation adjustment)",
+  "2026年課税期間": "Tax period 2026",
   "2025年10月1日速報": "Preliminary, 1 October 2025",
   "2026年分": "2026 income",
   "2026年度": "FY2026",
@@ -176,6 +178,12 @@ export function localizedSourcePeriod(period: string, language: SupportedLanguag
 }
 
 const SOURCE_NAME_EN: Record<string, string> = {
+  "ESTV・直接連邦税の税率表2026（Form. 58c）": "Swiss Federal Tax Administration (ESTV) · Federal income tax tables 2026 (Form 58c)",
+  "チューリッヒ州・税法（StG, LS 631.1）": "Canton of Zurich · Tax Act (StG, LS 631.1)",
+  "チューリッヒ市・税の計算と税率": "City of Zurich · Tax calculation and tax rates",
+  "ESTV・連邦の源泉税率表の計算基礎2026": "Swiss Federal Tax Administration (ESTV) · Basis for the federal withholding tax tables 2026",
+  "チューリッヒ州・源泉税率表2026の計算基礎と前提": "Canton of Zurich · Withholding tax tables 2026: basis and parameters",
+  "連邦保健庁（BAG）・州別の月額平均保険料2026": "Federal Office of Public Health (FOPH) · Average monthly premiums by canton 2026",
   "Life Atlas保存参考値（自動更新対象外）": "LifeAtlas saved reference values (not auto-updated)",
   "公式制度による計算未対応（結果を非表示）": "Official tax calculation not supported (results hidden)",
   "東京都・令和7年国勢調査速報": "Tokyo Metropolitan Government · 2025 Census preliminary results",

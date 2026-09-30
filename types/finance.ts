@@ -47,7 +47,7 @@ export type TaxBreakdown = {
 };
 
 export type CalculationCity = {
-  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia" | "singapore" | "uae" | "hongKong" | "ireland" | "germany" | "thailand" | "china" | "philippines" | "vietnam" | "brazil" | "india" | "saudiArabia" | "netherlands" | "taiwan" | "indonesia" | "malaysia" | "korea" | "portugal" | "spain" | "colombia" | "argentina" | "chile" | "estimate";
+  taxSystem: "japan" | "canada" | "us" | "uk" | "france" | "italy" | "mexico" | "australia" | "singapore" | "uae" | "hongKong" | "ireland" | "germany" | "thailand" | "china" | "philippines" | "vietnam" | "brazil" | "india" | "saudiArabia" | "netherlands" | "taiwan" | "indonesia" | "malaysia" | "korea" | "portugal" | "spain" | "colombia" | "argentina" | "switzerland" | "chile" | "estimate";
   taxRegion: string;
   insurance: InsuranceConfig;
   averageAnnualIncome: number;
@@ -70,6 +70,8 @@ export type CalculationCity = {
   dataSources: Array<{ item: string; source: string }>;
 };
 
+export type ExpatTaxRegimeStatus = "off" | "applied" | "notEligible" | "notModeled";
+
 export type LegacyCityResult<TCity extends CalculationCity> = {
   city: TCity;
   grossAnnual: number | null;
@@ -87,6 +89,7 @@ export type LegacyCityResult<TCity extends CalculationCity> = {
   taxCalculationStatus: TaxCalculationStatus;
   calculationUnavailableReason: "tax" | "salary" | null;
   taxBreakdown: TaxBreakdown | null;
+  expatTaxRegime: ExpatTaxRegimeStatus;
   scores: {
     livability: number;
     savings: number | null;

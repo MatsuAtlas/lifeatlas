@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateChilePayroll, calculateColombiaPayroll, calculateArgentinaPayroll, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateChilePayroll, calculateColombiaPayroll, calculateArgentinaPayroll, calculateZurichPayroll, swissFederalIncomeTax2026, zurichSimpleStateTax2026, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -584,4 +584,57 @@ test("Japanese cities use the FY2026 Kyokai Kenpo health insurance rate of their
     const result = calculateCity(cities[cityId], 6_000_000, "single", "onebed", "balanced", "under40");
     assert.ok(Math.abs((result.taxBreakdown?.healthInsuranceMonthly ?? 0) * 12 - 6_000_000 * rate / 2) < 0.01, cityId);
   }
+});
+
+test("Zurich 2026 combines the federal table, the cantonal base table with canton and city multipliers, and official average NBU/BVG rates", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 直接連邦税（ESTV Form. 58c 2026の表の値と一致。CHF 100未満切り捨て、CHF 25未満は0、CHF 793,900超は一律11.5%）
+  assert.equal(swissFederalIncomeTax2026(18_499), 0);
+  close(swissFederalIncomeTax2026(18_500), 25.41);
+  close(swissFederalIncomeTax2026(43_500), 229.2);
+  close(swissFederalIncomeTax2026(82_100), 1_502.95);
+  close(swissFederalIncomeTax2026(185_100), 10_936.55);
+  close(swissFederalIncomeTax2026(400_000), 39_303.35);
+  close(swissFederalIncomeTax2026(800_000), 92_000);
+  // 州法第35条1項（2026年）：CHF 266,700までの単純税額は24,655
+  close(zurichSimpleStateTax2026(266_700), 24_655);
+  assert.equal(zurichSimpleStateTax2026(7_000), 0);
+
+  // CHF 105,000：AHV 5,565・ALV 1,155・NBU 1,050・BVG 6,825、手取り賃金90,405、職業経費3%＝2,712.15
+  // 連邦の課税所得 81,892.85→81,800：1,152.50＋56×5.94＝1,485.14
+  // 州の課税所得 80,192.85：単純税額 4,046＋3,792.85×9%＝4,387.3565 ×(98%＋119%)＋人頭税24＝9,544.5636
+  const middle = calculateZurichPayroll(105_000);
+  close(middle.netWage, 90_405);
+  close(middle.federalTax, 1_485.14);
+  close(middle.simpleTax, 4_387.3565);
+  close(middle.cantonCityTax, 9_544.5636);
+  // CHF 60,000：職業経費は最低CHF 2,000。連邦 43,860→43,800：229.20＋3×2.64＝237.12、州 42,160：1,508.6×2.17＋24
+  const lower = calculateZurichPayroll(60_000);
+  close(lower.federalTax, 237.12);
+  close(lower.cantonCityTax, 3_297.662);
+  // CHF 250,000：ALV・NBUは年CHF 148,200が上限、職業経費は最高CHF 4,000
+  const high = calculateZurichPayroll(250_000);
+  close(high.alv, 1_630.2);
+  close(high.nbu, 1_482);
+  close(high.federalTaxable, 250_000 - 13_250 - 1_630.2 - 1_482 - 16_250 - 800 - 3_200 - 4_000 - 1_800);
+  // CHF 20,000：連邦税は0、州・市は単純税額14.4×2.17＋24
+  close(calculateZurichPayroll(20_000).cantonCityTax, 55.248);
+  assert.equal(calculateZurichPayroll(20_000).federalTax, 0);
+
+  const zurich = cities.zurich;
+  assert.equal(taxCalculationStatus(zurich), "official-rate-estimate");
+  const result = calculateCity(zurich, 105_000, "single", "onebed", "balanced", "under40");
+  const tax = 1_485.14 + 9_544.5636;
+  const insurance = 5_565 + 1_155 + 1_050 + 6_825;
+  close(result.taxMonthly ?? Number.NaN, (tax + insurance) / 12);
+  close(result.netMonthly ?? Number.NaN, (105_000 - tax - insurance) / 12);
+  close(result.taxBreakdown?.pensionMonthly ?? Number.NaN, (5_565 + 6_825) / 12);
+  close(result.taxBreakdown?.healthInsuranceMonthly ?? Number.NaN, 1_050 / 12);
+  close(result.taxBreakdown?.employmentInsuranceMonthly ?? Number.NaN, 1_155 / 12);
+  assert.equal(result.calculationUnavailableReason, null);
+  // AHVの基準年齢（65歳）以上は控除や保険の扱いが変わるため、推測せず計算不能にします。
+  const senior = calculateCity(zurich, 105_000, "single", "onebed", "balanced", "65plus");
+  assert.equal(senior.taxBreakdown, null);
+  assert.equal(senior.netMonthly, null);
+  assert.equal(senior.taxCalculationStatus, "unavailable");
 });

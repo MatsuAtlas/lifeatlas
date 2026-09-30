@@ -299,6 +299,9 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
 .oa-add-button small { color: var(--faint); }
 .oa-add-button:hover:not(:disabled) { border-color: var(--green); background: var(--green-soft); }
 .oa-add-button:disabled { cursor: not-allowed; opacity: .45; }
+.oa-form-grid label.oa-checkbox { grid-column: 1 / -1; flex-direction: row; align-items: flex-start; gap: 10px; font-weight: 600; line-height: 1.6; }
+.oa-form-grid label.oa-checkbox input { flex: 0 0 auto; width: 16px; height: 16px; min-height: 0; margin: 1px 0 0; padding: 0; accent-color: var(--green); }
+.oa-expat-note { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
 .oa-pro-note { margin: 13px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
 .oa-pro-note a { color: var(--green); font-weight: 800; }
 .oa-pro-note-large { margin: 0; padding: 22px; border: 1px solid rgba(139,224,189,.28); border-radius: 14px; background: var(--green-soft); }

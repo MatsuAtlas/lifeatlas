@@ -213,8 +213,7 @@ test("renders bilingual methodology and transparent 71-city data pages", async (
   const dataHtml = await data.text();
   assert.match(dataHtml, /その数字が、どこまで言えるか/);
   assert.match(dataHtml, />71<\/strong>/);
-  assert.match(dataHtml, />70<\/strong>/);
-  assert.match(dataHtml, />1<\/strong>/);
+  assert.match(dataHtml, />0<\/strong>/);
   assert.match(dataHtml, /保存推定値を含む/);
   assert.match(dataHtml, /金額計算は未対応/);
 
@@ -310,7 +309,7 @@ test("exposes validated deterministic decision APIs without duplicating the calc
   const privacyHtml = await privacy.text();
   assert.match(privacyHtml, /プライバシーポリシー/);
   assert.match(privacyHtml, /カード番号はStripeの画面で入力され、LifeAtlasでは一切保存しません/);
-  assert.match(privacyHtml, /お問い合わせ先は、一般公開までにここへ掲載します/);
+  assert.match(privacyHtml, /contact@lifeatlas\.example（仮。一般公開までに正式なアドレスへ差し替えます）/);
   const privacyEn = await (await fetch(`${baseUrl}/privacy?lang=en`)).text();
   assert.match(privacyEn, /Privacy policy/);
 
@@ -320,6 +319,8 @@ test("exposes validated deterministic decision APIs without duplicating the calc
   assert.match(commerce, /月額 US\$12/);
   assert.match(commerce, /年額 US\$79/);
   assert.match(commerce, /請求があれば遅滞なく開示します/);
+  assert.match(commerce, /消費税などを別途加算することはありません/);
+  assert.match(commerce, /contact@lifeatlas\.example（仮/);
 });
 
 test("publishes typed city catalog APIs with coverage and source metadata", async () => {
@@ -328,7 +329,7 @@ test("publishes typed city catalog APIs with coverage and source metadata", asyn
   const catalogPayload = await catalog.json();
   assert.equal(catalogPayload.coverage.cityCount, 71);
   assert.equal(catalogPayload.cities.length, 71);
-  assert.equal(catalogPayload.cities.filter((city) => city.calculationStatus === "unavailable").length, 1);
+  assert.equal(catalogPayload.cities.filter((city) => city.calculationStatus === "unavailable").length, 0);
 
   const city = await fetch(`${baseUrl}/api/cities/los-angeles`);
   assert.equal(city.status, 200);

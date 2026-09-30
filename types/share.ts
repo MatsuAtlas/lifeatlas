@@ -15,6 +15,8 @@ export type PublicShareScenario = {
   rentBurden: number | null;
   dataConfidence: DataConfidence;
   calculationStatus: ScenarioResult["calculationStatus"];
+  // 古いスナップショットには無いため任意項目です。
+  expatTaxRegime?: ScenarioResult["assumptions"]["expatTaxRegime"];
   strongestFactors: string[];
   riskFlags: string[];
 };
