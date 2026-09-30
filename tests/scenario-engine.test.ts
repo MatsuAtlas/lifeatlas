@@ -76,7 +76,7 @@ test("converts an offer currency before using the destination tax engine", () =>
 });
 
 test("returns unavailable financial values and low confidence for unsupported tax cities", () => {
-  const result = calculateScenario({ ...tokyoOffer, id: "zurich-offer", cityId: "zurich", salaryCurrency: "CHF", annualSalary: 120_000 });
+  const result = calculateScenario({ ...tokyoOffer, id: "santiago-offer", cityId: "santiago", salaryCurrency: "CLP", annualSalary: 20_000_000 });
 
   assert.equal(result.calculationStatus, "unavailable");
   assert.equal(result.unavailableReason, "tax");
