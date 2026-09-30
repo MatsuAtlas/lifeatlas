@@ -77,6 +77,12 @@
 - 問い合わせ先は、正式なアドレスができるまで実在しない予約ドメインの仮アドレス `contact@lifeatlas.example`（「仮」と明記、mailtoリンクなし）。正式なアドレスは Vercel の `LIFEATLAS_CONTACT_EMAIL` に設定すれば自動で差し替わる。
 - 公開前の残り：正式な問い合わせ先の設定、本番での削除の動作確認（Supabase・Stripe設定後）。
 
+## 公開前の動作確認（2026-09-30）
+- 本番の応答：`/api/auth/me` は `configured:false`（Supabase未設定）、`/api/operations/diagnostics` は404（`LIFEATLAS_DIAGNOSTICS_TOKEN` 未設定）。ログイン・保存・課金・AI説明の本番確認は、これらの設定後に行う。Vercel連携ツールはチーム life-atlas1 への権限がなく、環境変数の一覧は確認できなかった。
+- この作業環境のブラウザからは本番ドメインを開けない（通信中継の証明書の制約）ため、mainと同じコミットを手元でビルド・起動して確認した：11ページ（ホーム・分析・データ・計算方法・料金・プライバシー・特商法表記・都市3件・アカウント）×日英×390px/1280pxで、横スクロールなし・画面上のエラーなし・NaN/undefinedの表示なし。ホームと分析は言語・テーマの切り替えボタンで英語・ダークを確認。
+- 修正：英語表示で日本語が残っていた3か所（都市ページとホームの時差の注記「（夏時間あり）」「（日本標準時）」、ホームの所得税の出典名、Offer Analyzerの基準日）。
+- 仕様どおり：料金ページは日本語のみ（`?lang` 非対応）。Offer Analyzerはスマホ幅でテーマ切り替えを表示しない。
+
 ## 本番化の残作業
 1. 公開先をOpenAI SitesからVercelへ移行（`main` へのマージで本番デプロイ）。Vercelに環境変数（Production）を登録し、Supabase AuthのRedirect URLとStripe WebhookのURLを新ドメインへ変更。
 2. Vercelに `LIFEATLAS_DIAGNOSTICS_TOKEN` を登録し、`?probe=1` でSupabase・Stripe（test mode）・AI Gatewayの設定を確認。
