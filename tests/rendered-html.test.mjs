@@ -313,6 +313,13 @@ test("exposes validated deterministic decision APIs without duplicating the calc
   assert.match(privacyHtml, /お問い合わせ先は、一般公開までにここへ掲載します/);
   const privacyEn = await (await fetch(`${baseUrl}/privacy?lang=en`)).text();
   assert.match(privacyEn, /Privacy policy/);
+
+  const commerce = await (await fetch(`${baseUrl}/legal/commerce`)).text();
+  assert.match(commerce, /特定商取引法に基づく表記/);
+  // 価格は課金プランの定義から表示し、氏名・住所・電話番号は請求時の開示とする。
+  assert.match(commerce, /月額 US\$12/);
+  assert.match(commerce, /年額 US\$79/);
+  assert.match(commerce, /請求があれば遅滞なく開示します/);
 });
 
 test("publishes typed city catalog APIs with coverage and source metadata", async () => {

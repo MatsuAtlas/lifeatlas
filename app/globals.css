@@ -822,3 +822,7 @@ select:focus, input:focus { box-shadow: 0 0 0 2px var(--green-soft); }
 .privacy-section { margin-bottom: 14px; }
 .privacy-section h2 { margin: 0 0 12px; font-size: 22px; }
 .privacy-section p { margin: 0 0 10px; color: var(--muted); font-size: 13px; line-height: 1.9; }
+.commerce-list div { grid-template-columns: minmax(140px, .45fr) 1fr; }
+.commerce-list dt { color: var(--ink); font-size: 12px; text-transform: none; letter-spacing: 0; }
+.commerce-list dd { text-align: left; font-size: 13px; font-weight: 500; line-height: 1.8; }
+@media (max-width: 760px) { .commerce-list div { grid-template-columns: 1fr; gap: 4px; } }

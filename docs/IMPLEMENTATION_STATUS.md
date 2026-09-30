@@ -71,7 +71,8 @@
 ## プライバシー・アカウント削除（2026-09-29）
 - `/privacy`（日英）を追加。取得情報・利用目的・委託先（Supabase・Stripe・Vercel/AI Gateway）・Cookieと端末内保存・共有リンク・削除方法を実装どおりに記載。問い合わせ先は環境変数 `LIFEATLAS_CONTACT_EMAIL`（オーナーが決めるまで未設定で「一般公開までに掲載」と表示）。運営者の氏名・住所は「請求があれば遅滞なく開示」。
 - アカウント削除 `POST /api/account/delete`（本人のみ、確認語「削除」/`DELETE`、同一オリジンのみ）。Stripe顧客を先に削除（定期課金の即時解約・カード情報の削除）→ Supabase Authのユーザーを削除し、各テーブルは on delete cascade で消去、利用状況は user_id を null にして匿名化。Stripeを操作できない場合は課金だけが残らないよう削除を止める。削除後に届くStripeの解約通知は外部キー違反（23503）として無視。
-- 公開前の残り：問い合わせ先メールの決定、特定商取引法に基づく表記（live課金の前）、本番での削除の動作確認（Supabase・Stripe設定後）。
+- `/legal/commerce`（特定商取引法に基づく表記、日英）を追加。価格は `lib/billing/plans.ts` から表示し、氏名・住所・電話番号は「請求があれば遅滞なく開示」。解約（期間末まで利用可）と返金（日割り返金なし、法令で必要な場合を除く）は既定案で、live課金の前にオーナーの確認が必要。
+- 公開前の残り：問い合わせ先メールの決定、返金方針・消費税の扱いの確認（live課金の前）、本番での削除の動作確認（Supabase・Stripe設定後）。
 
 ## 本番化の残作業
 1. 公開先をOpenAI SitesからVercelへ移行（`main` へのマージで本番デプロイ）。Vercelに環境変数（Production）を登録し、Supabase AuthのRedirect URLとStripe WebhookのURLを新ドメインへ変更。
