@@ -155,6 +155,10 @@ const SOURCE_PERIOD_EN: Record<string, string> = {
   "2026年1月分": "January 2026",
   "2024年以降": "2024 onward",
   "現行": "In force",
+  "2026年9月分": "September 2026",
+  "2026年9月30日": "30 September 2026",
+  "2026年2月分以降": "From February 2026 pay",
+  "2025年10月1日〜2027年9月30日": "1 October 2025 – 30 September 2027",
 };
 
 const JAPANESE_TEXT_ALL = /[\u3040-\u30ff\u3400-\u9fff]/g;

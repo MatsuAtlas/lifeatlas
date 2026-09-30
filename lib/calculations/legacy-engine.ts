@@ -618,6 +618,31 @@ export function calculateArgentinaPayroll(grossAnnual: number) {
   return { incomeTax, pension: gross * 0.11, health: gross * 0.06 };
 }
 
+// チリ・2026年（居住者・単身・期間の定めのない雇用契約の給与所得者）。11・12月のUTMとUFが未公表のため、
+// 公表済みの直近月である2026年9月の月額（UTM $71,721、UF $41,057.20＝9月30日）を12か月に当てはめます。
+// 本人負担：年金10%＋AFP手数料0.46%（2025年10月〜2027年9月に初めて加入する人はAFP Unoに加入）、医療7%（FONASAの法定率）、
+// いずれも月90 UFが上限。失業保険0.6%（上限135.2 UF）。障害・遺族保険（SIS）と改革法の追加拠出は会社負担です。
+// 課税所得＝月給−本人負担の社会保険料。SIIの2026年9月の第二種単一税の月額表（控除額方式）を適用し、年額は12倍です。
+// ISAPREの7%を超える契約額、任意年金（APV）、外国人技術者の年金免除（法律18.156）は未反映です。
+const CHILE_UF_2026_09_30 = 41_057.2;
+const chileSecondCategoryTaxSeptember2026 = [
+  { above: 22_233_510, factor: 0.4, rebate: 2_784_209.22 }, { above: 8_606_520, factor: 0.35, rebate: 1_672_533.72 }, { above: 6_454_890, factor: 0.304, rebate: 1_276_633.8 },
+  { above: 5_020_470, factor: 0.23, rebate: 798_971.94 }, { above: 3_586_050, factor: 0.135, rebate: 322_027.29 }, { above: 2_151_630, factor: 0.08, rebate: 124_794.54 },
+  { above: 968_233.5, factor: 0.04, rebate: 38_729.34 },
+] as const;
+
+export function calculateChilePayroll(grossAnnual: number) {
+  const monthly = Math.max(0, grossAnnual) / 12;
+  const pensionHealthBase = Math.min(monthly, 90 * CHILE_UF_2026_09_30);
+  const pensionMonthly = pensionHealthBase * (0.1 + 0.0046);
+  const healthMonthly = pensionHealthBase * 0.07;
+  const unemploymentMonthly = Math.min(monthly, 135.2 * CHILE_UF_2026_09_30) * 0.006;
+  const taxable = Math.max(0, monthly - pensionMonthly - healthMonthly - unemploymentMonthly);
+  const row = chileSecondCategoryTaxSeptember2026.find((item) => taxable > item.above);
+  const incomeTaxMonthly = row ? taxable * row.factor - row.rebate : 0;
+  return { incomeTax: incomeTaxMonthly * 12, pension: pensionMonthly * 12, health: healthMonthly * 12, unemployment: unemploymentMonthly * 12 };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "spain" && city.taxRegion !== "madrid") return "unavailable";
@@ -670,6 +695,11 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "colombia") {
     const { incomeTax, pension, health } = calculateColombiaPayroll(grossAnnual);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
+  }
+  if (city.taxSystem === "chile") {
+    const { incomeTax, pension, health, unemployment } = calculateChilePayroll(grossAnnual);
+    const totalInsurance = pension + health + unemployment;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: unemployment / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (incomeTax + totalInsurance) / 12 };
   }
   if (city.taxSystem === "argentina") {
     // 拠出上限が未公表の月（11・12月）に影響する給与帯は計算しません。
