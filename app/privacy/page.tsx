@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { publicContactEmail } from "../../lib/legal/contact";
+import { contactForDisplay } from "../../lib/legal/contact";
 
 export const metadata: Metadata = {
   title: "Privacy policy | Life Atlas",
@@ -14,10 +14,8 @@ const REVISED_ON = { ja: "2026年9月29日", en: "29 September 2026" };
 export default async function PrivacyPage({ searchParams }: { searchParams: Promise<{ lang?: string }> }) {
   const { lang } = await searchParams;
   const en = lang === "en";
-  const contact = publicContactEmail();
-  const contactText = contact
-    ? contact
-    : en ? "The contact address will be published here before LifeAtlas opens to the public." : "お問い合わせ先は、一般公開までにここへ掲載します。";
+  const contact = contactForDisplay();
+  const provisionalNote = en ? " (provisional — it will be replaced with the official address before LifeAtlas opens to the public)" : "（仮。一般公開までに正式なアドレスへ差し替えます）";
 
   const sections: Array<[string, string[]]> = en ? [
     ["1. Operator", ["LifeAtlas is operated by the LifeAtlas operator (an individual). The operator's name and address will be disclosed without delay on request."]],
@@ -37,7 +35,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
     ["5. Cookies and device storage", ["Sign-in cookies (HTTP-only) keep you logged in. Your browser also stores comparisons you save on this device and the random usage ID. You can delete them from your browser at any time."]],
     ["6. Public share links", ["If you create a share link, anyone with the link can see the cities, salaries and results in that snapshot. Your name and email address are not included."]],
     ["7. Retention and deletion", [
-      "You can delete saved comparisons one by one, or delete your whole account from the Account page. Deleting the account immediately removes your sign-in, saved comparisons, profile, AI explanation history, share links and subscription record, and cancels an active subscription.",
+      "You can delete saved comparisons one by one, or delete your whole account from the Account page. Deleting the account immediately removes your sign-in, saved comparisons, profile, AI explanation history, share links and subscription record, and cancels an active subscription (the remaining paid period is not refunded).",
       "Usage records are kept without your account link. Stripe keeps payment records as required by law.",
     ]],
     ["8. Security", ["All traffic is encrypted. Database rules allow each signed-in user to read only their own records, and server-only keys are never sent to the browser."]],
@@ -60,7 +58,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
     ["5. Cookieと端末内の保存", ["ログインを保つためのCookie（ブラウザのスクリプトから読めない設定）を使います。また、この端末に保存した比較とランダムな利用状況IDをブラウザ内に保存します。ブラウザの設定からいつでも削除できます。"]],
     ["6. 公開共有リンク", ["共有リンクを作ると、リンクを知っている人は誰でも、その時点の都市・給与・計算結果を見られます。氏名やメールアドレスは含まれません。"]],
     ["7. 保存期間と削除", [
-      "保存した比較は1件ずつ削除できます。アカウントページからアカウント全体を削除することもでき、削除するとログイン情報、保存した比較、プロフィール、AIによる説明の履歴、共有リンク、契約情報をすぐに消去し、有効な定期課金は解約されます。",
+      "保存した比較は1件ずつ削除できます。アカウントページからアカウント全体を削除することもでき、削除するとログイン情報、保存した比較、プロフィール、AIによる説明の履歴、共有リンク、契約情報をすぐに消去し、有効な定期課金は解約されます（支払い済みの残り期間分の返金はありません）。",
       "利用状況の記録は、アカウントとの結び付きを外して保持します。決済の記録は、法令に基づきStripeが保管します。",
     ]],
     ["8. 安全管理", ["通信はすべて暗号化しています。データベースは、ログインした本人が自分の記録だけを読める設定にしています。サーバー専用の鍵はブラウザへ送りません。"]],
@@ -72,7 +70,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
     <section className="growth-hero reference-hero"><p className="eyebrow">PRIVACY POLICY</p><h1>{en ? "Privacy policy" : "プライバシーポリシー"}</h1><p>{en ? "What LifeAtlas stores, why, who processes it, and how to delete it." : "LifeAtlasが保存する情報、その理由、処理する事業者、削除の方法を説明します。"}</p></section>
     <section className="growth-section reference-section">
       {sections.map(([title, paragraphs]) => <article className="growth-panel privacy-section" key={title}><h2>{title}</h2>{paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</article>)}
-      <article className="growth-panel privacy-section"><h2>{en ? "Contact" : "お問い合わせ先"}</h2><p>{contact ? <a href={`mailto:${contact}`}>{contactText}</a> : contactText}</p></article>
+      <article className="growth-panel privacy-section"><h2>{en ? "Contact" : "お問い合わせ先"}</h2><p>{contact.provisional ? `${contact.email}${provisionalNote}` : <a href={`mailto:${contact.email}`}>{contact.email}</a>}</p></article>
       <p className="growth-updated">{en ? "Last revised" : "最終改定日"}: {en ? REVISED_ON.en : REVISED_ON.ja}</p>
     </section>
   </main>;

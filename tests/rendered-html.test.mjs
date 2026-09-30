@@ -310,7 +310,7 @@ test("exposes validated deterministic decision APIs without duplicating the calc
   const privacyHtml = await privacy.text();
   assert.match(privacyHtml, /プライバシーポリシー/);
   assert.match(privacyHtml, /カード番号はStripeの画面で入力され、LifeAtlasでは一切保存しません/);
-  assert.match(privacyHtml, /お問い合わせ先は、一般公開までにここへ掲載します/);
+  assert.match(privacyHtml, /contact@lifeatlas\.example（仮。一般公開までに正式なアドレスへ差し替えます）/);
   const privacyEn = await (await fetch(`${baseUrl}/privacy?lang=en`)).text();
   assert.match(privacyEn, /Privacy policy/);
 
@@ -320,6 +320,8 @@ test("exposes validated deterministic decision APIs without duplicating the calc
   assert.match(commerce, /月額 US\$12/);
   assert.match(commerce, /年額 US\$79/);
   assert.match(commerce, /請求があれば遅滞なく開示します/);
+  assert.match(commerce, /消費税などを別途加算することはありません/);
+  assert.match(commerce, /contact@lifeatlas\.example（仮/);
 });
 
 test("publishes typed city catalog APIs with coverage and source metadata", async () => {
