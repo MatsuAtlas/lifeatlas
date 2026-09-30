@@ -138,6 +138,7 @@ export function PricingClient({ canceled = false }: { canceled?: boolean }) {
         </article>
       </section>
       <p className="billing-stripe-note">{t.stripeNote}</p>
+      <p className="billing-stripe-note"><Link href={`/legal/commerce${language === "en" ? "?lang=en" : ""}`}>{language === "en" ? "Commercial disclosure" : "特定商取引法に基づく表記"}</Link> · <Link href={`/privacy${language === "en" ? "?lang=en" : ""}`}>{language === "en" ? "Privacy policy" : "プライバシーポリシー"}</Link></p>
     </main>
   );
 }
