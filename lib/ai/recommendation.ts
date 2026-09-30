@@ -76,6 +76,7 @@ export function buildRecommendationInput(
         rank: score.rank,
         lifeAtlasScore: score.score,
         calculationStatus: result.calculationStatus,
+        expatTaxRegime: result.assumptions.expatTaxRegime,
         financials: {
           grossAnnual: result.grossAnnual,
           netAnnual: result.netAnnual,

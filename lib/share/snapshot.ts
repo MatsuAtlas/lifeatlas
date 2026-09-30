@@ -60,6 +60,7 @@ export function createPublicShareSnapshot(input: SavedAnalyzerInput, language: S
         rentBurden: result.rentBurden,
         dataConfidence: result.dataConfidence,
         calculationStatus: result.calculationStatus,
+        expatTaxRegime: result.assumptions.expatTaxRegime,
         strongestFactors: score.strongestFactors.slice(0, 3),
         riskFlags: score.riskFlags.slice(0, 5),
       };

@@ -4,6 +4,7 @@ import type {
   InsuranceConfig,
   LegacyCityResult,
   TaxCalculationStatus,
+  ExpatTaxRegimeStatus,
 } from "../../types/finance";
 
 export const householdMultipliers = {
@@ -349,6 +350,27 @@ export function calculateZurichPayroll(grossAnnual: number) {
   const simpleTax = zurichSimpleStateTax2026(cantonalTaxable);
   const cantonCityTax = simpleTax * (ZURICH_CANTON_MULTIPLIER_2026 + ZURICH_CITY_MULTIPLIER_2026) + 24;
   return { ahv, alv, nbu, bvg, netWage, federalTaxable, cantonalTaxable, federalTax, simpleTax, cantonCityTax };
+}
+
+// オランダ・30%ルール（expatregeling、2026年）。条件（国外から採用された「ingekomen werknemer」であること、
+// 税務当局の決定）を満たすと本人が選んだ場合だけ使います。非課税手当は手当込みの給与の30%まで、上限€78,600
+// （給与€262,000で到達）で、手当を除く課税給与が€48,013を超えている必要があります（Belastingdienst「Inhoud van de
+// expatregeling」「Deskundigheidsvereiste」の例：手当込み€70,000→€21,000、€50,000→€1,987）。修士・30歳未満の低い
+// 給与基準（€36,497）は学位を入力で判定できないため使いません。手当はBox 1の課税対象（所得税・国民保険料）から外れます。
+export const NETHERLANDS_EXPAT_SALARY_NORM_2026 = 48_013;
+export const NETHERLANDS_EXPAT_ALLOWANCE_CAP_2026 = 78_600;
+
+export function netherlandsExpatAllowance2026(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  return Math.max(0, Math.min(gross * 0.3, NETHERLANDS_EXPAT_ALLOWANCE_CAP_2026, gross - NETHERLANDS_EXPAT_SALARY_NORM_2026));
+}
+
+// 移住者向けの税の特例の適用状況。off＝本人が選んでいない、applied＝適用、notEligible＝都市の特例はあるが
+// 給与などの条件を満たさない、notModeled＝この都市の特例は未実装（居住者の通常税制で計算）。
+export function expatTaxRegimeStatus(city: City, grossAnnual: number | null, requested: boolean): ExpatTaxRegimeStatus {
+  if (!requested) return "off";
+  if (city.taxSystem !== "netherlands") return "notModeled";
+  return grossAnnual !== null && netherlandsExpatAllowance2026(grossAnnual) > 0 ? "applied" : "notEligible";
 }
 
 // タイ・2026課税年度（居住者・単身）。社会保険（第33条）は賃金の5%で、2026年1月から月額上限は賃金฿17,500（最大฿875）。
@@ -697,7 +719,7 @@ export function officialSalaryBenchmarkSource<TCity extends City>(city: TCity): 
   return salarySource;
 }
 
-function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand, household: keyof typeof householdMultipliers) {
+function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand, household: keyof typeof householdMultipliers, expatTaxRegime: boolean) {
   if (taxCalculationStatus(city) === "unavailable") return null;
   if (city.taxSystem === "singapore") {
     const incomeTax = taxFromAnnualBrackets(grossAnnual, [
@@ -786,7 +808,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   if (city.taxSystem === "netherlands") {
     // 年齢帯からAOW年齢（2026年は67歳）以上かを判定できないため、65歳以上は計算しません。
     if (ageBand === "65plus") return null;
-    const payroll = calculateNetherlandsPayroll(grossAnnual);
+    const payroll = calculateNetherlandsPayroll(grossAnnual - (expatTaxRegime ? netherlandsExpatAllowance2026(grossAnnual) : 0));
     // Box 1は所得税と国民保険料を一体で課税し、税額控除も合算額から差し引くため、1行の税額として示します。
     const levy = payroll.box1AfterCredits;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: levy / 12, totalTaxMonthly: levy / 12, totalDeductionsMonthly: levy / 12 };
@@ -904,12 +926,13 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, medicareLevyMonthly: medicareLevy / 12, totalTaxMonthly: (incomeTax + medicareLevy) / 12, totalDeductionsMonthly: (incomeTax + medicareLevy) / 12, employerSuperMonthly: grossAnnual * city.insurance.employerSuperRate / 12 };
 }
 
-export function calculateCity<TCity extends City>(city: TCity, grossAnnual: number | null, household: keyof typeof householdMultipliers, housing: keyof typeof housingMultipliers, lifestyle: keyof typeof lifestyleMultipliers, ageBand: AgeBand): LegacyCityResult<TCity> {
+export function calculateCity<TCity extends City>(city: TCity, grossAnnual: number | null, household: keyof typeof householdMultipliers, housing: keyof typeof housingMultipliers, lifestyle: keyof typeof lifestyleMultipliers, ageBand: AgeBand, options: { expatTaxRegime?: boolean } = {}): LegacyCityResult<TCity> {
   const householdMultiplier = householdMultipliers[household];
   const housingMultiplier = housingMultipliers[housing];
   const lifestyleMultiplier = lifestyleMultipliers[lifestyle];
   const grossMonthly = grossAnnual === null ? null : grossAnnual / 12;
-  const taxBreakdown = grossAnnual === null ? null : estimateTaxBreakdown(city, grossAnnual, ageBand, household);
+  const expatTaxRegime = expatTaxRegimeStatus(city, grossAnnual, options.expatTaxRegime === true);
+  const taxBreakdown = grossAnnual === null ? null : estimateTaxBreakdown(city, grossAnnual, ageBand, household, expatTaxRegime === "applied");
   // 税制度は対応していても、公式値を確認できていない給与帯・年齢では計算不能として扱います。
   const calculationStatus = grossAnnual !== null && taxBreakdown === null ? "unavailable" : taxCalculationStatus(city);
   const calculationUnavailableReason = grossAnnual === null ? "salary" : calculationStatus === "unavailable" ? "tax" : null;
@@ -944,6 +967,7 @@ export function calculateCity<TCity extends City>(city: TCity, grossAnnual: numb
     taxCalculationStatus: calculationStatus,
     calculationUnavailableReason,
     taxBreakdown,
+    expatTaxRegime,
     scores: {
       livability: city.scores.livability,
       savings: savings === null ? null : Math.round(savings),

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { isAccountDeletionConfirmed, stripeCleanupFor } from "../lib/account/deletion.ts";
-import { publicContactEmail } from "../lib/legal/contact.ts";
+import { contactForDisplay, PROVISIONAL_CONTACT_EMAIL, publicContactEmail } from "../lib/legal/contact.ts";
 
 test("account deletion requires the exact confirmation word", () => {
   assert.equal(isAccountDeletionConfirmed("削除"), true);
@@ -22,4 +22,10 @@ test("the public contact email is shown only when the owner has set a valid addr
   assert.equal(publicContactEmail({}), null);
   assert.equal(publicContactEmail({ LIFEATLAS_CONTACT_EMAIL: "not an email" }), null);
   assert.equal(publicContactEmail({ LIFEATLAS_CONTACT_EMAIL: " support@example.com " }), "support@example.com");
+});
+
+test("until the owner sets an address, a clearly provisional reserved-domain address is shown", () => {
+  assert.deepEqual(contactForDisplay({}), { email: PROVISIONAL_CONTACT_EMAIL, provisional: true });
+  assert.ok(PROVISIONAL_CONTACT_EMAIL.endsWith(".example"));
+  assert.deepEqual(contactForDisplay({ LIFEATLAS_CONTACT_EMAIL: "support@example.com" }), { email: "support@example.com", provisional: false });
 });
