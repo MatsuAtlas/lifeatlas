@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateColombiaPayroll, calculateArgentinaPayroll, calculateZurichPayroll, swissFederalIncomeTax2026, zurichSimpleStateTax2026, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateChilePayroll, calculateColombiaPayroll, calculateArgentinaPayroll, calculateZurichPayroll, swissFederalIncomeTax2026, zurichSimpleStateTax2026, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -509,6 +509,26 @@ test("Colombia 2026 applies Law 100 contributions, the 25% exemption capped at 7
   close(high.incomeTax, ((taxable / 52_374 - 8_670) * 0.35 + 2_296) * 52_374);
   assert.equal(calculateColombiaPayroll(60_000_000).incomeTax, 0);
   assert.equal(taxCalculationStatus(cities.bogota), "official-rate-estimate");
+});
+
+test("Chile applies the September 2026 SII monthly table with AFP Uno, FONASA and unemployment contributions capped in UF", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 月$2,000,000：年金10%＋手数料0.46%＝209,200、医療7%＝140,000、失業0.6%＝12,000。課税1,638,800は4%の段（控除額38,729.34）
+  const middle = calculateChilePayroll(24_000_000);
+  close(middle.pension, 209_200 * 12);
+  close(middle.health, 140_000 * 12);
+  close(middle.unemployment, 12_000 * 12);
+  close(middle.incomeTax, (1_638_800 * 0.04 - 38_729.34) * 12);
+  // 月$10,000,000：年金・医療は90 UF（×41,057.20＝3,695,148）、失業は135.2 UF（5,550,933.44）が上限。課税9,321,521.56は35%の段
+  const high = calculateChilePayroll(120_000_000);
+  close(high.pension, 3_695_148 * 0.1046 * 12);
+  close(high.health, 3_695_148 * 0.07 * 12);
+  close(high.unemployment, 5_550_933.44 * 0.006 * 12);
+  const taxable = 10_000_000 - 3_695_148 * 0.1746 - 5_550_933.44 * 0.006;
+  close(high.incomeTax, (taxable * 0.35 - 1_672_533.72) * 12);
+  // 課税所得が13.5 UTM（$968,233.50）以下なら非課税
+  assert.equal(calculateChilePayroll(10_000_000).incomeTax, 0);
+  assert.equal(taxCalculationStatus(cities.santiago), "official-rate-estimate");
 });
 
 test("Argentina 2026 uses ARCA's annual tables and stays unavailable above the lowest published contribution cap", () => {

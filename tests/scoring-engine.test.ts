@@ -24,7 +24,7 @@ function offer(id: string, cityId: CityId, annualSalary: number, salaryCurrency:
 const scenarios = () => [
   offer("tokyo-offer", "tokyo", 7_000_000, "JPY"),
   offer("vancouver-offer", "vancouver", 90_000, "CAD"),
-  offer("santiago-offer", "santiago", 20_000_000, "CLP"),
+  offer("amsterdam-senior-offer", "amsterdam", 60_000, "EUR", { age: 70, retirementAge: 75 }),
 ];
 
 test("ranks 2-5 scenarios with transparent 45/20/25/10 contributions", () => {
@@ -44,13 +44,13 @@ test("ranks 2-5 scenarios with transparent 45/20/25/10 contributions", () => {
 
 test("never lets an unsupported financial scenario outrank eligible scenarios", () => {
   const ranked = scoreScenarios(scenarios(), { ...DEFAULT_PRIORITIES, qualityOfLife: 5, career: 5 });
-  const santiago = ranked.find((result) => result.scenarioId === "santiago-offer");
+  const unsupported = ranked.find((result) => result.scenarioId === "amsterdam-senior-offer");
 
-  assert.equal(santiago?.eligible, false);
-  assert.equal(santiago?.rank, 3);
-  assert.ok((santiago?.score ?? 100) <= 35);
-  assert.ok(santiago?.riskFlags.includes("calculation-unavailable"));
-  assert.ok(santiago?.riskFlags.includes("low-data-confidence"));
+  assert.equal(unsupported?.eligible, false);
+  assert.equal(unsupported?.rank, 3);
+  assert.ok((unsupported?.score ?? 100) <= 35);
+  assert.ok(unsupported?.riskFlags.includes("calculation-unavailable"));
+  assert.ok(unsupported?.riskFlags.includes("low-data-confidence"));
 });
 
 test("produces stable rankings regardless of input order", () => {
