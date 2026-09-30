@@ -81,3 +81,4 @@
 1. 公開先をOpenAI SitesからVercelへ移行（`main` へのマージで本番デプロイ）。Vercelに環境変数（Production）を登録し、Supabase AuthのRedirect URLとStripe WebhookのURLを新ドメインへ変更。
 2. Vercelに `LIFEATLAS_DIAGNOSTICS_TOKEN` を登録し、`?probe=1` でSupabase・Stripe（test mode）・AI Gatewayの設定を確認。
 3. 本番E2E：Googleログイン、保存系操作、Stripe testでのCheckout→Webhook→Pro反映→Portal→解約、AI初回生成とキャッシュ、共有、日英、390px。
+4. 3の本番E2Eがすべて通ったら、旧公開先OpenAI Sites向けのファイル（`.openai/`・`worker/`・`vite.config.ts`・`build/sites-vite-plugin.ts`）と開発用依存（vite・vinext・wrangler・@cloudflare/vite-plugin・@vitejs/*・react-server-dom-webpack）を削除する（2026-09-30 オーナー承認済み。残る開発用の脆弱性指摘11件もこれで解消）。それまでは戻し先として残す。
