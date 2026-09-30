@@ -1,5 +1,5 @@
 import type { CityId, CurrencyCode } from "./city";
-import type { AgeBand, HousingType, LifestyleType, TaxBreakdown, TaxCalculationStatus } from "./finance";
+import type { AgeBand, ExpatTaxRegimeStatus, HousingType, LifestyleType, TaxBreakdown, TaxCalculationStatus } from "./finance";
 
 export type ScenarioHousehold = "single" | "couple";
 
@@ -27,6 +27,8 @@ export type ScenarioInput = {
   currentSavings?: number;
   retirementAge?: number;
   annualReturnRate?: number;
+  // 移住者向けの税の特例（オランダの30%ルールなど）の条件を満たすと本人が選んだ場合だけtrue。既定は居住者の通常税制。
+  expatTaxRegime?: boolean;
 };
 
 export type ScenarioAssumptions = {
@@ -35,6 +37,7 @@ export type ScenarioAssumptions = {
   annualReturnRate: number;
   projectionYears: [5, 10];
   calculationVersion: string;
+  expatTaxRegime: ExpatTaxRegimeStatus;
 };
 
 export type FireMetrics = {

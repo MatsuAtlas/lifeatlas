@@ -70,6 +70,8 @@ export type CalculationCity = {
   dataSources: Array<{ item: string; source: string }>;
 };
 
+export type ExpatTaxRegimeStatus = "off" | "applied" | "notEligible" | "notModeled";
+
 export type LegacyCityResult<TCity extends CalculationCity> = {
   city: TCity;
   grossAnnual: number | null;
@@ -87,6 +89,7 @@ export type LegacyCityResult<TCity extends CalculationCity> = {
   taxCalculationStatus: TaxCalculationStatus;
   calculationUnavailableReason: "tax" | "salary" | null;
   taxBreakdown: TaxBreakdown | null;
+  expatTaxRegime: ExpatTaxRegimeStatus;
   scores: {
     livability: number;
     savings: number | null;
