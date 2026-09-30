@@ -123,7 +123,7 @@ const copy = {
     title: "どのオファーが、あなたの将来を強くするか。",
     intro: "2〜5件の仕事・移住案を、同じ計算エンジンで比較します。AIに数字を作らせず、税金・生活費・貯蓄・長期資産から順位を決めます。",
     live: "入力と同時に再計算",
-    coverage: `世界${CITY_COUNT}都市`,
+    coverage: "都市",
     scenarios: "比較するオファー",
     scenarioNote: "給与は各オファーの通貨で入力してください。税制度が未対応の都市は、推定手取りを表示しません。",
     add: "オファーを追加",
@@ -287,7 +287,7 @@ const copy = {
     title: "See which offer makes your future stronger.",
     intro: "Compare two to five job or relocation options with the same calculation engine. Rankings come from taxes, living costs, savings and long-term wealth—not AI-generated numbers.",
     live: "Recalculates instantly",
-    coverage: "50 global cities",
+    coverage: "cities",
     scenarios: "Offers to compare",
     scenarioNote: "Enter each offer in its stated currency. If a city's tax system is unsupported, LifeAtlas will not invent take-home pay.",
     add: "Add offer",
@@ -1096,7 +1096,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
       <div className="page-wrap oa-wrap">
         <section className="oa-hero">
           <div><p className="eyebrow"><span className="eyebrow-dot" />{t.eyebrow}</p><h1>{t.title}</h1><p>{t.intro}</p></div>
-          <div className="oa-hero-proof"><span><strong>2–{activeEntitlements.maxScenarios}</strong>{language === "ja" ? "オファー" : "offers"}</span><span><strong>50</strong>{t.coverage}</span><span><strong>0</strong>{language === "ja" ? "AIによる数値生成" : "AI-made numbers"}</span></div>
+          <div className="oa-hero-proof"><span><strong>2–{activeEntitlements.maxScenarios}</strong>{language === "ja" ? "オファー" : "offers"}</span><span><strong>{CITY_COUNT}</strong>{t.coverage}</span><span><strong>0</strong>{language === "ja" ? "AIによる数値生成" : "AI-made numbers"}</span></div>
           <div className="oa-live-badge"><i />{t.live}</div>
         </section>
 
