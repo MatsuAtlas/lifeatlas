@@ -62,7 +62,7 @@
 - FIRE目標は年間生活費×25（4%ルール）。取り崩し時の税・インフレは未考慮。
 - What-Ifはブラウザ内計算のため、Pro制限は画面上の制御。逆転給与APIとAI説明はサーバー側で制限。
 - `app/page.tsx` と `offer-analyzer.tsx` が巨大な単一コンポーネント。E2Eテストはない。
-- 未使用の依存・定義：`drizzle-orm`、`drizzle-kit`、`react-loading-skeleton`、Worker内のD1定義（テンプレートの名残）。
+- 2026-09-30：未使用の依存（`drizzle-orm`・`drizzle-kit`・`react-loading-skeleton`）を削除し、Next.jsを16.2.6→16.3.7へ更新（Middleware/Proxyのすり抜け・Server ActionsのDoS/SSRFなど critical を含む脆弱性の修正）。`npm audit --omit=dev`（本番に含まれる依存）は0件。残る開発用の指摘は旧公開先OpenAI Sites向けツール（vite・vinext・wrangler・@cloudflare/vite-plugin）のみで、Vercelの本番には含まれない。旧Sites向けファイルを削除すれば解消する。Worker内のD1定義もテンプレートの名残。
 - SEOページは静的生成のため保存参考為替を使用。
 
 ## 公開状態（2026-09-29確認）
