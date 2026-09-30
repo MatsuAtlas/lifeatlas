@@ -150,7 +150,7 @@ export function AccountClient({ checkoutReturned = false, authStatus }: { checko
           <form className="account-delete" onSubmit={(event) => { event.preventDefault(); void deleteAccount(); }}>
             <p className="eyebrow">DELETE ACCOUNT</p>
             <h2>{ja ? "アカウントを削除" : "Delete account"}</h2>
-            <p>{ja ? "ログイン情報、保存した比較、プロフィール、AIによる説明の履歴、共有リンク、契約情報をすぐに消去します。有効なProの契約は解約され、元に戻せません。この端末に保存した比較は、ブラウザの設定から削除できます。" : "This immediately erases your sign-in, saved comparisons, profile, AI explanation history, share links and subscription record. An active Pro subscription is cancelled. This cannot be undone. Comparisons saved on this device can be removed from your browser settings."}</p>
+            <p>{ja ? "ログイン情報、保存した比較、プロフィール、AIによる説明の履歴、共有リンク、契約情報をすぐに消去します。有効なProの契約はその時点で終了し（支払い済みの残り期間分の返金はありません）、元に戻せません。この端末に保存した比較は、ブラウザの設定から削除できます。" : "This immediately erases your sign-in, saved comparisons, profile, AI explanation history, share links and subscription record. An active Pro subscription ends immediately (the remaining paid period is not refunded). This cannot be undone. Comparisons saved on this device can be removed from your browser settings."}</p>
             <label>{ja ? `確認のため「${deleteKeyword}」と入力` : `Type "${deleteKeyword}" to confirm`}<input value={deleteConfirm} onChange={(event) => setDeleteConfirm(event.target.value)} autoComplete="off" /></label>
             <button className="danger-button" type="submit" disabled={deleting || deleteConfirm.trim() !== deleteKeyword}>{deleting ? (ja ? "削除中…" : "Deleting…") : (ja ? "アカウントを完全に削除" : "Permanently delete account")}</button>
             <p><Link href={`/privacy${ja ? "" : "?lang=en"}`}>{ja ? "プライバシーポリシー" : "Privacy policy"}</Link></p>
