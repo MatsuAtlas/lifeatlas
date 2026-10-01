@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { cities, cityOrder } from "../../data/cities";
 import { DEFAULT_PRIORITIES } from "../../lib/scoring/life-atlas-score";
-import { localizedCity } from "../../lib/cities/localization";
+import { localizedCity, localizedUpdatedAt } from "../../lib/cities/localization";
 import { trackProductEvent, trackProductEventOnce } from "../../lib/analytics/client";
 import { buildWhatIfChanges, simulateWhatIf } from "../../lib/calculations/what-if";
 import { calculationOptionsFor, isExchangeRateSnapshot, type ExchangeRateSnapshot } from "../../lib/data/exchange-rates";
@@ -1074,7 +1074,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
         <div className="oa-confidence">
           <span>{t.confidence}: <strong className={`is-${result.dataConfidence.level}`}>{confidenceLabel} · {result.dataConfidence.score}/100</strong></span>
           <span>{taxLabel}</span>
-          <p><strong>{t.sourceRange}:</strong> {language === "ja" ? city.sourceLabel : `City inputs dated ${city.updatedAt}; tax status is shown separately.`}</p>
+          <p><strong>{t.sourceRange}:</strong> {language === "ja" ? city.sourceLabel : `City inputs dated ${localizedUpdatedAt(city.updatedAt, language)}; tax status is shown separately.`}</p>
         </div>
         {whatIfChanges.length > 0 && delta && input.id === activeWhatIfScenario.id && (
           <div className="oa-card-delta"><span>{t.impact}</span><strong>{formatSigned(delta.score, (value) => value.toFixed(1))} pt</strong><small>{formatSigned(delta.rankChange, (value) => `${Math.abs(value).toFixed(0)}`)} {t.rankChange}</small></div>
