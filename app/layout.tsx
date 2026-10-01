@@ -2,6 +2,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 
+import { isPublicLaunch } from "../lib/site-visibility";
+
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
@@ -17,6 +19,8 @@ export async function generateMetadata(): Promise<Metadata> {
     icons: { icon: [{ url: "/favicon.svg", type: "image/svg+xml" }] },
     openGraph: { title, description, type: "website", images: [{ url: imageUrl, width: 1200, height: 630, alt: "Life Atlas — 暮らしとビジネスで、世界の都市を選ぶ" }] },
     twitter: { card: "summary_large_image", title, description, images: [imageUrl] },
+    // 一般公開前は検索エンジンに載せない（各ページの個別指定はそのまま優先されます）。
+    ...(isPublicLaunch() ? {} : { robots: { index: false, follow: false } }),
   };
 }
 
