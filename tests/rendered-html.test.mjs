@@ -189,6 +189,11 @@ test("publishes sitemap coverage without indexing account or API routes", async 
   const robots = await fetch(`${baseUrl}/robots.txt`);
   assert.equal(robots.status, 200);
   const robotsText = await robots.text();
+  // 一般公開前（LIFEATLAS_PUBLIC_LAUNCH 未設定）は、サイト全体を検索エンジンに載せない。
+  assert.match(robotsText, /Disallow: \/\n/);
+  assert.doesNotMatch(robotsText, /Sitemap:/);
+  const homeForRobots = await (await fetch(`${baseUrl}/`)).text();
+  assert.match(homeForRobots, /name="robots" content="noindex, nofollow"/);
   assert.match(robotsText, /Disallow: \/account/);
   assert.match(robotsText, /Disallow: \/dashboard/);
   assert.match(robotsText, /Disallow: \/analyze\//);
