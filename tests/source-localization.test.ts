@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
-import { localizedSourceItem, localizedSourceLevel, localizedSourceName, localizedSourcePeriod } from "../lib/cities/localization.ts";
+import { localizedSourceItem, localizedSourceLevel, localizedSourceName, localizedSourcePeriod, localizedTimezone } from "../lib/cities/localization.ts";
 
 const kana = /[぀-ヿ]/;
 const han = /[㐀-鿿]/;
@@ -22,6 +22,15 @@ test("English source labels never show Japanese text for any city", () => {
       assert.equal(kana.test(localizedSourceItem(source.item, "en")) || han.test(localizedSourceItem(source.item, "en")), false, `${cityId} item: ${source.item}`);
     }
   }
+});
+
+test("English timezones never show Japanese text for any city", () => {
+  for (const cityId of cityOrder) {
+    const timezone = localizedTimezone(cities[cityId].timezone, "en");
+    assert.equal(kana.test(timezone) || han.test(timezone), false, `${cityId} timezone: ${timezone}`);
+  }
+  assert.equal(localizedTimezone("UTC-4（夏時間あり）", "en"), "UTC-4 (daylight saving time applies)");
+  assert.equal(localizedTimezone("UTC-4（夏時間あり）", "ja"), "UTC-4（夏時間あり）");
 });
 
 test("Japanese labels are returned unchanged", () => {

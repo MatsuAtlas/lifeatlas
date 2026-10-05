@@ -80,6 +80,12 @@ export function localizedSourceItem(item: string, language: SupportedLanguage) {
   return /[\u3040-\u30ff\u3400-\u9fff]/.test(readable) ? "Other source" : readable;
 }
 
+// タイムゾーンの日本語の注記（夏時間・日本標準時）を英語に置き換えます。
+export function localizedTimezone(timezone: string, language: SupportedLanguage) {
+  if (language === "ja") return timezone;
+  return timezone.replace("（夏時間あり）", " (daylight saving time applies)").replace("（日本標準時）", " (Japan Standard Time)");
+}
+
 export function localizedUpdatedAt(updatedAt: string, language: SupportedLanguage) {
   if (language === "ja") return updatedAt;
   const match = updatedAt.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
