@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateChilePayroll, calculateColombiaPayroll, calculateArgentinaPayroll, calculateItalyPayroll, italyEmployeeTaxCredit2026, italyAdditionalCredit2026, calculateZurichPayroll, swissFederalIncomeTax2026, zurichSimpleStateTax2026, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateChilePayroll, calculateColombiaPayroll, calculateArgentinaPayroll, calculateFrancePayroll, calculateItalyPayroll, italyEmployeeTaxCredit2026, italyAdditionalCredit2026, calculateZurichPayroll, swissFederalIncomeTax2026, zurichSimpleStateTax2026, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -670,4 +670,34 @@ test("Italy 2026 subtracts the employee and additional tax credits, and Rome use
   assert.equal(low.localTax, 0);
   // 年収€150,000：保険料の基礎は€122,295まで（1996年以降の初加入者の上限）
   close(calculateItalyPayroll(150_000, "lazio").pension, 122_295 * 0.0919 + 66_071 * 0.01);
+});
+
+test("France 2026 applies official employee contributions, the 10% allowance, the décote and the €61 threshold", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 年収€45,000（PASS以下）：老齢保険 3,105＋180、AGIRC-ARRCO 45,000×4.01%＝1,804.5、CSG・CRDSは44,212.5×9.7%
+  // 課税所得 (45,000−5,089.5−3,006.45)×0.9＝33,213.645 → 1,977.69＋3,634.645×30%
+  const middle = calculateFrancePayroll(45_000);
+  close(middle.pension, 5_089.5);
+  close(middle.csgCrds, 4_288.6125);
+  close(middle.netTaxableSalary, 36_904.05);
+  close(middle.taxableIncome, 33_213.645);
+  close(middle.incomeTax, 3_068.0835);
+  // 年収€100,000：第2区分 51,940×9.72%、CET 100,000×0.14%
+  const high = calculateFrancePayroll(100_000);
+  close(high.pension, 10_831.914);
+  close(high.taxableIncome, 74_238.3774);
+  close(high.incomeTax, 15_375.50322);
+  // 年収€250,000：CSGの基礎はPASSの4倍（192,240）まで98.25%、超える部分は100%
+  close(calculateFrancePayroll(250_000).csgCrds, (192_240 * 0.9825 + 57_760) * 0.097);
+  // 年収€25,000：税額753.72275にdécote 897−753.72275×45.25%＝555.9405
+  close(calculateFrancePayroll(25_000).incomeTax, 197.78225);
+  // 年収€20,000：décoteで税額0
+  assert.equal(calculateFrancePayroll(20_000).incomeTax, 0);
+
+  const paris = calculateCity(cities.paris, 45_000, "single", "onebed", "balanced", "under40");
+  close((paris.taxBreakdown?.incomeTaxMonthly ?? 0) * 12, 3_068.0835);
+  close((paris.taxBreakdown?.pensionMonthly ?? 0) * 12, 5_089.5);
+  close((paris.taxBreakdown?.healthInsuranceMonthly ?? 0) * 12, 4_288.6125);
+  assert.equal(paris.taxBreakdown?.employmentInsuranceMonthly, 0);
+  close(paris.netMonthly ?? Number.NaN, (45_000 - 3_068.0835 - 5_089.5 - 4_288.6125) / 12);
 });
