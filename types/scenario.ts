@@ -57,6 +57,20 @@ export type DataConfidence = {
   reasons: string[];
 };
 
+// 主な就労ビザの給与基準との比較（lib/calculations/work-visa.ts）。給与以外の条件は判定しません。
+export type WorkVisaSalaryCheck = {
+  countryCode: string;
+  route: { ja: string; en: string };
+  currency: CurrencyCode;
+  annualThreshold: number;
+  status: "meets" | "below" | "check";
+  // check の理由：賞与を含めた場合だけ満たす（bonus）／休暇手当を含むかで結果が変わる（holidayAllowance）
+  reason: "bonus" | "holidayAllowance" | null;
+  meetsReducedThreshold: boolean | null;
+  reduced: { annual: number; condition: { ja: string; en: string } } | null;
+  source: { name: string; url: string; period: string };
+};
+
 export type ScenarioResult = {
   scenarioId: string;
   cityId: CityId;
@@ -97,6 +111,7 @@ export type ScenarioResult = {
   dataConfidence: DataConfidence;
   calculationStatus: TaxCalculationStatus;
   unavailableReason: "tax" | "salary" | null;
+  workVisaSalary: WorkVisaSalaryCheck | null;
   assumptions: ScenarioAssumptions;
 };
 

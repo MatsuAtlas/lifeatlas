@@ -137,6 +137,7 @@ export function scoreScenarios(results: ScenarioResult[], priorities: UserPriori
       ...(!eligible ? ["calculation-unavailable"] : []),
       ...(result.annualSavings !== null && result.annualSavings < 0 ? ["negative-savings"] : []),
       ...(result.rentBurden !== null && result.rentBurden > 40 ? ["high-housing-burden"] : []),
+      ...(result.workVisaSalary?.status === "below" ? ["work-visa-salary-below"] : []),
       ...(confidenceScore < 60 ? ["low-data-confidence"] : []),
       ...(result.fire !== null && result.fire.yearsToTarget === null ? ["fire-target-unreachable"] : []),
     ];

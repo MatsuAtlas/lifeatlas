@@ -77,6 +77,7 @@ export function buildRecommendationInput(
         lifeAtlasScore: score.score,
         calculationStatus: result.calculationStatus,
         expatTaxRegime: result.assumptions.expatTaxRegime,
+        workVisaSalary: result.workVisaSalary ? { route: language === "ja" ? result.workVisaSalary.route.ja : result.workVisaSalary.route.en, status: result.workVisaSalary.status, annualThreshold: result.workVisaSalary.annualThreshold, currency: result.workVisaSalary.currency } : null,
         financials: {
           grossAnnual: result.grossAnnual,
           netAnnual: result.netAnnual,
