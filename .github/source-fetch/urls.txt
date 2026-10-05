@@ -1,0 +1,6 @@
+https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/taux-cotisations-secteur-prive.html vieillesse|CSG|CRDS|98,25|chômage
+https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/plafonds-securite-sociale.html 2026|plafond annuel|mensuel
+https://www.agirc-arrco.fr/mon-entreprise/calculer-et-declarer/calcul-des-cotisations-de-retraite-complementaire/ Tranche 1|Tranche 2|CEG|CET|3,15|8,64
+https://www.service-public.fr/particuliers/vosdroits/F1419 tranche|11 600|29 579|décote
+https://www.service-public.fr/particuliers/vosdroits/F1989 10 %|minimum|maximum|abattement
+https://www.impots.gouv.fr/particulier/questions/comment-est-calculee-la-decote décote|889|897|45,25
