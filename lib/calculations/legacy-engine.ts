@@ -367,10 +367,26 @@ export function netherlandsExpatAllowance2026(grossAnnual: number) {
 
 // 移住者向けの税の特例の適用状況。off＝本人が選んでいない、applied＝適用、notEligible＝都市の特例はあるが
 // 給与などの条件を満たさない、notModeled＝この都市の特例は未実装（居住者の通常税制で計算）。
+// notBeneficial＝選択制の特例だが、この給与では通常税制のほうが税が少ないため使わない。
 export function expatTaxRegimeStatus(city: City, grossAnnual: number | null, requested: boolean): ExpatTaxRegimeStatus {
   if (!requested) return "off";
-  if (city.taxSystem !== "netherlands") return "notModeled";
-  return grossAnnual !== null && netherlandsExpatAllowance2026(grossAnnual) > 0 ? "applied" : "notEligible";
+  if (city.taxSystem === "netherlands") return grossAnnual !== null && netherlandsExpatAllowance2026(grossAnnual) > 0 ? "applied" : "notEligible";
+  if (city.taxSystem === "korea") {
+    if (grossAnnual === null || grossAnnual <= 0) return "notEligible";
+    return koreaForeignWorkerFlatTax2026(grossAnnual).incomeTax < calculateKoreaPayroll(grossAnnual).incomeTax ? "applied" : "notBeneficial";
+  }
+  return "notModeled";
+}
+
+// 韓国・外国人勤労者の単一税率（租税特例制限法第18条の2、2026年9月18日施行版）。2026年12月31日までに韓国で初めて
+// 働き始めた外国人は、20年間、給与（勤労所得）の19%を所得税にでき、その場合は非課税・控除・税額控除を一切使いません。
+// 地方所得税は地方税特例制限法第106条の2で同じ税率の10%（給与の1.9%）。本人の申請による選択制のため、通常税制より
+// 税が少ない場合だけ使います。社会保険（国民年金・健康保険など）は特例の対象外で、通常どおりかかります。
+export const KOREA_FOREIGN_WORKER_FLAT_RATE = 0.19;
+
+export function koreaForeignWorkerFlatTax2026(grossAnnual: number) {
+  const incomeTax = Math.max(0, grossAnnual) * KOREA_FOREIGN_WORKER_FLAT_RATE;
+  return { incomeTax, localIncomeTax: incomeTax * 0.1 };
 }
 
 // タイ・2026課税年度（居住者・単身）。社会保険（第33条）は賃金の5%で、2026年1月から月額上限は賃金฿17,500（最大฿875）。
@@ -846,7 +862,9 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
   }
   if (city.taxSystem === "korea") {
-    const { incomeTax, localIncomeTax, pension, health, employment } = calculateKoreaPayroll(grossAnnual);
+    const payroll = calculateKoreaPayroll(grossAnnual);
+    const { pension, health, employment } = payroll;
+    const { incomeTax, localIncomeTax } = expatTaxRegime ? koreaForeignWorkerFlatTax2026(grossAnnual) : payroll;
     const totalTax = incomeTax + localIncomeTax;
     const totalInsurance = pension + health + employment;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: localIncomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: employment / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
