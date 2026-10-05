@@ -65,9 +65,12 @@
 - 2026-09-30：未使用の依存（`drizzle-orm`・`drizzle-kit`・`react-loading-skeleton`）を削除し、Next.jsを16.2.6→16.3.7へ更新（Middleware/Proxyのすり抜け・Server ActionsのDoS/SSRFなど critical を含む脆弱性の修正）。`npm audit --omit=dev`（本番に含まれる依存）は0件。旧公開先OpenAI Sites向けツールの指摘も、同日のファイル削除で解消し、開発用を含め0件。
 - SEOページは静的生成のため保存参考為替を使用。
 
-## 公開状態（2026-09-29確認）
-- 本番サイトは**未公開**（オーナーの判断）。Vercelの Deployment Protection（Vercel Authentication）が有効で、`lifeatlas-life-atlas1.vercel.app` などチーム life-atlas1 のアドレスはVercelのログイン画面へ転送される。一般公開はオーナーの承認を得てから行う。
-- `lifeatlas.vercel.app` は **LifeAtlasではない別人のサイト**（Vite製の別アプリ）。案内や設定（Supabase・StripeのURL）に使わないこと。本番アドレスはVercelのプロジェクト設定（Settings → Domains）で確認する。
+## 公開状態（2026-10-01確認）
+- 本番アドレスは **`https://lifeatlas-delta.vercel.app`**（Vercelのプロジェクト lifeatlas の本番ドメイン）。他セッションの本番確認と、この環境からの取得（タイトル・`/privacy` が200）で確認。
+- このアドレスは **URLを知っていれば誰でも表示できる**（Vercelのアクセス保護はチーム用のアドレス `lifeatlas-life-atlas1.vercel.app` などにだけかかっている）。オーナーは「一般公開はまだ」と判断しているため、`LIFEATLAS_PUBLIC_LAUNCH=true` を設定するまで、全ページに `noindex, nofollow` を付け、`robots.txt` でサイト全体を検索エンジンから除外し、sitemapも案内しない（`lib/site-visibility.ts`）。
+- 一般公開の手順：Vercelの環境変数に `LIFEATLAS_PUBLIC_LAUNCH=true` を追加して再デプロイ（オーナーの承認が必要）。
+- 2026-10-01時点で本番のSupabase・Stripe・AIは未設定（`/api/auth/me`・`/api/billing/status` が `configured:false`、診断APIはトークン未設定で404）。お客様データは0件。
+- `lifeatlas.vercel.app` は **LifeAtlasではない別人のサイト**。案内や設定に使わないこと。
 
 ## プライバシー・アカウント削除（2026-09-29）
 - `/privacy`（日英）を追加。取得情報・利用目的・委託先（Supabase・Stripe・Vercel/AI Gateway）・Cookieと端末内保存・共有リンク・削除方法を実装どおりに記載。問い合わせ先は環境変数 `LIFEATLAS_CONTACT_EMAIL`（オーナーが決めるまで未設定で「一般公開までに掲載」と表示）。運営者の氏名・住所は「請求があれば遅滞なく開示」。
