@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities } from "../data/cities.ts";
 import { calculateScenario } from "../lib/calculations/calculate-scenario.ts";
-import { calculateCity, calculateNetherlandsPayroll, expatTaxRegimeStatus, netherlandsExpatAllowance2026 } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateKoreaPayroll, calculateNetherlandsPayroll, expatTaxRegimeStatus, koreaForeignWorkerFlatTax2026, netherlandsExpatAllowance2026 } from "../lib/calculations/legacy-engine.ts";
 import { isScenarioInput } from "../lib/comparison-history.ts";
 import type { ScenarioInput } from "../types/scenario.ts";
 
@@ -52,4 +52,25 @@ test("scenario inputs carry the newcomer regime choice through validation and re
   assert.equal(withRegime.assumptions.expatTaxRegime, "applied");
   assert.equal(withoutRegime.assumptions.expatTaxRegime, "off");
   assert.ok(withRegime.netAnnual! > withoutRegime.netAnnual!);
+});
+
+test("Korea's 19% flat rate for foreign workers is used only when it lowers income tax", () => {
+  const seoul = cities.seoul;
+  // 租税特例制限法第18条の2：給与×19%、地方所得税はその10%（地方税特例制限法第106条の2）
+  assert.deepEqual(koreaForeignWorkerFlatTax2026(200_000_000), { incomeTax: 38_000_000, localIncomeTax: 3_800_000 });
+  // 2億ウォン：通常税制の所得税43,746,208ウォン（既存の手計算）＞19%の38,000,000ウォン → 特例を使う
+  close(calculateKoreaPayroll(200_000_000).incomeTax, 43_746_208);
+  const high = calculateCity(seoul, 200_000_000, "single", "onebed", "balanced", "under40", { expatTaxRegime: true });
+  assert.equal(high.expatTaxRegime, "applied");
+  close(high.taxBreakdown!.incomeTaxMonthly * 12, 38_000_000);
+  close(high.taxBreakdown!.residentTaxMonthly * 12, 3_800_000);
+  // 社会保険は特例の対象外で変わらない
+  const regular = calculateCity(seoul, 200_000_000, "single", "onebed", "balanced", "under40");
+  close(high.taxBreakdown!.totalInsuranceMonthly, regular.taxBreakdown!.totalInsuranceMonthly);
+  close(high.netMonthly! - regular.netMonthly!, ((43_746_208 - 38_000_000) * 1.1) / 12);
+  // 1億ウォン：通常税制11,761,360ウォンのほうが19%（19,000,000ウォン）より少ない → 使わない
+  const middle = calculateCity(seoul, 100_000_000, "single", "onebed", "balanced", "under40", { expatTaxRegime: true });
+  assert.equal(middle.expatTaxRegime, "notBeneficial");
+  assert.equal(middle.taxMonthly, calculateCity(seoul, 100_000_000, "single", "onebed", "balanced", "under40").taxMonthly);
+  assert.equal(expatTaxRegimeStatus(seoul, 0, true), "notEligible");
 });

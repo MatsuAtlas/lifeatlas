@@ -68,7 +68,9 @@ export default async function PublicSharePage({ params }: { params: Promise<{ id
               <div><dt>{isJa ? "貯蓄率" : "Savings rate"}</dt><dd>{formatPercent(scenario.savingsRate)}</dd></div>
               <div><dt>{isJa ? "データ信頼度" : "Data confidence"}</dt><dd>{scenario.dataConfidence.score}/100</dd></div>
             </dl>
-            {scenario.expatTaxRegime === "applied" ? <p className="growth-scope">{isJa ? "移住者向けの税の特例（オランダの30%ルール）を適用した計算です。" : "Calculated with a newcomer tax regime (the Dutch 30% ruling)."}</p> : null}
+            {scenario.expatTaxRegime === "applied" ? <p className="growth-scope">{city.taxSystem === "korea"
+              ? (isJa ? "移住者向けの税の特例（韓国の外国人勤労者の単一税率19%）を適用した計算です。" : "Calculated with a newcomer tax regime (Korea's 19% flat rate for foreign workers).")
+              : (isJa ? "移住者向けの税の特例（オランダの30%ルール）を適用した計算です。" : "Calculated with a newcomer tax regime (the Dutch 30% ruling).")}</p> : null}
             <p className="growth-scope">{isJa ? "データ範囲" : "Data scope"}: {localizedDataScope(city, language)}</p>
           </article>;
         })}</div>

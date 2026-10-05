@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateChilePayroll, calculateColombiaPayroll, calculateArgentinaPayroll, calculateZurichPayroll, swissFederalIncomeTax2026, zurichSimpleStateTax2026, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateChilePayroll, calculateColombiaPayroll, calculateArgentinaPayroll, calculateFrancePayroll, calculateItalyPayroll, italyEmployeeTaxCredit2026, italyAdditionalCredit2026, calculateZurichPayroll, swissFederalIncomeTax2026, zurichSimpleStateTax2026, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -637,4 +637,67 @@ test("Zurich 2026 combines the federal table, the cantonal base table with canto
   assert.equal(senior.taxBreakdown, null);
   assert.equal(senior.netMonthly, null);
   assert.equal(senior.taxCalculationStatus, "unavailable");
+});
+
+test("Italy 2026 subtracts the employee and additional tax credits, and Rome uses Lazio's 2026 bands and Rome's 0.9% above €14,000", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // TUIR第13条：€15,000以下1,955、€15,000〜28,000は1,910＋1,190×(28,000−R)/13,000、€28,000〜50,000は1,910×(50,000−R)/22,000、
+  // €25,000超〜35,000は＋65。法律207/2024第1条6項：€20,000超〜32,000は1,000、€40,000まで逓減。
+  close(italyEmployeeTaxCredit2026(10_000), 1_955);
+  close(italyEmployeeTaxCredit2026(20_000), 1_910 + 1_190 * 8_000 / 13_000);
+  close(italyEmployeeTaxCredit2026(30_000), 1_910 * 20_000 / 22_000 + 65);
+  assert.equal(italyEmployeeTaxCredit2026(50_000), 0);
+  assert.equal(italyAdditionalCredit2026(20_000), 0);
+  close(italyAdditionalCredit2026(32_000), 1_000);
+  close(italyAdditionalCredit2026(36_000), 500);
+  assert.equal(italyAdditionalCredit2026(40_000), 0);
+
+  // ローマ・年収€35,000：年金3,216.5、課税所得31,783.5、IRPEF総額7,688.555、控除1,646.5325＋1,000 → 5,042.0225
+  // ラツィオ州 15,000×1.73%＋16,783.5×3.33%＝818.39055、ローマ市 31,783.5×0.9%＝286.0515
+  const rome = calculateItalyPayroll(35_000, "lazio");
+  close(rome.pension, 3_216.5);
+  close(rome.grossTax, 7_688.555);
+  close(rome.nationalTax, 5_042.0225);
+  close(rome.localTax, 818.39055 + 286.0515);
+  const romeCity = calculateCity(cities.rome, 35_000, "single", "onebed", "balanced", "under40");
+  close((romeCity.taxBreakdown?.incomeTaxMonthly ?? 0) * 12, 5_042.0225);
+  close((romeCity.taxBreakdown?.residentTaxMonthly ?? 0) * 12, 1_104.44205);
+  // 年収€10,000：課税所得9,081はラツィオ州の€28,000以下の一律1.73%、ローマ市は€14,000以下で免除
+  close(calculateItalyPayroll(10_000, "lazio").localTax, 9_081 * 0.0173);
+  // 年収€8,000：控除がIRPEF総額を上回り税額0、地方付加税もかからない
+  const low = calculateItalyPayroll(8_000, "lazio");
+  assert.equal(low.nationalTax, 0);
+  assert.equal(low.localTax, 0);
+  // 年収€150,000：保険料の基礎は€122,295まで（1996年以降の初加入者の上限）
+  close(calculateItalyPayroll(150_000, "lazio").pension, 122_295 * 0.0919 + 66_071 * 0.01);
+});
+
+test("France 2026 applies official employee contributions, the 10% allowance, the décote and the €61 threshold", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 年収€45,000（PASS以下）：老齢保険 3,105＋180、AGIRC-ARRCO 45,000×4.01%＝1,804.5、CSG・CRDSは44,212.5×9.7%
+  // 課税所得 (45,000−5,089.5−3,006.45)×0.9＝33,213.645 → 1,977.69＋3,634.645×30%
+  const middle = calculateFrancePayroll(45_000);
+  close(middle.pension, 5_089.5);
+  close(middle.csgCrds, 4_288.6125);
+  close(middle.netTaxableSalary, 36_904.05);
+  close(middle.taxableIncome, 33_213.645);
+  close(middle.incomeTax, 3_068.0835);
+  // 年収€100,000：第2区分 51,940×9.72%、CET 100,000×0.14%
+  const high = calculateFrancePayroll(100_000);
+  close(high.pension, 10_831.914);
+  close(high.taxableIncome, 74_238.3774);
+  close(high.incomeTax, 15_375.50322);
+  // 年収€250,000：CSGの基礎はPASSの4倍（192,240）まで98.25%、超える部分は100%
+  close(calculateFrancePayroll(250_000).csgCrds, (192_240 * 0.9825 + 57_760) * 0.097);
+  // 年収€25,000：税額753.72275にdécote 897−753.72275×45.25%＝555.9405
+  close(calculateFrancePayroll(25_000).incomeTax, 197.78225);
+  // 年収€20,000：décoteで税額0
+  assert.equal(calculateFrancePayroll(20_000).incomeTax, 0);
+
+  const paris = calculateCity(cities.paris, 45_000, "single", "onebed", "balanced", "under40");
+  close((paris.taxBreakdown?.incomeTaxMonthly ?? 0) * 12, 3_068.0835);
+  close((paris.taxBreakdown?.pensionMonthly ?? 0) * 12, 5_089.5);
+  close((paris.taxBreakdown?.healthInsuranceMonthly ?? 0) * 12, 4_288.6125);
+  assert.equal(paris.taxBreakdown?.employmentInsuranceMonthly, 0);
+  close(paris.netMonthly ?? Number.NaN, (45_000 - 3_068.0835 - 5_089.5 - 4_288.6125) / 12);
 });

@@ -103,6 +103,10 @@ export function localizedSourceLevel(level: City["dataSources"][number]["level"]
 }
 
 const SOURCE_PERIOD_EN: Record<string, string> = {
+  "2025年所得（2026年申告）": "2025 income (2026 return)",
+  "2025年1月1日〜2026年12月31日の条文": "Text in force 1 January 2025 to 31 December 2026",
+  "2026年（2027年1月に廃止）": "2026 (repealed from January 2027)",
+  "2025年以降（2026年確認）": "From 2025 (checked for 2026)",
   "2026年1月1日施行（寒冷累進の調整後）": "In force from 1 January 2026 (after the inflation adjustment)",
   "2026年課税期間": "Tax period 2026",
   "2025年10月1日速報": "Preliminary, 1 October 2025",
@@ -155,6 +159,8 @@ const SOURCE_PERIOD_EN: Record<string, string> = {
   "2022年以降（2026年も同率）": "2022 onward (same rates in 2026)",
   "2026年1月1日施行の現行法（2023年以降の税率）": "Law in force from 1 January 2026 (rates since 2023)",
   "2026年1月1日施行": "In force from 1 January 2026",
+  "2026年9月18日施行（2026年12月31日までに勤務開始した外国人）": "In force from 18 September 2026 (foreigners who start working by 31 December 2026)",
+  "2026年6月2日施行": "In force from 2 June 2026",
   "2026年（上限は6月まで637万・7月から659万ウォン）": "2026 (cap ₩6.37m to June, ₩6.59m from July)",
   "2026年確認（施行令は2025年12月23日施行版）": "Checked 2026 (decree in force from 23 December 2025)",
   "2026年（法律73-A/2025）": "2026 (Law 73-A/2025)",
@@ -184,6 +190,9 @@ export function localizedSourcePeriod(period: string, language: SupportedLanguag
 }
 
 const SOURCE_NAME_EN: Record<string, string> = {
+  "CLEISS・Le régime français de protection sociale (cotisations 2026)": "CLEISS · The French social security system (2026 contributions)",
+  "Regione Lazio・Addizionale regionale IRPEF 2026": "Regione Lazio · Regional IRPEF surcharge 2026",
+  "Roma Capitale・Addizionale Irpef": "Roma Capitale · Municipal IRPEF surcharge",
   "ESTV・直接連邦税の税率表2026（Form. 58c）": "Swiss Federal Tax Administration (ESTV) · Federal income tax tables 2026 (Form 58c)",
   "チューリッヒ州・税法（StG, LS 631.1）": "Canton of Zurich · Tax Act (StG, LS 631.1)",
   "チューリッヒ市・税の計算と税率": "City of Zurich · Tax calculation and tax rates",
@@ -217,6 +226,8 @@ const SOURCE_NAME_EN: Record<string, string> = {
   "国家法令情報センター・所得税法第59条": "Korean Law Information Center · Income Tax Act Art. 59",
   "国家法令情報センター・所得税法第52条（特別所得控除）": "Korean Law Information Center · Income Tax Act Art. 52 (special income deductions)",
   "国家法令情報センター・地方税法第103条の13": "Korean Law Information Center · Local Tax Act Art. 103-13",
+  "国家法令情報センター・租税特例制限法第18条の2": "Korean Law Information Center · Restriction of Special Taxation Act Art. 18-2",
+  "国家法令情報センター・地方税特例制限法第106条の2": "Korean Law Information Center · Restriction of Special Local Taxation Act Art. 106-2",
   "国民年金公団・年金保険料": "National Pension Service · Pension contributions",
   "国民健康保険公団・2026年度保険料率引き上げ案内": "National Health Insurance Service · 2026 premium rate notice",
   "国家法令情報センター・雇用保険及び産業災害補償保険の保険料徴収等に関する法律第13条": "Korean Law Information Center · Insurance Premium Collection Act Art. 13",
