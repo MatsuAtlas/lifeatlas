@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities } from "../data/cities.ts";
 import { calculateScenario } from "../lib/calculations/calculate-scenario.ts";
-import { calculateCity, calculateKoreaPayroll, calculateNetherlandsPayroll, expatTaxRegimeStatus, koreaForeignWorkerFlatTax2026, netherlandsExpatAllowance2026 } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateKoreaPayroll, calculateNetherlandsPayroll, calculatePortugalPayroll, calculateSpainMadridPayroll, portugalIficiTax2026, expatTaxRegimeStatus, spainImpatriateTax2026, koreaForeignWorkerFlatTax2026, netherlandsExpatAllowance2026 } from "../lib/calculations/legacy-engine.ts";
 import { isScenarioInput } from "../lib/comparison-history.ts";
 import type { ScenarioInput } from "../types/scenario.ts";
 
@@ -73,4 +73,46 @@ test("Korea's 19% flat rate for foreign workers is used only when it lowers inco
   assert.equal(middle.expatTaxRegime, "notBeneficial");
   assert.equal(middle.taxMonthly, calculateCity(seoul, 100_000_000, "single", "onebed", "balanced", "under40").taxMonthly);
   assert.equal(expatTaxRegimeStatus(seoul, 0, true), "notEligible");
+});
+
+test("Spain's special regime for incoming workers taxes gross pay at 24% (47% above €600,000) only when it lowers tax", () => {
+  const madrid = cities.madrid;
+  // 所得税法第93条2項e)：€600,000まで24%、超える部分47%。課税ベースは給与の総額（非居住者所得税法第24条1項）
+  close(spainImpatriateTax2026(100_000), 24_000);
+  close(spainImpatriateTax2026(700_000), 600_000 * 0.24 + 100_000 * 0.47);
+  const regular = calculateSpainMadridPayroll(100_000);
+  const special = calculateCity(madrid, 100_000, "single", "onebed", "balanced", "under40", { expatTaxRegime: true });
+  assert.equal(special.expatTaxRegime, "applied");
+  close(special.taxBreakdown!.incomeTaxMonthly * 12, 24_000);
+  assert.equal(special.taxBreakdown!.residentTaxMonthly, 0);
+  // 社会保険は変わらない
+  close(special.taxBreakdown!.totalInsuranceMonthly * 12, regular.socialSecurity);
+  assert.ok(regular.stateTax + regular.regionalTax > 24_000);
+  // €50,000では通常税制のほうが少ない（24%なら€12,000）
+  const middle = calculateCity(madrid, 50_000, "single", "onebed", "balanced", "under40", { expatTaxRegime: true });
+  assert.equal(middle.expatTaxRegime, "notBeneficial");
+  assert.equal(middle.taxMonthly, calculateCity(madrid, 50_000, "single", "onebed", "balanced", "under40").taxMonthly);
+  assert.equal(expatTaxRegimeStatus(madrid, 0, true), "notEligible");
+});
+
+test("Portugal's IFICI taxes net employment income at 20% when it lowers tax, and is not calculated above €80,000 of net income", () => {
+  const lisbon = cities.lisbon;
+  // 純所得＝給与−max(IAS×8.54, 社会保険料11%)。€50,000：50,000−5,500＝44,500 → 20%で8,900
+  close(portugalIficiTax2026(50_000)!, 8_900);
+  // €15,000：社会保険料1,650 < IAS×8.54＝4,587.0902 → (15,000−4,587.0902)×20%
+  close(portugalIficiTax2026(15_000)!, (15_000 - 537.13 * 8.54) * 0.2);
+  // €90,000：純所得80,100 > €80,000 → 連帯付加税の扱いが未確認のため計算しない
+  assert.equal(portugalIficiTax2026(90_000), null);
+
+  const applied = calculateCity(lisbon, 50_000, "single", "onebed", "balanced", "under40", { expatTaxRegime: true });
+  assert.equal(applied.expatTaxRegime, "applied");
+  close(applied.taxBreakdown!.incomeTaxMonthly * 12, 8_900);
+  close(applied.taxBreakdown!.totalInsuranceMonthly * 12, calculatePortugalPayroll(50_000).socialSecurity);
+  // €20,000では通常税制のほうが少ない
+  assert.ok(calculatePortugalPayroll(20_000).incomeTax < portugalIficiTax2026(20_000)!);
+  assert.equal(calculateCity(lisbon, 20_000, "single", "onebed", "balanced", "under40", { expatTaxRegime: true }).expatTaxRegime, "notBeneficial");
+  // €90,000では通常税制で計算し、unverifiedとして示す
+  const high = calculateCity(lisbon, 90_000, "single", "onebed", "balanced", "under40", { expatTaxRegime: true });
+  assert.equal(high.expatTaxRegime, "unverified");
+  assert.equal(high.taxMonthly, calculateCity(lisbon, 90_000, "single", "onebed", "balanced", "under40").taxMonthly);
 });

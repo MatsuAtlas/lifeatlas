@@ -36,13 +36,26 @@ import type { PriorityKey, ScenarioHousehold, ScenarioInput, ScenarioResult, Sce
 const CITY_COUNT = cityOrder.length;
 
 // 移住者向けの税の特例を実装した税制度ごとの文言。計算と条件の判定は legacy-engine.ts の expatTaxRegimeStatus に置きます。
-type ExpatRegimeCopy = Record<"option" | "applied" | "notEligible" | "notBeneficial", Record<Language, string>>;
+type ExpatRegimeCopy = Record<"option" | "applied" | "notEligible" | "notBeneficial", Record<Language, string>> & { unverified?: Record<Language, string> };
 const expatRegimeCopy: Partial<Record<CalculationCity["taxSystem"], ExpatRegimeCopy>> = {
   netherlands: {
     option: { ja: "30%ルールを使う（国外から採用され、税務当局の決定を受けている場合）", en: "Use the 30% ruling (recruited from abroad and approved by the Dutch tax authority)" },
     applied: { ja: "30%ルール（移住者向けの非課税手当）を適用した手取りです。", en: "Take-home includes the 30% ruling (tax-free allowance for newcomers)." },
     notEligible: { ja: "30%ルールは、手当を除く給与が€48,013を超えないため適用していません。", en: "The 30% ruling is not applied: salary excluding the allowance does not exceed €48,013." },
     notBeneficial: { ja: "30%ルールは適用していません。", en: "The 30% ruling is not applied." },
+  },
+  portugal: {
+    option: { ja: "IFICI（研究・イノベーションの税優遇）を選ぶ（過去5年ポルトガルの居住者でなく、研究・スタートアップ・認定を受けた高度専門職などの対象業務に就く場合）", en: "Elect IFICI (research and innovation incentive: not resident in Portugal in the past 5 years and working in an eligible research, startup or certified highly qualified role)" },
+    applied: { ja: "IFICI（給与の純所得に20%）を適用した手取りです。", en: "Take-home uses IFICI (20% on net employment income)." },
+    notEligible: { ja: "IFICIは適用していません。", en: "IFICI is not applied." },
+    notBeneficial: { ja: "この給与では通常の税のほうが少ないため、IFICI（20%）は使っていません。", en: "IFICI (20%) is not used: regular tax is lower at this salary." },
+    unverified: { ja: "純所得が€80,000を超えると、IFICIの所得に連帯付加税がかかるかを公式資料で確認できないため、通常の税で計算しています。", en: "Above €80,000 of net income, official sources do not confirm whether the solidarity surcharge applies to IFICI income, so regular tax is shown." },
+  },
+  spain: {
+    option: { ja: "移住者向けの特別制度（ベッカム法）を選ぶ（過去5年スペインの居住者でなく、仕事のために移り住んだ場合）", en: "Elect the special regime for workers moving to Spain (Beckham law: not resident in the past 5 years, moved for work)" },
+    applied: { ja: "移住者向けの特別制度（給与の24%、€600,000超は47%）を適用した手取りです。", en: "Take-home uses Spain's special regime for incoming workers (24%, 47% above €600,000)." },
+    notEligible: { ja: "移住者向けの特別制度は適用していません。", en: "Spain's special regime for incoming workers is not applied." },
+    notBeneficial: { ja: "この給与では通常の税のほうが少ないため、特別制度（24%）は使っていません。", en: "The special 24% regime is not used: regular tax is lower at this salary." },
   },
   korea: {
     option: { ja: "外国人勤労者の単一税率19%を選ぶ（2026年12月31日までに韓国で初めて働き始める外国人の場合）", en: "Elect the 19% flat rate for foreign workers (foreigners who first start working in Korea by 31 December 2026)" },
@@ -1051,8 +1064,9 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
         {(() => {
           const copy = expatRegimeCopy[city.taxSystem];
           const status = result.assumptions.expatTaxRegime;
-          if (!copy || result.taxAnnual === null || (status !== "applied" && status !== "notEligible" && status !== "notBeneficial")) return null;
-          return <p className="oa-expat-note">{copy[status][language]}</p>;
+          if (!copy || result.taxAnnual === null) return null;
+          const text = status === "unverified" ? copy.unverified : status === "applied" || status === "notEligible" || status === "notBeneficial" ? copy[status] : undefined;
+          return text ? <p className="oa-expat-note">{text[language]}</p> : null;
         })()}
         <div className="oa-score-breakdown" aria-label={language === "ja" ? "スコア内訳" : "Score breakdown"}>
           <span>{language === "ja" ? "財務" : "Financial"}<strong>{score.contributions.financial}</strong></span>
