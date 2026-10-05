@@ -97,6 +97,9 @@ export function localizedSourceLevel(level: City["dataSources"][number]["level"]
 }
 
 const SOURCE_PERIOD_EN: Record<string, string> = {
+  "2025年1月1日〜2026年12月31日の条文": "Text in force 1 January 2025 to 31 December 2026",
+  "2026年（2027年1月に廃止）": "2026 (repealed from January 2027)",
+  "2025年以降（2026年確認）": "From 2025 (checked for 2026)",
   "2026年1月1日施行（寒冷累進の調整後）": "In force from 1 January 2026 (after the inflation adjustment)",
   "2026年課税期間": "Tax period 2026",
   "2025年10月1日速報": "Preliminary, 1 October 2025",
@@ -178,6 +181,8 @@ export function localizedSourcePeriod(period: string, language: SupportedLanguag
 }
 
 const SOURCE_NAME_EN: Record<string, string> = {
+  "Regione Lazio・Addizionale regionale IRPEF 2026": "Regione Lazio · Regional IRPEF surcharge 2026",
+  "Roma Capitale・Addizionale Irpef": "Roma Capitale · Municipal IRPEF surcharge",
   "ESTV・直接連邦税の税率表2026（Form. 58c）": "Swiss Federal Tax Administration (ESTV) · Federal income tax tables 2026 (Form 58c)",
   "チューリッヒ州・税法（StG, LS 631.1）": "Canton of Zurich · Tax Act (StG, LS 631.1)",
   "チューリッヒ市・税の計算と税率": "City of Zurich · Tax calculation and tax rates",

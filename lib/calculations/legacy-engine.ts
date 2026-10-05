@@ -725,6 +725,52 @@ export function calculateChilePayroll(grossAnnual: number) {
   return { incomeTax: incomeTaxMonthly * 12, pension: pensionMonthly * 12, health: healthMonthly * 12, unemployment: unemploymentMonthly * 12 };
 }
 
+// イタリア・2026年（居住者・単身の給与所得者、ローマ＝ラツィオ州、ミラノ＝ロンバルディア州）。
+// 年金保険料：本人9.19%と、第1区分€56,224を超える部分に1%（INPS通達2026年第6号）。1996年以降に初めて加入した人
+// （日本からの移住者）は保険料の基礎が年€122,295までに制限されます。課税所得（reddito complessivo）＝給与−年金保険料。
+// IRPEF（TUIR第11条、2026年）：€28,000まで23%、€50,000まで33%、超過分43%。そこから給与所得の税額控除（TUIR第13条1項・
+// 1.1項）と追加の税額控除（法律207/2024第1条6項、2026年は有効・2027年に廃止）を税額の範囲で差し引きます。
+// 課税所得€20,000以下の非課税の追加給付（同4項）と低所得者の給付（trattamento integrativo）は未反映（手取りは実際より少なめ）。
+// IRPEFが0になる人には地方付加税もかかりません。
+export const ITALY_INPS_FIRST_BAND_2026 = 56_224;
+export const ITALY_INPS_CEILING_2026 = 122_295;
+
+export function italyEmployeeTaxCredit2026(reddito: number) {
+  const r = Math.max(0, reddito);
+  let credit = 0;
+  if (r <= 15_000) credit = 1_955;
+  else if (r <= 28_000) credit = 1_910 + 1_190 * (28_000 - r) / 13_000;
+  else if (r <= 50_000) credit = 1_910 * (50_000 - r) / 22_000;
+  if (r > 25_000 && r <= 35_000) credit += 65;
+  return credit;
+}
+
+export function italyAdditionalCredit2026(reddito: number) {
+  if (reddito <= 20_000 || reddito > 40_000) return 0;
+  if (reddito <= 32_000) return 1_000;
+  return 1_000 * (40_000 - reddito) / 8_000;
+}
+
+export function calculateItalyPayroll(grossAnnual: number, taxRegion: string) {
+  const gross = Math.max(0, grossAnnual);
+  const base = Math.min(gross, ITALY_INPS_CEILING_2026);
+  const pension = base * 0.0919 + Math.max(0, base - ITALY_INPS_FIRST_BAND_2026) * 0.01;
+  const reddito = Math.max(0, gross - pension);
+  const grossTax = taxFromAnnualBrackets(reddito, [{ limit: 28_000, rate: 0.23 }, { limit: 50_000, rate: 0.33 }, { limit: Number.POSITIVE_INFINITY, rate: 0.43 }]);
+  const credits = italyEmployeeTaxCredit2026(reddito) + italyAdditionalCredit2026(reddito);
+  const nationalTax = Math.max(0, grossTax - credits);
+  // 地方付加税：ローマはラツィオ州（課税所得€28,000以下は全体に1.73%、超えると€15,000まで1.73%・超過分3.33%、
+  // €28,001〜30,000は€60を控除。州法2025年第20号）とローマ市0.9%（課税所得€14,000以下は免除、超えると全体に課税）。
+  // ミラノはロンバルディア州の累進税率（1.23/1.58/1.72/1.73%）と、課税所得€23,000超で所得全体にかかる市税0.8%。
+  let localTax = 0;
+  if (nationalTax > 0) {
+    localTax = taxRegion === "lombardy"
+      ? taxFromAnnualBrackets(reddito, [{ limit: 15_000, rate: 0.0123 }, { limit: 28_000, rate: 0.0158 }, { limit: 50_000, rate: 0.0172 }, { limit: Number.POSITIVE_INFINITY, rate: 0.0173 }]) + (reddito > 23_000 ? reddito * 0.008 : 0)
+      : Math.max(0, (reddito <= 28_000 ? reddito * 0.0173 : 15_000 * 0.0173 + (reddito - 15_000) * 0.0333) - (reddito > 28_000 && reddito <= 30_000 ? 60 : 0)) + (reddito > 14_000 ? reddito * 0.009 : 0);
+  }
+  return { pension, reddito, grossTax, credits, nationalTax, localTax };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "spain" && city.taxRegion !== "madrid") return "unavailable";
@@ -930,16 +976,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: employment / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (incomeTax + totalInsurance) / 12 };
   }
   if (city.taxSystem === "italy") {
-    const pension = grossAnnual * city.insurance.pensionRateEmployee + Math.min(Math.max(0, grossAnnual - 56_224), 66_071) * 0.01;
-    const taxableIncome = Math.max(0, grossAnnual - pension);
-    // IRPEF 2026（2026年予算法で第2段階を35%→33%に引き下げ）：€28,000まで23%、€50,000まで33%、超過分43%。
-    // 給与所得者の税額控除（detrazioni）と税負担軽減措置（cuneo fiscale）は未反映。
-    const nationalTax = taxFromAnnualBrackets(taxableIncome, [{ limit: 28_000, rate: 0.23 }, { limit: 50_000, rate: 0.33 }, { limit: Number.POSITIVE_INFINITY, rate: 0.43 }]);
-    // 地方税：ローマ（ラツィオ州）は州・市の合計2.63%の固定概算。ミラノはロンバルディア州の累進税率
-    // （1.23/1.58/1.72/1.73%）と、課税所得€23,000超で所得全体にかかる市税0.8%。
-    const localTax = city.taxRegion === "lombardy"
-      ? taxFromAnnualBrackets(taxableIncome, [{ limit: 15_000, rate: 0.0123 }, { limit: 28_000, rate: 0.0158 }, { limit: 50_000, rate: 0.0172 }, { limit: Number.POSITIVE_INFINITY, rate: 0.0173 }]) + (taxableIncome > 23_000 ? taxableIncome * 0.008 : 0)
-      : taxableIncome * 0.0263;
+    const { pension, nationalTax, localTax } = calculateItalyPayroll(grossAnnual, city.taxRegion);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: nationalTax / 12, residentTaxMonthly: localTax / 12, pensionMonthly: pension / 12, totalTaxMonthly: (nationalTax + localTax) / 12, totalInsuranceMonthly: pension / 12, totalDeductionsMonthly: (nationalTax + localTax + pension) / 12 };
   }
   if (city.taxSystem === "mexico") {
