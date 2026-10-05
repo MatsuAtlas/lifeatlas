@@ -380,7 +380,24 @@ export function expatTaxRegimeStatus(city: City, grossAnnual: number | null, req
     const regular = calculateSpainMadridPayroll(grossAnnual);
     return spainImpatriateTax2026(grossAnnual) < regular.stateTax + regular.regionalTax ? "applied" : "notBeneficial";
   }
+  if (city.taxSystem === "portugal") {
+    if (grossAnnual === null || grossAnnual <= 0) return "notEligible";
+    const ifici = portugalIficiTax2026(grossAnnual);
+    if (ifici === null) return "unverified";
+    return ifici < calculatePortugalPayroll(grossAnnual).incomeTax ? "applied" : "notBeneficial";
+  }
   return "notModeled";
+}
+
+// ポルトガル・IFICI（科学研究・イノベーションの税優遇、税優遇法第58条のA、法律82/2023）。過去5年ポルトガルの居住者でなく、
+// 研究・スタートアップ・認定を受けた高度専門職などの対象業務に就く人は、10年間、給与の純所得（総額−所得税法第25条の控除）に
+// 20%の税率を選べます（総合課税も選択可）。純所得€80,000超で連帯付加税（第68条のA）がこの所得にかかるかは公式資料で
+// 確認できないため計算せず（null）、一般家計支出の税額控除（€250）も使いません。社会保険は変わりません。
+export function portugalIficiTax2026(grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  // 純所得は通常税制と同じ第25条の控除（max(IAS×8.54, 社会保険料)）を差し引いた額です。
+  const netEmploymentIncome = gross - Math.min(gross, Math.max(PORTUGAL_IAS_2026 * 8.54, calculatePortugalPayroll(gross).socialSecurity));
+  return netEmploymentIncome > 80_000 ? null : netEmploymentIncome * 0.2;
 }
 
 // スペイン・派遣・移住労働者の特別制度（所得税法第93条、BOE統合版2026年10月2日更新）。過去5年スペインの居住者でなく、
@@ -871,7 +888,9 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
   }
   if (city.taxSystem === "portugal") {
-    const { incomeTax, socialSecurity } = calculatePortugalPayroll(grossAnnual);
+    const regular = calculatePortugalPayroll(grossAnnual);
+    const { socialSecurity } = regular;
+    const incomeTax = expatTaxRegime ? portugalIficiTax2026(grossAnnual) ?? regular.incomeTax : regular.incomeTax;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (incomeTax + socialSecurity) / 12 };
   }
   if (city.taxSystem === "spain") {

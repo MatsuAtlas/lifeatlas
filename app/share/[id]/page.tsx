@@ -16,6 +16,7 @@ const expatRegimeNames: Partial<Record<string, { ja: string; en: string }>> = {
   netherlands: { ja: "オランダの30%ルール", en: "the Dutch 30% ruling" },
   korea: { ja: "韓国の外国人勤労者の単一税率19%", en: "Korea's 19% flat rate for foreign workers" },
   spain: { ja: "スペインの移住者向け特別制度", en: "Spain's special regime for incoming workers" },
+  portugal: { ja: "ポルトガルのIFICI（20%）", en: "Portugal's IFICI (20%)" },
 };
 
 export const dynamic = "force-dynamic";

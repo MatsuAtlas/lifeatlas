@@ -70,7 +70,7 @@ export type CalculationCity = {
   dataSources: Array<{ item: string; source: string }>;
 };
 
-export type ExpatTaxRegimeStatus = "off" | "applied" | "notEligible" | "notBeneficial" | "notModeled";
+export type ExpatTaxRegimeStatus = "off" | "applied" | "notEligible" | "notBeneficial" | "unverified" | "notModeled";
 
 export type LegacyCityResult<TCity extends CalculationCity> = {
   city: TCity;
