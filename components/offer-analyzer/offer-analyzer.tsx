@@ -44,6 +44,12 @@ const expatRegimeCopy: Partial<Record<CalculationCity["taxSystem"], ExpatRegimeC
     notEligible: { ja: "30%ルールは、手当を除く給与が€48,013を超えないため適用していません。", en: "The 30% ruling is not applied: salary excluding the allowance does not exceed €48,013." },
     notBeneficial: { ja: "30%ルールは適用していません。", en: "The 30% ruling is not applied." },
   },
+  spain: {
+    option: { ja: "移住者向けの特別制度（ベッカム法）を選ぶ（過去5年スペインの居住者でなく、仕事のために移り住んだ場合）", en: "Elect the special regime for workers moving to Spain (Beckham law: not resident in the past 5 years, moved for work)" },
+    applied: { ja: "移住者向けの特別制度（給与の24%、€600,000超は47%）を適用した手取りです。", en: "Take-home uses Spain's special regime for incoming workers (24%, 47% above €600,000)." },
+    notEligible: { ja: "移住者向けの特別制度は適用していません。", en: "Spain's special regime for incoming workers is not applied." },
+    notBeneficial: { ja: "この給与では通常の税のほうが少ないため、特別制度（24%）は使っていません。", en: "The special 24% regime is not used: regular tax is lower at this salary." },
+  },
   korea: {
     option: { ja: "外国人勤労者の単一税率19%を選ぶ（2026年12月31日までに韓国で初めて働き始める外国人の場合）", en: "Elect the 19% flat rate for foreign workers (foreigners who first start working in Korea by 31 December 2026)" },
     applied: { ja: "外国人勤労者の単一税率（所得税19%・地方所得税1.9%）を適用した手取りです。", en: "Take-home uses the 19% flat rate for foreign workers (plus 1.9% local income tax)." },

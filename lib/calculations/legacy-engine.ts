@@ -375,7 +375,20 @@ export function expatTaxRegimeStatus(city: City, grossAnnual: number | null, req
     if (grossAnnual === null || grossAnnual <= 0) return "notEligible";
     return koreaForeignWorkerFlatTax2026(grossAnnual).incomeTax < calculateKoreaPayroll(grossAnnual).incomeTax ? "applied" : "notBeneficial";
   }
+  if (city.taxSystem === "spain") {
+    if (grossAnnual === null || grossAnnual <= 0) return "notEligible";
+    const regular = calculateSpainMadridPayroll(grossAnnual);
+    return spainImpatriateTax2026(grossAnnual) < regular.stateTax + regular.regionalTax ? "applied" : "notBeneficial";
+  }
   return "notModeled";
+}
+
+// スペイン・派遣・移住労働者の特別制度（所得税法第93条、BOE統合版2026年10月2日更新）。過去5年スペインの居住者でなく、
+// 雇用契約などでスペインへ移った人は、移った年と続く5年間、非居住者所得税の規則で課税されることを選べます。
+// 課税ベースは給与の総額（非居住者所得税法第24条1項：控除・減額なし）で、€600,000までは24%、超える部分は47%。
+// 州（マドリード）の税率表は使いません。選択制のため、通常税制より税が少ない場合だけ使います。社会保険は変わりません。
+export function spainImpatriateTax2026(grossAnnual: number) {
+  return taxFromAnnualBrackets(Math.max(0, grossAnnual), [{ limit: 600_000, rate: 0.24 }, { limit: Number.POSITIVE_INFINITY, rate: 0.47 }]);
 }
 
 // 韓国・外国人勤労者の単一税率（租税特例制限法第18条の2、2026年9月18日施行版）。2026年12月31日までに韓国で初めて
@@ -862,7 +875,11 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (incomeTax + socialSecurity) / 12 };
   }
   if (city.taxSystem === "spain") {
-    const { stateTax, regionalTax, socialSecurity } = calculateSpainMadridPayroll(grossAnnual);
+    const regular = calculateSpainMadridPayroll(grossAnnual);
+    const { socialSecurity } = regular;
+    // 特別制度では州の税がなく、24%/47%の1本の税額になります。
+    const stateTax = expatTaxRegime ? spainImpatriateTax2026(grossAnnual) : regular.stateTax;
+    const regionalTax = expatTaxRegime ? 0 : regular.regionalTax;
     const totalTax = stateTax + regionalTax;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: stateTax / 12, residentTaxMonthly: regionalTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (totalTax + socialSecurity) / 12 };
   }

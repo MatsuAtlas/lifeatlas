@@ -11,6 +11,13 @@ import { isSupabaseNotConfiguredError } from "../../../lib/supabase-server";
 
 const CITY_COUNT = cityOrder.length;
 
+// 移住者向けの税の特例を実装した税制度ごとの名前（共有ページの注記用）。
+const expatRegimeNames: Partial<Record<string, { ja: string; en: string }>> = {
+  netherlands: { ja: "オランダの30%ルール", en: "the Dutch 30% ruling" },
+  korea: { ja: "韓国の外国人勤労者の単一税率19%", en: "Korea's 19% flat rate for foreign workers" },
+  spain: { ja: "スペインの移住者向け特別制度", en: "Spain's special regime for incoming workers" },
+};
+
 export const dynamic = "force-dynamic";
 
 async function loadShare(id: string) {
@@ -68,9 +75,7 @@ export default async function PublicSharePage({ params }: { params: Promise<{ id
               <div><dt>{isJa ? "貯蓄率" : "Savings rate"}</dt><dd>{formatPercent(scenario.savingsRate)}</dd></div>
               <div><dt>{isJa ? "データ信頼度" : "Data confidence"}</dt><dd>{scenario.dataConfidence.score}/100</dd></div>
             </dl>
-            {scenario.expatTaxRegime === "applied" ? <p className="growth-scope">{city.taxSystem === "korea"
-              ? (isJa ? "移住者向けの税の特例（韓国の外国人勤労者の単一税率19%）を適用した計算です。" : "Calculated with a newcomer tax regime (Korea's 19% flat rate for foreign workers).")
-              : (isJa ? "移住者向けの税の特例（オランダの30%ルール）を適用した計算です。" : "Calculated with a newcomer tax regime (the Dutch 30% ruling).")}</p> : null}
+            {scenario.expatTaxRegime === "applied" && expatRegimeNames[city.taxSystem] ? <p className="growth-scope">{isJa ? `移住者向けの税の特例（${expatRegimeNames[city.taxSystem]!.ja}）を適用した計算です。` : `Calculated with a newcomer tax regime (${expatRegimeNames[city.taxSystem]!.en}).`}</p> : null}
             <p className="growth-scope">{isJa ? "データ範囲" : "Data scope"}: {localizedDataScope(city, language)}</p>
           </article>;
         })}</div>
