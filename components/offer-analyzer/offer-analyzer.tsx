@@ -29,11 +29,28 @@ import type { BreakEvenMetric } from "../../types/break-even";
 import type { RecommendationGeneration } from "../../types/ai";
 import type { BillingStatusResponse, Entitlements } from "../../types/billing";
 import type { ComparisonRecord, SavedAnalyzerInput, SavedAnalyzerResult } from "../../types/comparison";
-import type { HousingType, LifestyleType } from "../../types/finance";
+import type { CalculationCity, HousingType, LifestyleType } from "../../types/finance";
 import type { UserProfile } from "../../types/profile";
 import type { PriorityKey, ScenarioHousehold, ScenarioInput, ScenarioResult, ScenarioScore, UserPriorities } from "../../types/scenario";
 
 const CITY_COUNT = cityOrder.length;
+
+// 移住者向けの税の特例を実装した税制度ごとの文言。計算と条件の判定は legacy-engine.ts の expatTaxRegimeStatus に置きます。
+type ExpatRegimeCopy = Record<"option" | "applied" | "notEligible" | "notBeneficial", Record<Language, string>>;
+const expatRegimeCopy: Partial<Record<CalculationCity["taxSystem"], ExpatRegimeCopy>> = {
+  netherlands: {
+    option: { ja: "30%ルールを使う（国外から採用され、税務当局の決定を受けている場合）", en: "Use the 30% ruling (recruited from abroad and approved by the Dutch tax authority)" },
+    applied: { ja: "30%ルール（移住者向けの非課税手当）を適用した手取りです。", en: "Take-home includes the 30% ruling (tax-free allowance for newcomers)." },
+    notEligible: { ja: "30%ルールは、手当を除く給与が€48,013を超えないため適用していません。", en: "The 30% ruling is not applied: salary excluding the allowance does not exceed €48,013." },
+    notBeneficial: { ja: "30%ルールは適用していません。", en: "The 30% ruling is not applied." },
+  },
+  korea: {
+    option: { ja: "外国人勤労者の単一税率19%を選ぶ（2026年12月31日までに韓国で初めて働き始める外国人の場合）", en: "Elect the 19% flat rate for foreign workers (foreigners who first start working in Korea by 31 December 2026)" },
+    applied: { ja: "外国人勤労者の単一税率（所得税19%・地方所得税1.9%）を適用した手取りです。", en: "Take-home uses the 19% flat rate for foreign workers (plus 1.9% local income tax)." },
+    notEligible: { ja: "外国人勤労者の単一税率は適用していません。", en: "The 19% flat rate for foreign workers is not applied." },
+    notBeneficial: { ja: "この給与では通常の税のほうが少ないため、単一税率19%は使っていません。", en: "The 19% flat rate is not used: regular tax is lower at this salary." },
+  },
+};
 
 type Language = "ja" | "en";
 
@@ -1031,8 +1048,12 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           <div><span>{t.rentBurden}</span><strong>{formatPercent(result.rentBurden)}</strong></div>
           <div title={!activeEntitlements.canUseLongTermProjections ? t.longTermPro : undefined}><span>{t.fire}</span><strong>{activeEntitlements.canUseLongTermProjections ? fireLabel : "Pro"}</strong></div>
         </div>
-        {result.assumptions.expatTaxRegime === "applied" && result.taxAnnual !== null && <p className="oa-expat-note">{language === "ja" ? "30%ルール（移住者向けの非課税手当）を適用した手取りです。" : "Take-home includes the 30% ruling (tax-free allowance for newcomers)."}</p>}
-        {result.assumptions.expatTaxRegime === "notEligible" && <p className="oa-expat-note">{language === "ja" ? "30%ルールは、手当を除く給与が€48,013を超えないため適用していません。" : "The 30% ruling is not applied: salary excluding the allowance does not exceed €48,013."}</p>}
+        {(() => {
+          const copy = expatRegimeCopy[city.taxSystem];
+          const status = result.assumptions.expatTaxRegime;
+          if (!copy || result.taxAnnual === null || (status !== "applied" && status !== "notEligible" && status !== "notBeneficial")) return null;
+          return <p className="oa-expat-note">{copy[status][language]}</p>;
+        })()}
         <div className="oa-score-breakdown" aria-label={language === "ja" ? "スコア内訳" : "Score breakdown"}>
           <span>{language === "ja" ? "財務" : "Financial"}<strong>{score.contributions.financial}</strong></span>
           <span>{language === "ja" ? "生活" : "Lifestyle"}<strong>{score.contributions.lifestyle}</strong></span>
@@ -1121,7 +1142,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                   <label>{t.customRent}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customRent)} placeholder={language === "ja" ? "Proでカスタム設定" : "Custom with Pro"} onChange={(event) => updateScenario(scenario.id, { customRent: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
                   <label>{t.customSpending}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customMonthlySpending)} placeholder={language === "ja" ? "Proでカスタム設定" : "Custom with Pro"} onChange={(event) => updateScenario(scenario.id, { customMonthlySpending: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
                   <label>{t.savingsTarget}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customSavingsTarget)} placeholder={language === "ja" ? "Proで設定" : "Set with Pro"} onChange={(event) => updateScenario(scenario.id, { customSavingsTarget: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
-                  {city.taxSystem === "netherlands" && <label className="oa-checkbox"><input type="checkbox" checked={scenario.expatTaxRegime === true} onChange={(event) => updateScenario(scenario.id, { expatTaxRegime: event.target.checked || undefined })} /><span>{language === "ja" ? "30%ルールを使う（国外から採用され、税務当局の決定を受けている場合）" : "Use the 30% ruling (recruited from abroad and approved by the Dutch tax authority)"}</span></label>}
+                  {expatRegimeCopy[city.taxSystem] && <label className="oa-checkbox"><input type="checkbox" checked={scenario.expatTaxRegime === true} onChange={(event) => updateScenario(scenario.id, { expatTaxRegime: event.target.checked || undefined })} /><span>{expatRegimeCopy[city.taxSystem]!.option[language]}</span></label>}
                 </div>
               </article>;
             })}
