@@ -140,6 +140,7 @@ const riskLabels: Record<string, { ja: string; en: string }> = {
   "calculation-unavailable": { ja: "税・保険計算が未対応", en: "Tax calculation unavailable" },
   "negative-savings": { ja: "年間収支が赤字", en: "Negative annual savings" },
   "high-housing-burden": { ja: "住居費負担が高い", en: "High housing burden" },
+  "work-visa-salary-below": { ja: "就労ビザの給与基準を下回る", en: "Below the work visa salary threshold" },
   "low-data-confidence": { ja: "データ信頼度が低い", en: "Low data confidence" },
   "fire-target-unreachable": { ja: "現在条件ではFIRE未到達", en: "FIRE target not reached" },
 };
@@ -1061,6 +1062,23 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           <div><span>{t.rentBurden}</span><strong>{formatPercent(result.rentBurden)}</strong></div>
           <div title={!activeEntitlements.canUseLongTermProjections ? t.longTermPro : undefined}><span>{t.fire}</span><strong>{activeEntitlements.canUseLongTermProjections ? fireLabel : "Pro"}</strong></div>
         </div>
+        {result.workVisaSalary && (() => {
+          const visa = result.workVisaSalary;
+          const threshold = formatMoney(visa.annualThreshold, visa.currency, language);
+          const verdict = visa.status === "meets"
+            ? (language === "ja" ? "満たしています" : "meets it")
+            : visa.status === "below"
+              ? (language === "ja" ? "下回っています" : "is below it")
+              : visa.reason === "bonus"
+                ? (language === "ja" ? "賞与を含めると届きますが、基準は基本給で見るため確認が必要です" : "reaches it only with the bonus; thresholds use base pay, so check")
+                : (language === "ja" ? "休暇手当を含むかで結果が変わるため確認が必要です" : "depends on whether holiday allowance counts, so check");
+          return <p className="oa-visa-note" data-visa-status={visa.status}>
+            {language === "ja" ? `就労ビザの給与基準（${visa.route.ja}：年${threshold}以上）を、賞与を除く基本給で${verdict}。` : `Work visa salary threshold (${visa.route.en}: ${threshold} a year): base pay without bonus ${verdict}.`}
+            {visa.status === "below" && visa.reduced ? ` ${visa.reduced.condition[language]}${visa.meetsReducedThreshold ? (language === "ja" ? "（この場合は満たします）" : " (this salary would meet it)") : ""}` : ""}
+            {language === "ja" ? " 給与以外の条件（雇用主・職種・学歴など）は判定していません。" : " Other conditions (employer, occupation, qualifications) are not checked."}
+            {" "}<a href={visa.source.url} target="_blank" rel="noreferrer">{language === "ja" ? "出典" : "Source"}</a>
+          </p>;
+        })()}
         {(() => {
           const copy = expatRegimeCopy[city.taxSystem];
           const status = result.assumptions.expatTaxRegime;

@@ -16,6 +16,7 @@ export type RecommendationScenario = {
   lifeAtlasScore: number;
   calculationStatus: TaxCalculationStatus;
   expatTaxRegime: ExpatTaxRegimeStatus;
+  workVisaSalary: { route: string; status: "meets" | "below" | "check"; annualThreshold: number; currency: CurrencyCode } | null;
   financials: {
     grossAnnual: number;
     netAnnual: number | null;
