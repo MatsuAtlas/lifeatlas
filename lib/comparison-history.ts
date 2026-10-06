@@ -47,7 +47,11 @@ export function isScenarioInput(value: unknown): value is ScenarioInput {
     && isOptionalFiniteInRange(value.currentSavings, 0, 10_000_000_000_000)
     && isOptionalFiniteInRange(value.retirementAge, value.age as number, 100)
     && isOptionalFiniteInRange(value.annualReturnRate, -0.5, 0.5)
-    && (value.expatTaxRegime === undefined || typeof value.expatTaxRegime === "boolean");
+    && (value.expatTaxRegime === undefined || typeof value.expatTaxRegime === "boolean")
+    && isOptionalFiniteInRange(value.spouseAnnualSalary, 0, 1_000_000_000_000)
+    && (value.childrenAges === undefined || (Array.isArray(value.childrenAges)
+      && value.childrenAges.length <= (value.children as number)
+      && value.childrenAges.every((age) => Number.isInteger(age) && isFiniteInRange(age, 0, 30))));
 }
 
 export function isUserPriorities(value: unknown): value is Record<PriorityKey, number> {
