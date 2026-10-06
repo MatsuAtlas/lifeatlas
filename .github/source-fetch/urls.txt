@@ -1,3 +1,0 @@
-https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4127-payroll-deductions-formulas/t4127-jan.html BPAF|Canada employment amount|CEA|lowest federal rate|Index rate|58,523|K4
-https://www.canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canadian-income-tax-rates-individuals-current-previous-years.html 2026|58,523|14%|basic personal amount
-https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4127-payroll-deductions-formulas/t4127-jan/t4127-jan-payroll-deductions-formulas-computer-programs.html Table 8.1|British Columbia|Ontario|Alberta|BPABC|BPAON|BPAAB|V1|S2|LCP

@@ -143,10 +143,18 @@ function taxFromFixedTariff(income: number, tariffs: Array<{ lower: number; uppe
   return tariff.fixed + Math.max(0, target - tariff.lower) * tariff.rate;
 }
 
+function calculateCanadaPensionParts(grossAnnual: number, insurance: InsuranceConfig) {
+  const rate = insurance.pensionRateEmployee || 0.0595;
+  const base = Math.min(Math.max(0, grossAnnual - (insurance.pensionBaseExemption ?? 3_500)) * rate, insurance.pensionAnnualMax ?? 4_230.45);
+  const second = Math.min(Math.min(Math.max(0, grossAnnual - (insurance.pensionSecondStart ?? 74_600)), (insurance.pensionSecondCap ?? 85_000) - (insurance.pensionSecondStart ?? 74_600)) * (insurance.pensionSecondRateEmployee ?? 0.04), insurance.pensionSecondAnnualMax ?? 416);
+  // 基本部分（CPP 4.95%／5.95%、QPP 5.3%／6.3%）は税額控除、上乗せ部分（1%）と第2段階（CPP2・QPP2）は所得控除。
+  const creditablePart = base * ((rate - 0.01) / rate);
+  return { base, second, creditablePart, deductiblePart: base - creditablePart + second };
+}
+
 function calculateCanadaPension(grossAnnual: number, insurance: InsuranceConfig) {
-  const base = Math.min(Math.max(0, grossAnnual - (insurance.pensionBaseExemption ?? 3_500)) * (insurance.pensionRateEmployee || 0.0595), insurance.pensionAnnualMax ?? 4_230.45);
-  const second = Math.min(Math.max(0, grossAnnual - (insurance.pensionSecondStart ?? 74_600)), (insurance.pensionSecondCap ?? 85_000) - (insurance.pensionSecondStart ?? 74_600)) * (insurance.pensionSecondRateEmployee ?? 0.04);
-  return Math.min(base, insurance.pensionAnnualMax ?? 4_230.45) + Math.min(second, insurance.pensionSecondAnnualMax ?? 416);
+  const parts = calculateCanadaPensionParts(grossAnnual, insurance);
+  return parts.base + parts.second;
 }
 
 function calculateOntarioHealthPremium(taxableIncome: number) {
@@ -158,38 +166,62 @@ function calculateOntarioHealthPremium(taxableIncome: number) {
   return Math.min(900, 750 + (taxableIncome - 200_000) * 0.25);
 }
 
+// カナダ・2026年（単身の給与所得者）。CRAの給与計算式（T4127、2026年1月版）と州政府の資料に従い、基礎控除・雇用控除・
+// CPP/QPPの基本部分・EI（ケベックはQPIPも）は「最低税率×金額」の税額控除として差し引きます（所得から差し引くと高所得ほど
+// 税が過少になるため）。CPP/QPPの上乗せ部分と第2段階は所得控除。
+// 連邦：最低税率14%、基礎控除$16,452（純所得$181,440超で逓減し$258,482以上は$14,829）、雇用控除$1,501。
+export const CANADA_FEDERAL_LOWEST_RATE_2026 = 0.14;
+
+export function canadaFederalBasicPersonalAmount2026(netIncome: number) {
+  if (netIncome <= 181_440) return 16_452;
+  if (netIncome >= 258_482) return 14_829;
+  return 16_452 - (netIncome - 181_440) * (16_452 - 14_829) / (258_482 - 181_440);
+}
+
 function calculateCanadaTax(city: City, grossAnnual: number) {
-  const federalTax = taxFromAnnualBrackets(Math.max(0, grossAnnual - 16_452), [
+  const gross = Math.max(0, grossAnnual);
+  const pension = calculateCanadaPensionParts(gross, city.insurance);
+  const ei = Math.min(gross * city.insurance.employmentRateEmployee, city.insurance.employmentCap ?? 1_123.07);
+  const parentalInsurance = city.taxRegion === "quebec" ? Math.min(gross, 103_000) * 0.00455 : 0;
+  const taxable = Math.max(0, gross - pension.deductiblePart);
+  const contributionCredits = pension.creditablePart + ei + parentalInsurance;
+  const federalCredits = canadaFederalBasicPersonalAmount2026(taxable) + Math.min(1_501, gross) + contributionCredits;
+  const federalTax = Math.max(0, taxFromAnnualBrackets(taxable, [
     { limit: 58_523, rate: 0.14 }, { limit: 117_045, rate: 0.205 }, { limit: 181_440, rate: 0.26 }, { limit: 258_482, rate: 0.29 }, { limit: Number.POSITIVE_INFINITY, rate: 0.33 },
-  ]);
+  ]) - federalCredits * CANADA_FEDERAL_LOWEST_RATE_2026);
   if (city.taxRegion === "britishColumbia") {
-    const provincialTax = taxFromAnnualBrackets(Math.max(0, grossAnnual - 13_000), [
+    // BC州2026（州政府の公式ページ）：最低税率5.60%、基礎控除$13,216、低所得者の税軽減$690（純所得$25,570超で3.56%ずつ減額）。
+    const beforeReduction = Math.max(0, taxFromAnnualBrackets(taxable, [
       { limit: 50_363, rate: 0.056 }, { limit: 100_728, rate: 0.077 }, { limit: 115_648, rate: 0.105 }, { limit: 140_430, rate: 0.1229 }, { limit: 190_405, rate: 0.147 }, { limit: 265_545, rate: 0.168 }, { limit: Number.POSITIVE_INFINITY, rate: 0.205 },
-    ]);
-    return { federalTax, provincialTax, healthPremium: 0 };
+    ]) - (13_216 + pension.creditablePart + ei) * 0.056);
+    const reduction = Math.max(0, 690 - Math.max(0, taxable - 25_570) * 0.0356);
+    return { federalTax, provincialTax: Math.max(0, beforeReduction - reduction), healthPremium: 0 };
   }
   if (city.taxRegion === "quebec") {
     // ケベック州2026：連邦税は基本連邦税の16.5%を減額（Québec abatement）。州税は14/19/24/25.75%、
     // 区切り$54,345/$108,680/$132,245、基礎控除$18,952（14%の税額控除）。労働者控除などは未反映。
-    const provincialTax = Math.max(0, taxFromAnnualBrackets(grossAnnual, [
+    const provincialTax = Math.max(0, taxFromAnnualBrackets(taxable, [
       { limit: 54_345, rate: 0.14 }, { limit: 108_680, rate: 0.19 }, { limit: 132_245, rate: 0.24 }, { limit: Number.POSITIVE_INFINITY, rate: 0.2575 },
     ]) - 18_952 * 0.14);
     return { federalTax: federalTax * (1 - 0.165), provincialTax, healthPremium: 0 };
   }
   if (city.taxRegion === "alberta") {
     // 2026年：2025年の公式区切りをCRA公表の指数2.0%で調整（基礎控除$22,769は公式値と一致）。
-    // 非還付控除は最低税率8%で計算します。
-    const provincialTax = Math.max(0, taxFromAnnualBrackets(grossAnnual, [
+    // 税額控除は最低税率8%で計算し、控除額の8%が$4,896を超える分の25%を補足控除（T4127のK5P）として加えます。
+    const albertaCredits = (22_769 + pension.creditablePart + ei) * 0.08;
+    const supplemental = Math.max(0, (albertaCredits - 4_896) * 0.25);
+    const provincialTax = Math.max(0, taxFromAnnualBrackets(taxable, [
       { limit: 61_200, rate: 0.08 }, { limit: 154_259, rate: 0.1 }, { limit: 185_111, rate: 0.12 }, { limit: 246_813, rate: 0.13 }, { limit: 370_220, rate: 0.14 }, { limit: Number.POSITIVE_INFINITY, rate: 0.15 },
-    ]) - 22_769 * 0.08);
+    ]) - albertaCredits - supplemental);
     return { federalTax, provincialTax, healthPremium: 0 };
   }
-  const taxable = Math.max(0, grossAnnual - 12_989);
-  const provincialTaxBeforeSurtax = taxFromAnnualBrackets(taxable, [
+  // オンタリオ州2026：最低税率5.05%、基礎控除$12,989（税額控除）、基本州税$5,818超に20%・$7,446超に36%の付加税。
+  // 低所得者向けのOntario tax reductionは未反映。
+  const provincialTaxBeforeSurtax = Math.max(0, taxFromAnnualBrackets(taxable, [
     { limit: 53_891, rate: 0.0505 }, { limit: 107_785, rate: 0.0915 }, { limit: 150_000, rate: 0.1116 }, { limit: 220_000, rate: 0.1216 }, { limit: Number.POSITIVE_INFINITY, rate: 0.1316 },
-  ]);
+  ]) - (12_989 + pension.creditablePart + ei) * 0.0505);
   const surtax = provincialTaxBeforeSurtax <= 5_818 ? 0 : (provincialTaxBeforeSurtax <= 7_446 ? (provincialTaxBeforeSurtax - 5_818) * 0.2 : (provincialTaxBeforeSurtax - 5_818) * 0.2 + (provincialTaxBeforeSurtax - 7_446) * 0.36);
-  return { federalTax, provincialTax: provincialTaxBeforeSurtax + surtax, healthPremium: calculateOntarioHealthPremium(Math.max(0, grossAnnual - 12_989)) };
+  return { federalTax, provincialTax: provincialTaxBeforeSurtax + surtax, healthPremium: calculateOntarioHealthPremium(taxable) };
 }
 
 function calculateUsIncomeTax(city: City, grossAnnual: number) {

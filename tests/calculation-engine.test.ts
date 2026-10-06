@@ -106,8 +106,8 @@ test("keeps household, housing and lifestyle multipliers stable", () => {
 
   assert.equal(result.rent, 4_030);
   assert.equal(result.livingCosts, 2_925.625);
-  assert.equal(result.taxMonthly, 1_826.1868333333334);
-  assert.equal(result.monthlyRemaining, -1_281.8118333333332);
+  assert.ok(Math.abs((result.taxMonthly ?? 0) - 1_817.21984) < 1e-6);
+  assert.ok(Math.abs((result.monthlyRemaining ?? 0) - (-1_281.8118333333332 + 1_826.1868333333334 - 1_817.21984)) < 1e-6);
   assert.equal(result.annualSavings, result.monthlyRemaining! * 12);
   assert.ok(result.annualSavings! < 0);
   assert.equal(result.scores.overall, 60);
@@ -278,22 +278,23 @@ test("Massachusetts, Illinois and DC 2026 state income tax is added to the feder
 test("Alberta 2026 provincial tax uses the 8% first bracket and an 8% basic personal credit", () => {
   const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
   const incomeTax = (gross: number) => (calculateCity(cities.calgary, gross, "single", "onebed", "balanced", "under40").taxBreakdown?.incomeTaxMonthly ?? 0) * 12;
-  // 連邦（$100,000・基礎控除$16,452）：58,523×14% + 25,025×20.5% = 13,323.345
-  // 州：61,200×8% + 38,800×10% − 22,769×8% = 6,954.48
-  close(incomeTax(100_000), 13_323.345 + 6_954.48);
-  // $300,000：4,896 + 9,305.9 + 3,702.24 + 8,021.26 + 7,446.18 − 1,821.52 = 31,550.06
-  const federal300k = 8_193.22 + (117_045 - 58_523) * 0.205 + (181_440 - 117_045) * 0.26 + (258_482 - 181_440) * 0.29 + (300_000 - 16_452 - 258_482) * 0.33;
-  close(incomeTax(300_000), federal300k + 31_550.06);
-  // 基礎控除以下では州税0
-  close(incomeTax(20_000), (20_000 - 16_452) * 0.14);
+  // $100,000：CPPの上乗せ分 4,230.45×1/5.95＝711.0 と CPP2 416 を所得控除 → 課税所得98,873。
+  // 連邦：累進税額 − 14%×(基礎控除16,452＋雇用控除1,501＋CPP基本部分3,519.45＋EI 1,123.07)＝13,301.5972
+  // 州：累進税額 − 8%×(22,769＋3,519.45＋1,123.07)＝6,470.3784（補足控除は0）
+  close(incomeTax(100_000), 13_301.5972 + 6_470.3784);
+  // $300,000：連邦の基礎控除は最低額$14,829に下がる
+  close(incomeTax(300_000), 69_667.9872 + 31_020.8784);
+  // $20,000：連邦は控除後わずか、州は基礎控除の範囲内で0
+  close(incomeTax(20_000), 103.495);
   assert.equal(taxCalculationStatus(cities.calgary), "official-rate-estimate");
 });
 
 test("Quebec 2026 applies the federal abatement, Quebec brackets, QPP, Quebec EI and QPIP", () => {
   const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
   const breakdown = calculateCity(cities.montreal, 100_000, "single", "onebed", "balanced", "under40").taxBreakdown;
-  // 連邦基本税13,323.345×(1−16.5%)＋州税（7,608.3＋8,674.45−18,952×14%）
-  close((breakdown?.incomeTaxMonthly ?? 0) * 12, 13_323.345 * 0.835 + 13_629.47);
+  // 課税所得 100,000−QPP上乗せ分(4,479.3×1/6.3)−QPP2 416＝98,873。連邦基本税13,234.89（基礎控除・雇用控除・QPP基本部分・
+  // EI・QPIPを14%で控除）×(1−16.5%)＋州税（累進税額−18,952×14%＝13,415.34）
+  close((breakdown?.incomeTaxMonthly ?? 0) * 12, 13_234.89 * 0.835 + 13_415.34);
   // QPP：上限4,479.30＋QPP2 10,400×4%＝416
   close((breakdown?.pensionMonthly ?? 0) * 12, 4_895.3);
   // EI（ケベック上限895.70）＋QPIP 100,000×0.455%
@@ -700,4 +701,18 @@ test("France 2026 applies official employee contributions, the 10% allowance, th
   close((paris.taxBreakdown?.healthInsuranceMonthly ?? 0) * 12, 4_288.6125);
   assert.equal(paris.taxBreakdown?.employmentInsuranceMonthly, 0);
   close(paris.netMonthly ?? Number.NaN, (45_000 - 3_068.0835 - 5_089.5 - 4_288.6125) / 12);
+});
+
+test("Canada 2026 takes basic personal, employment, CPP and EI amounts as credits at the lowest rate", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  const tax = (cityId: "toronto" | "vancouver", gross: number) => calculateCity(cities[cityId], gross, "single", "onebed", "balanced", "under40").taxBreakdown;
+  // トロント$100,000：課税所得98,873、連邦13,301.5972、オンタリオ州（5.05%の税額控除後＋付加税）5,972.748088、健康保険料750
+  const toronto = tax("toronto", 100_000);
+  close((toronto?.incomeTaxMonthly ?? 0) * 12, 13_301.5972 + 5_972.748088);
+  close((toronto?.healthInsuranceMonthly ?? 0) * 12, 750);
+  // バンクーバー$30,000：BC州の税額控除（5.60%）後824.222から低所得者の税軽減 690−(29,735−25,570)×3.56%＝541.726
+  const vancouver = tax("vancouver", 30_000);
+  close((vancouver?.incomeTaxMonthly ?? 0) * 12, 1_397.375 + 282.496);
+  // バンクーバー$100,000：税軽減は0
+  close((tax("vancouver", 100_000)?.incomeTaxMonthly ?? 0) * 12, 13_301.5972 + 5_555.52088);
 });
