@@ -3,8 +3,8 @@ import type { WorkVisaSalaryCheck } from "../../types/scenario";
 
 // 主な就労ビザの給与基準（2026年、各国政府の公式ページで確認した値）。給与だけで判定できる部分に限り、
 // 雇用主のスポンサー登録・職種・学歴・語学・ポイント審査などの他の条件は判定しません。
-// 比較には賞与を除いた年間の基本給を使います（英国・アイルランド・豪州・シンガポールは基本給・保証給与で判定し、
-// 賞与を含めると基準を満たす場合は「確認が必要」とします）。
+// 比較には賞与を除いた年間の基本給を使います（基本給・保証給与で判定する国が多いため、賞与を含めると基準を満たす場合は
+// 「確認が必要」とします。マレーシアのように公式資料が賞与を含めないと明記する国は、賞与込みでも「確認が必要」にしません）。
 type Threshold = {
   route: { ja: string; en: string };
   currency: CurrencyCode;
@@ -13,6 +13,8 @@ type Threshold = {
   reduced?: { annual: number; condition: { ja: string; en: string } };
   // オランダは月額基準が8%の休暇手当を含むかを公式ページで確認できないため、その幅を「確認が必要」とします。
   holidayAllowanceUnclear?: boolean;
+  // 公式資料が賞与・手当を基準に含めないと明記している国。
+  bonusExcluded?: boolean;
   source: { name: string; url: string; period: string };
 };
 
@@ -57,6 +59,28 @@ export const WORK_VISA_THRESHOLDS: Partial<Record<string, Threshold>> = {
     annual: () => 79_423,
     source: { name: "Department of Home Affairs・Salary requirements", url: "https://immi.homeaffairs.gov.au/visas/employing-and-sponsoring-someone/sponsoring-workers/nominating-a-position/salary-requirements", period: "2026年7月1日〜2027年6月30日の申請" },
   },
+  FRA: {
+    route: { ja: "フランス EUブルーカード（Carte bleue européenne）", en: "France EU Blue Card (carte bleue européenne)" },
+    currency: "EUR",
+    annual: () => 59_373,
+    reduced: { annual: 39_582, condition: { ja: "修士号以上などの条件を満たせば、別の在留資格「Talent – salarié qualifié」の基準は年€39,582です", en: "With a master's degree or equivalent, the separate \"Talent – salarié qualifié\" permit requires €39,582 a year" } },
+    source: { name: "Service-Public.fr・Carte talent (F16922)", url: "https://www.service-public.fr/particuliers/vosdroits/F16922", period: "2026年6月1日確認" },
+  },
+  ESP: {
+    route: { ja: "スペイン EUブルーカード（Tarjeta azul-UE）", en: "Spain EU Blue Card (tarjeta azul-UE)" },
+    currency: "EUR",
+    // Orden PJC/44/2026 第2条：INE賃金構造調査の労働者1人あたり平均年収の1.4倍。2024年調査（2026年5月28日公表）€29,540.26 × 1.4。
+    annual: () => 41_356.36,
+    reduced: { annual: 33_085.09, condition: { ja: "不足職種（国家職業分類の大分類1・2）と、取得3年以内の資格による申請は0.8倍の€33,085.09", en: "€33,085.09 (0.8×) for shortage occupations in CNO major groups 1–2 and for qualifications obtained within the last 3 years" } },
+    source: { name: "BOE・Orden PJC/44/2026 (BOE-A-2026-2142) 第2条、INE・Encuesta Anual de Estructura Salarial 2024", url: "https://www.boe.es/diario_boe/txt.php?id=BOE-A-2026-2142", period: "2026年6月28日以降の申請" },
+  },
+  MYS: {
+    route: { ja: "マレーシア Employment Pass（カテゴリーIII）", en: "Malaysia Employment Pass (Category III)" },
+    currency: "MYR",
+    annual: () => 5_000 * 12,
+    bonusExcluded: true,
+    source: { name: "Immigration Department of Malaysia（ESD）・Revised Expatriate Salary Booklet", url: "https://esd.imi.gov.my/portal/pdf/Revised_Expatriate_Salary_Policy.pdf", period: "2026年6月1日以降の新規・更新申請（月額の基本給）" },
+  },
   SGP: {
     route: { ja: "シンガポール Employment Pass", en: "Singapore Employment Pass" },
     currency: "SGD",
@@ -76,7 +100,7 @@ export function checkWorkVisaSalary(countryCode: string, currency: CurrencyCode,
     ? amount / (1 + HOLIDAY_ALLOWANCE) >= annualThreshold ? "meets" : amount >= annualThreshold ? "check" : "below"
     : amount >= annualThreshold ? "meets" : "below";
   const base = meetsAt(baseSalaryLocal);
-  const status = base === "below" && bonusLocal > 0 && meetsAt(baseSalaryLocal + bonusLocal) !== "below" ? "check" : base;
+  const status = base === "below" && bonusLocal > 0 && !threshold.bonusExcluded && meetsAt(baseSalaryLocal + bonusLocal) !== "below" ? "check" : base;
   return {
     countryCode,
     route: threshold.route,
