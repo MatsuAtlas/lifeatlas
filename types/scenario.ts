@@ -29,6 +29,10 @@ export type ScenarioInput = {
   annualReturnRate?: number;
   // 移住者向けの税の特例（オランダの30%ルールなど）の条件を満たすと本人が選んだ場合だけtrue。既定は居住者の通常税制。
   expatTaxRegime?: boolean;
+  // 家族の人的控除用（任意）。配偶者の給与年収は給与と同じ通貨で、夫婦世帯の場合だけ使います。
+  // 子どもの年齢は12月31日時点で、人数分まで。現在は日本の都市の税計算に使います。
+  spouseAnnualSalary?: number;
+  childrenAges?: number[];
 };
 
 export type ScenarioAssumptions = {

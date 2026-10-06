@@ -63,6 +63,57 @@ function japaneseBasicDeduction(grossAnnual: number) {
   return 0;
 }
 
+// 日本・家族の人的控除（令和8年分の所得税、国税庁タックスアンサーNo.1171・1180・1191・1195、令和8年4月1日現在）。
+// 住民税は横浜市「所得控除（令和8年度課税以降）」の控除額。配偶者の所得要件は所得税が62万円以下、住民税は
+// 令和8年度が58万円以下（令和9年度から62万円の予定）ですが、58万円超62万円以下の帯では住民税の配偶者控除と
+// 配偶者特別控除が同額（33万・22万・11万円）のため、どちらの要件でも結果は変わりません。
+// 子どもは所得がない前提で、年齢は12月31日時点。16歳未満は扶養控除なし、16〜18歳と23歳以上は一般、19〜22歳は特定扶養。
+// ひとり親控除は単身＋子どもありの世帯で本人の合計所得500万円以下の場合。障害者控除・老人扶養・調整控除・非課税限度額は未反映。
+export type JapanFamily = { spouseSalary?: number; childrenAges?: number[]; singleParent?: boolean };
+
+const japanSpouseSpecialBands = [
+  { upTo: 950_000, incomeTax: [380_000, 260_000, 130_000], residentTax: [330_000, 220_000, 110_000] },
+  { upTo: 1_000_000, incomeTax: [360_000, 240_000, 120_000], residentTax: [330_000, 220_000, 110_000] },
+  { upTo: 1_050_000, incomeTax: [310_000, 210_000, 110_000], residentTax: [310_000, 210_000, 110_000] },
+  { upTo: 1_100_000, incomeTax: [260_000, 180_000, 90_000], residentTax: [260_000, 180_000, 90_000] },
+  { upTo: 1_150_000, incomeTax: [210_000, 140_000, 70_000], residentTax: [210_000, 140_000, 70_000] },
+  { upTo: 1_200_000, incomeTax: [160_000, 110_000, 60_000], residentTax: [160_000, 110_000, 60_000] },
+  { upTo: 1_250_000, incomeTax: [110_000, 80_000, 40_000], residentTax: [110_000, 80_000, 40_000] },
+  { upTo: 1_300_000, incomeTax: [60_000, 40_000, 20_000], residentTax: [60_000, 40_000, 20_000] },
+  { upTo: 1_330_000, incomeTax: [30_000, 20_000, 10_000], residentTax: [30_000, 20_000, 10_000] },
+];
+
+export function japanFamilyDeductions(taxpayerTotalIncome: number, family: JapanFamily = {}) {
+  let incomeTax = 0;
+  let residentTax = 0;
+  if (family.spouseSalary !== undefined && taxpayerTotalIncome <= 10_000_000) {
+    const spouseSalary = Math.max(0, family.spouseSalary);
+    const spouseIncome = Math.max(0, spouseSalary - japaneseSalaryDeduction(spouseSalary));
+    const tier = taxpayerTotalIncome <= 9_000_000 ? 0 : taxpayerTotalIncome <= 9_500_000 ? 1 : 2;
+    if (spouseIncome <= 620_000) {
+      incomeTax += [380_000, 260_000, 130_000][tier];
+      residentTax += [330_000, 220_000, 110_000][tier];
+    } else {
+      const band = japanSpouseSpecialBands.find((item) => spouseIncome <= item.upTo);
+      if (band) {
+        incomeTax += band.incomeTax[tier];
+        residentTax += band.residentTax[tier];
+      }
+    }
+  }
+  for (const age of family.childrenAges ?? []) {
+    if (age < 16) continue;
+    const specific = age >= 19 && age <= 22;
+    incomeTax += specific ? 630_000 : 380_000;
+    residentTax += specific ? 450_000 : 330_000;
+  }
+  if (family.singleParent && taxpayerTotalIncome <= 5_000_000) {
+    incomeTax += 350_000;
+    residentTax += 300_000;
+  }
+  return { incomeTax, residentTax };
+}
+
 function calculateJapanInsurance(city: City, grossAnnual: number, ageBand: AgeBand) {
   const insurance = city.insurance;
   const healthInsurance = grossAnnual * insurance.healthRateEmployee;
@@ -865,7 +916,9 @@ export function officialSalaryBenchmarkSource<TCity extends City>(city: TCity): 
   return salarySource;
 }
 
-function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand, household: keyof typeof householdMultipliers, expatTaxRegime: boolean) {
+function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand, household: keyof typeof householdMultipliers, expatTaxRegime: boolean, familyInput: Omit<JapanFamily, "singleParent"> = {}) {
+  // ひとり親控除は世帯区分から判定し、ホームとOffer Analyzerで同じ結果にします。
+  const family: JapanFamily = { ...familyInput, singleParent: household === "singleParent" };
   if (taxCalculationStatus(city) === "unavailable") return null;
   if (city.taxSystem === "singapore") {
     const incomeTax = taxFromAnnualBrackets(grossAnnual, [
@@ -989,7 +1042,8 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     const insurance = calculateJapanInsurance(city, grossAnnual, ageBand);
     const totalInsurance = insurance.healthInsurance + insurance.childSupport + insurance.careInsurance + insurance.pension + insurance.employment;
     const salaryIncome = Math.max(0, grossAnnual - japaneseSalaryDeduction(grossAnnual));
-    const taxableIncome = Math.floor(Math.max(0, salaryIncome - japaneseBasicDeduction(grossAnnual) - totalInsurance) / 1_000) * 1_000;
+    const familyDeductions = japanFamilyDeductions(salaryIncome, family);
+    const taxableIncome = Math.floor(Math.max(0, salaryIncome - japaneseBasicDeduction(grossAnnual) - totalInsurance - familyDeductions.incomeTax) / 1_000) * 1_000;
     const nationalTax = progressiveTax(taxableIncome, [
       { limit: 1_950_000, rate: 0.05 },
       { limit: 3_300_000, rate: 0.1 },
@@ -1000,7 +1054,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
       { limit: Number.POSITIVE_INFINITY, rate: 0.45 },
     ]);
     const reconstructionSurtax = nationalTax * 0.021;
-    const residentTaxBase = Math.max(0, salaryIncome - 430_000 - totalInsurance);
+    const residentTaxBase = Math.max(0, salaryIncome - 430_000 - totalInsurance - familyDeductions.residentTax);
     const residentTax = residentTaxBase * 0.1 + 5_000;
     const totalTax = nationalTax + reconstructionSurtax + residentTax;
     return {
@@ -1071,13 +1125,13 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, medicareLevyMonthly: medicareLevy / 12, totalTaxMonthly: (incomeTax + medicareLevy) / 12, totalDeductionsMonthly: (incomeTax + medicareLevy) / 12, employerSuperMonthly: grossAnnual * city.insurance.employerSuperRate / 12 };
 }
 
-export function calculateCity<TCity extends City>(city: TCity, grossAnnual: number | null, household: keyof typeof householdMultipliers, housing: keyof typeof housingMultipliers, lifestyle: keyof typeof lifestyleMultipliers, ageBand: AgeBand, options: { expatTaxRegime?: boolean } = {}): LegacyCityResult<TCity> {
+export function calculateCity<TCity extends City>(city: TCity, grossAnnual: number | null, household: keyof typeof householdMultipliers, housing: keyof typeof housingMultipliers, lifestyle: keyof typeof lifestyleMultipliers, ageBand: AgeBand, options: { expatTaxRegime?: boolean; family?: Omit<JapanFamily, "singleParent"> } = {}): LegacyCityResult<TCity> {
   const householdMultiplier = householdMultipliers[household];
   const housingMultiplier = housingMultipliers[housing];
   const lifestyleMultiplier = lifestyleMultipliers[lifestyle];
   const grossMonthly = grossAnnual === null ? null : grossAnnual / 12;
   const expatTaxRegime = expatTaxRegimeStatus(city, grossAnnual, options.expatTaxRegime === true);
-  const taxBreakdown = grossAnnual === null ? null : estimateTaxBreakdown(city, grossAnnual, ageBand, household, expatTaxRegime === "applied");
+  const taxBreakdown = grossAnnual === null ? null : estimateTaxBreakdown(city, grossAnnual, ageBand, household, expatTaxRegime === "applied", options.family);
   // 税制度は対応していても、公式値を確認できていない給与帯・年齢では計算不能として扱います。
   const calculationStatus = grossAnnual !== null && taxBreakdown === null ? "unavailable" : taxCalculationStatus(city);
   const calculationUnavailableReason = grossAnnual === null ? "salary" : calculationStatus === "unavailable" ? "tax" : null;

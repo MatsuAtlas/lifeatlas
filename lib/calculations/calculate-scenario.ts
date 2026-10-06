@@ -85,6 +85,10 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
   assertFiniteInRange("customMonthlySpending", input.customMonthlySpending ?? 0, 0, 1_000_000_000_000);
   assertFiniteInRange("customSavingsTarget", input.customSavingsTarget ?? 0, 0, 10_000_000_000_000);
   assertFiniteInRange("currentSavings", input.currentSavings ?? 0, 0, 10_000_000_000_000);
+  assertFiniteInRange("spouseAnnualSalary", input.spouseAnnualSalary ?? 0, 0, 1_000_000_000_000);
+  if (input.childrenAges !== undefined && (input.childrenAges.length > input.children || !input.childrenAges.every((age) => Number.isInteger(age) && age >= 0 && age <= 30))) {
+    throw new RangeError("childrenAges must list up to children integer ages between 0 and 30.");
+  }
   const ageBand = ageBandFor(input.age);
   assertFiniteInRange("retirementAge", input.retirementAge ?? 65, input.age, 100);
 
@@ -95,7 +99,12 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
   if (!Number.isFinite(ratesToJpy[input.salaryCurrency]) || ratesToJpy[input.salaryCurrency] <= 0) throw new RangeError("Missing salary currency rate.");
   if (!Number.isFinite(ratesToJpy[city.currency]) || ratesToJpy[city.currency] <= 0) throw new RangeError("Missing city currency rate.");
   const grossAnnual = convertCurrency(input.annualSalary + (input.bonus ?? 0), input.salaryCurrency, city.currency, ratesToJpy);
-  const legacy = calculateCity(city, grossAnnual, householdModel, input.housing, input.lifestyle, ageBand, { expatTaxRegime: input.expatTaxRegime === true });
+  // 配偶者の給与は夫婦世帯の場合だけ、都市の通貨に換算して家族の人的控除に使います。
+  const family = {
+    spouseSalary: input.householdType === "couple" && input.spouseAnnualSalary !== undefined ? convertCurrency(input.spouseAnnualSalary, input.salaryCurrency, city.currency, ratesToJpy) : undefined,
+    childrenAges: input.childrenAges,
+  };
+  const legacy = calculateCity(city, grossAnnual, householdModel, input.housing, input.lifestyle, ageBand, { expatTaxRegime: input.expatTaxRegime === true, family });
   const rentMonthly = input.customRent ?? legacy.rent;
   const baselineSpendingMonthly = input.customMonthlySpending ?? legacy.livingCosts;
   const spendingMultiplier = householdMultipliers[householdModel] * lifestyleMultipliers[input.lifestyle];
