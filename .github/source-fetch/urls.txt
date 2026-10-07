@@ -1,0 +1,4 @@
+https://www.mass.gov/info-details/paid-family-and-medical-leave-pfml-contribution-rates-and-calculator 2026|0.88|0.70|employee|Social Security
+https://www.mass.gov/info-details/2026-pfml-contribution-rates-and-benefit-amounts 2026|0.88|employee|Social Security
+https://www.wcb.ny.gov/content/main/DisabilityBenefits/Employer/disability-benefits-employer.jsp 60 cents|0.5|one-half
+https://www.wcb.ny.gov/content/main/DisabilityBenefits/Employee/disability-benefits-employee.jsp 60 cents|0.5|one-half
