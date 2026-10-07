@@ -463,12 +463,12 @@ export function netherlandsExpatAllowance2026(grossAnnual: number) {
 // 移住者向けの税の特例の適用状況。off＝本人が選んでいない、applied＝適用、notEligible＝都市の特例はあるが
 // 給与などの条件を満たさない、notModeled＝この都市の特例は未実装（居住者の通常税制で計算）。
 // notBeneficial＝選択制の特例だが、この給与では通常税制のほうが税が少ないため使わない。
-export function expatTaxRegimeStatus(city: City, grossAnnual: number | null, requested: boolean): ExpatTaxRegimeStatus {
+export function expatTaxRegimeStatus(city: City, grossAnnual: number | null, requested: boolean, family: KoreaFamily = {}): ExpatTaxRegimeStatus {
   if (!requested) return "off";
   if (city.taxSystem === "netherlands") return grossAnnual !== null && netherlandsExpatAllowance2026(grossAnnual) > 0 ? "applied" : "notEligible";
   if (city.taxSystem === "korea") {
     if (grossAnnual === null || grossAnnual <= 0) return "notEligible";
-    return koreaForeignWorkerFlatTax2026(grossAnnual).incomeTax < calculateKoreaPayroll(grossAnnual).incomeTax ? "applied" : "notBeneficial";
+    return koreaForeignWorkerFlatTax2026(grossAnnual).incomeTax < calculateKoreaPayroll(grossAnnual, family).incomeTax ? "applied" : "notBeneficial";
   }
   if (city.taxSystem === "spain") {
     if (grossAnnual === null || grossAnnual <= 0) return "notEligible";
@@ -618,10 +618,10 @@ export function calculateTaiwanPayroll(grossAnnual: number) {
 
 // 韓国・2026年（居住者・単身の給与所得者）。社会保険（本人負担）：国民年金4.75%（料率9.5%の半分。基準所得月額は1〜6月が
 // 40万〜637万ウォン、7〜12月が41万〜659万ウォン）、健康保険3.595%（7.19%の半分）、長期療養保険は健康保険料×0.9448/7.19、
-// 雇用保険0.9%（失業給付1.8%の半分）。所得税＝(総給与−勤労所得控除（上限2,000万）−基本控除150万−年金保険料−健康・長期療養・
+// 雇用保険0.9%（失業給付1.8%の半分）。所得税＝(総給与−勤労所得控除（上限2,000万）−基本控除150万（家族は下の koreaFamilyRelief2026）−年金保険料−健康・長期療養・
 // 雇用保険料)に基本税率を掛け、勤労所得税額控除を差し引きます。保険料の特別所得控除（第52条）と標準税額控除13万（第59条の4第9項）は
 // 併用できないため、両方を計算して税額が小さい方を採ります（低い年収では標準税額控除が有利）。
-// 地方所得税は所得税の10%。非課税手当（食事代など）、健康保険料の上下限、扶養家族、その他の所得・税額控除は未反映です。
+// 地方所得税は所得税の10%。非課税手当（食事代など）、健康保険料の上下限、その他の所得・税額控除は未反映です。
 export function koreaEarnedIncomeDeduction2026(totalSalary: number) {
   const x = Math.max(0, totalSalary);
   const deduction = x <= 5_000_000 ? x * 0.7
@@ -641,21 +641,38 @@ export function koreaEarnedIncomeTaxCredit2026(calculatedTax: number, totalSalar
   return Math.min(credit, cap);
 }
 
-export function calculateKoreaPayroll(grossAnnual: number) {
+// 韓国の家族の控除（2026年分、所得税法 第50条・第51条・第53条・第59条の2、法律 第21548号 附則第2条）。年齢は12月31日時点の入力で判定します。
+// 基本控除（1人150万ウォン）：配偶者は給与500万ウォン以下の場合、子どもは20歳以下の日がある年（12月31日に21歳以下）。
+// 一人親の追加控除100万ウォン（配偶者がなく、基本控除対象の子がいる場合）。子どもの所得はない前提です。
+// 子女税額控除：基本控除対象の子のうち2026年分は9歳以上（2017年生まれ＝12月31日に9歳の子は除く）の人数で25万・55万・3人目から1人40万ウォン加算。
+// 出産・入養の税額控除、女性の追加控除（第51条第1項第3号、性別を入力しないため）は未反映です。
+export type KoreaFamily = { spouseSalary?: number; childrenAges?: number[]; singleParent?: boolean };
+
+export function koreaFamilyRelief2026(family: KoreaFamily = {}) {
+  const deductibleChildren = (family.childrenAges ?? []).filter((age) => age <= 21);
+  const spouse = family.spouseSalary !== undefined && family.spouseSalary <= 5_000_000 ? 1 : 0;
+  const singleParent = family.singleParent && deductibleChildren.length > 0 ? 1_000_000 : 0;
+  const creditChildren = deductibleChildren.filter((age) => age >= 10).length;
+  const childCredit = creditChildren === 0 ? 0 : creditChildren === 1 ? 250_000 : 550_000 + (creditChildren - 2) * 400_000;
+  return { deduction: (spouse + deductibleChildren.length) * 1_500_000 + singleParent, childCredit };
+}
+
+export function calculateKoreaPayroll(grossAnnual: number, family: KoreaFamily = {}) {
   const gross = Math.max(0, grossAnnual);
+  const relief = koreaFamilyRelief2026(family);
   const monthly = gross / 12;
   const pension = monthly > 0 ? (Math.min(Math.max(monthly, 400_000), 6_370_000) * 6 + Math.min(Math.max(monthly, 410_000), 6_590_000) * 6) * 0.0475 : 0;
   const health = gross * 0.03595;
   const longTermCare = health * 0.9448 / 7.19;
   const employment = gross * 0.009;
   const earnedIncome = gross - koreaEarnedIncomeDeduction2026(gross);
-  const baseTaxable = earnedIncome - 1_500_000 - pension;
+  const baseTaxable = earnedIncome - 1_500_000 - relief.deduction - pension;
   const taxAfterCredits = (taxable: number, standardCredit: number) => {
     const calculatedTax = taxFromAnnualBrackets(Math.max(0, taxable), [
       { limit: 14_000_000, rate: 0.06 }, { limit: 50_000_000, rate: 0.15 }, { limit: 88_000_000, rate: 0.24 }, { limit: 150_000_000, rate: 0.35 },
       { limit: 300_000_000, rate: 0.38 }, { limit: 500_000_000, rate: 0.4 }, { limit: 1_000_000_000, rate: 0.42 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 },
     ]);
-    return Math.max(0, calculatedTax - koreaEarnedIncomeTaxCredit2026(calculatedTax, gross) - standardCredit);
+    return Math.max(0, calculatedTax - koreaEarnedIncomeTaxCredit2026(calculatedTax, gross) - relief.childCredit - standardCredit);
   };
   const incomeTax = Math.min(
     taxAfterCredits(baseTaxable - health - longTermCare - employment, 0),
@@ -1024,7 +1041,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
   }
   if (city.taxSystem === "korea") {
-    const payroll = calculateKoreaPayroll(grossAnnual);
+    const payroll = calculateKoreaPayroll(grossAnnual, family);
     const { pension, health, employment } = payroll;
     const { incomeTax, localIncomeTax } = expatTaxRegime ? koreaForeignWorkerFlatTax2026(grossAnnual) : payroll;
     const totalTax = incomeTax + localIncomeTax;
@@ -1175,7 +1192,7 @@ export function calculateCity<TCity extends City>(city: TCity, grossAnnual: numb
   const housingMultiplier = housingMultipliers[housing];
   const lifestyleMultiplier = lifestyleMultipliers[lifestyle];
   const grossMonthly = grossAnnual === null ? null : grossAnnual / 12;
-  const expatTaxRegime = expatTaxRegimeStatus(city, grossAnnual, options.expatTaxRegime === true);
+  const expatTaxRegime = expatTaxRegimeStatus(city, grossAnnual, options.expatTaxRegime === true, { ...options.family, singleParent: household === "singleParent" });
   const taxBreakdown = grossAnnual === null ? null : estimateTaxBreakdown(city, grossAnnual, ageBand, household, expatTaxRegime === "applied", options.family);
   // 税制度は対応していても、公式値を確認できていない給与帯・年齢では計算不能として扱います。
   const calculationStatus = grossAnnual !== null && taxBreakdown === null ? "unavailable" : taxCalculationStatus(city);
