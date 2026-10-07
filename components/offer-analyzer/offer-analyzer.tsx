@@ -1073,7 +1073,11 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
             ? (language === "ja" ? "配偶者・子どもの基本控除、一人親の追加控除、子女税額控除のうち、入力から判定できるものを反映した手取りです（子どもに所得がない前提。出産の税額控除は未反映）。" : "Take-home reflects the basic deductions for spouse and children, the single-parent deduction and the child tax credit that the inputs settle (children assumed to have no income; the birth credit is not included).")
             : city.taxSystem === "hongKong"
               ? (language === "ja" ? "配偶者の給与が0なら既婚者控除を反映します。配偶者に所得がある場合の合算課税と、子どもの年齢は使っていません（子ども控除は人数で計算）。" : "A spouse salary of 0 applies the married person's allowance. Joint assessment with an earning spouse and children's ages are not used (child allowances follow the number of children).")
-              : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません（現在は日本・韓国・香港の都市だけ）。" : "Spouse salary and children's ages are not yet used for this city's tax (Japanese, Korean and Hong Kong cities only for now).")}</p> : null}
+              : city.taxSystem === "ireland"
+                ? (language === "ja" ? "配偶者の給与が0なら片働き夫婦の合算課税、18歳以下の子がいる一人親なら単親控除を反映します。共働き夫婦の合算課税とHome Carer控除は使っていません。" : "A spouse salary of 0 applies one-income married assessment; a single parent with a child aged 18 or under gets the single person child carer credit. Two-income joint assessment and the home carer credit are not used.")
+                : city.taxSystem === "uk"
+                  ? (language === "ja" ? "配偶者の給与が£12,570未満で本人が基本税率の納税者なら、Marriage Allowance（最大£252）を反映します。子どもの年齢は使っていません。" : "If your spouse earns below £12,570 and you pay the basic rate, Marriage Allowance (up to £252) is applied. Children's ages are not used.")
+                  : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません（現在は日本・韓国・香港・英国・アイルランドの都市だけ）。" : "Spouse salary and children's ages are not yet used for this city's tax (Japanese, Korean, Hong Kong, UK and Irish cities only for now).")}</p> : null}
         {result.childAllowance && (() => {
           const allowance = result.childAllowance;
           const monthly = formatMoney(allowance.monthly, allowance.currency, language);
