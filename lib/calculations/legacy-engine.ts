@@ -274,8 +274,10 @@ function calculateUsIncomeTax(city: City, grossAnnual: number) {
 }
 
 // 香港・薪俸税（2026/27課税年度、2026年5月13日成立の改正後）と従業員MPF強制拠出。
-// 配偶者の所得が不明なため既婚者控除は適用せず、本人の基礎控除と子ども控除だけを使います。
+// 基礎控除と子ども控除（世帯区分の人数）を使い、Offer Analyzerで配偶者の給与を0と入れた夫婦だけ既婚者控除（基礎控除の代わり）を使います。
+// 配偶者に所得がある場合の合算課税（選択制）は、本人分の税を分けられないため使いません。
 const HONG_KONG_BASIC_ALLOWANCE = 145_000;
+const HONG_KONG_MARRIED_PERSON_ALLOWANCE = 290_000;
 const HONG_KONG_SINGLE_PARENT_ALLOWANCE = 145_000;
 const HONG_KONG_CHILD_ALLOWANCE = 140_000;
 const HONG_KONG_MPF_RATE = 0.05;
@@ -284,11 +286,12 @@ const HONG_KONG_MPF_MAX_MONTHLY_INCOME = 30_000;
 const HONG_KONG_MPF_DEDUCTION_CAP = 18_000;
 const hongKongChildren = { single: 0, couple: 0, singleParent: 1, coupleOneChild: 1, family: 2, familyThreeChildren: 3 } as const;
 
-export function calculateHongKongSalariesTax(grossAnnual: number, household: keyof typeof householdMultipliers) {
+export function calculateHongKongSalariesTax(grossAnnual: number, household: keyof typeof householdMultipliers, spouseSalary?: number) {
+  const married = household === "couple" || household === "coupleOneChild" || household === "family" || household === "familyThreeChildren";
   const monthlyIncome = Math.max(0, grossAnnual) / 12;
   const mpf = monthlyIncome < HONG_KONG_MPF_MIN_MONTHLY_INCOME ? 0 : Math.min(monthlyIncome, HONG_KONG_MPF_MAX_MONTHLY_INCOME) * HONG_KONG_MPF_RATE * 12;
   const netIncome = Math.max(0, grossAnnual - Math.min(mpf, HONG_KONG_MPF_DEDUCTION_CAP));
-  const allowances = HONG_KONG_BASIC_ALLOWANCE
+  const allowances = (married && spouseSalary === 0 ? HONG_KONG_MARRIED_PERSON_ALLOWANCE : HONG_KONG_BASIC_ALLOWANCE)
     + (household === "singleParent" ? HONG_KONG_SINGLE_PARENT_ALLOWANCE : 0)
     + hongKongChildren[household] * HONG_KONG_CHILD_ALLOWANCE;
   const progressive = taxFromAnnualBrackets(Math.max(0, netIncome - allowances), [
@@ -1096,7 +1099,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: payroll.federalTax / 12, residentTaxMonthly: payroll.cantonCityTax / 12, healthInsuranceMonthly: payroll.nbu / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: payroll.alv / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
   }
   if (city.taxSystem === "hongKong") {
-    const { salariesTax, mpf } = calculateHongKongSalariesTax(grossAnnual, household);
+    const { salariesTax, mpf } = calculateHongKongSalariesTax(grossAnnual, household, family.spouseSalary);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: salariesTax / 12, pensionMonthly: mpf / 12, totalTaxMonthly: salariesTax / 12, totalInsuranceMonthly: mpf / 12, totalDeductionsMonthly: (salariesTax + mpf) / 12 };
   }
   if (city.taxSystem === "japan") {
