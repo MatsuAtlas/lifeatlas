@@ -25,6 +25,23 @@ test("work visa salary thresholds match the official 2026 figures", () => {
   assert.equal(checkWorkVisaSalary("SGP", "SGD", 0, 0, 30)!.annualThreshold, 7_223 * 12);
   assert.equal(checkWorkVisaSalary("SGP", "SGD", 0, 0, 52)!.annualThreshold, 10_700 * 12);
   assert.equal(checkWorkVisaSalary("SGP", "SGD", 0, 0, 21)!.annualThreshold, 5_600 * 12);
+  // フランス EUブルーカード €59,373（Service-Public.fr F16922）、Talent salarié qualifié €39,582
+  const fr = checkWorkVisaSalary("FRA", "EUR", 45_000, 0, 30)!;
+  assert.equal(fr.annualThreshold, 59_373);
+  assert.equal(fr.status, "below");
+  assert.equal(fr.meetsReducedThreshold, true);
+  // スペイン EUブルーカード：INE 2024年平均€29,540.26 × 1.4、不足職種・新しい資格は0.8倍
+  const es = checkWorkVisaSalary("ESP", "EUR", 35_000, 0, 30)!;
+  assert.equal(es.annualThreshold, Math.round(29_540.26 * 1.4 * 100) / 100);
+  assert.equal(es.reduced!.annual, Math.round(29_540.26 * 1.4 * 0.8 * 100) / 100);
+  assert.equal(es.status, "below");
+  assert.equal(es.meetsReducedThreshold, true);
+  assert.equal(checkWorkVisaSalary("ESP", "EUR", 41_356.36, 0, 30)!.status, "meets");
+  // マレーシア EPカテゴリーIII：月RM5,000の基本給。公式資料が賞与を除くと明記しているため、賞与込みでも「確認が必要」にしない
+  assert.equal(checkWorkVisaSalary("MYS", "MYR", 60_000, 0, 30)!.status, "meets");
+  const my = checkWorkVisaSalary("MYS", "MYR", 54_000, 10_000, 30)!;
+  assert.equal(my.status, "below");
+  assert.equal(my.reason, null);
   // 基準のない国・通貨が違う場合は判定しない
   assert.equal(checkWorkVisaSalary("JPN", "JPY", 5_000_000, 0, 30), null);
   assert.equal(checkWorkVisaSalary("GBR", "EUR", 50_000, 0, 30), null);
