@@ -42,6 +42,9 @@ test("work visa salary thresholds match the official 2026 figures", () => {
   const my = checkWorkVisaSalary("MYS", "MYR", 54_000, 10_000, 30)!;
   assert.equal(my.status, "below");
   assert.equal(my.reason, null);
+  // 韓国 E-7-1 年3,112万ウォン（法務部公告 第2025-406号）
+  assert.equal(checkWorkVisaSalary("KOR", "KRW", 31_120_000, 0, 30)!.status, "meets");
+  assert.equal(checkWorkVisaSalary("KOR", "KRW", 30_000_000, 2_000_000, 30)!.status, "check");
   // 基準のない国・通貨が違う場合は判定しない
   assert.equal(checkWorkVisaSalary("JPN", "JPY", 5_000_000, 0, 30), null);
   assert.equal(checkWorkVisaSalary("GBR", "EUR", 50_000, 0, 30), null);

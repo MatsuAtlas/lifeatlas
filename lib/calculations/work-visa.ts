@@ -81,6 +81,12 @@ export const WORK_VISA_THRESHOLDS: Partial<Record<string, Threshold>> = {
     bonusExcluded: true,
     source: { name: "Immigration Department of Malaysia（ESD）・Revised Expatriate Salary Booklet", url: "https://esd.imi.gov.my/portal/pdf/Revised_Expatriate_Salary_Policy.pdf", period: "2026年6月1日以降の新規・更新申請（月額の基本給）" },
   },
+  KOR: {
+    route: { ja: "韓国 E-7-1（専門人材）", en: "Korea E-7-1 (professionals)" },
+    currency: "KRW",
+    annual: () => 31_120_000,
+    source: { name: "法務部公告 第2025-406号・2026年特定活動(E-7)滞在資格 賃金要件基準", url: "https://www.immigration.go.kr/bbs/immigration/211/601892/artclView.do", period: "2026年2月1日〜12月31日" },
+  },
   SGP: {
     route: { ja: "シンガポール Employment Pass", en: "Singapore Employment Pass" },
     currency: "SGD",
