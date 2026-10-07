@@ -101,3 +101,4 @@
 3. 本番E2E：Googleログイン、保存系操作、Stripe testでのCheckout→Webhook→Pro反映→Portal→解約、AI初回生成とキャッシュ、共有、日英、390px。
 4. （完了）旧公開先OpenAI Sites向けのファイル（`.openai/`・`worker/`・`vite.config.ts`・`build/sites-vite-plugin.ts`）と開発用依存（vite・vinext・wrangler・@cloudflare/vite-plugin・@vitejs/*・react-server-dom-webpack）を2026-09-30に削除。オーナーが「脆弱性は見過ごせない」として本番E2E前の削除を指示。`npm audit` は開発用を含め0件。
 - 2026-10-07に日本の児童手当を参考表示として追加（`lib/calculations/child-allowance.ts`、`ScenarioResult.childAllowance`）。こども家庭庁「児童手当制度のご案内」の月額（3歳未満15,000円、3歳以上高校生年代まで10,000円、第3子以降30,000円、所得制限なし）を、12月31日時点の年齢で示す。12月31日に18歳なら翌年3月まで対象、第3子以降の数え方には22歳までの兄姉を含め、19〜22歳は生活費を負担している前提と表示する。他国の手当が未対応のため、手取り・収支・スコアには含めない。
+- 2026-10-07に就労ビザの給与基準へ韓国を追加。E-7-1（専門人材）年3,112万ウォン以上（法務部公告 第2025-406号、2026年2月1日〜12月31日。法務部長官が別に定めた職種は対象外）。
