@@ -1081,7 +1081,9 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                     ? (language === "ja" ? "所得のない配偶者（給与0）と19歳以下の子どもの控除を反映します（2018年以降生まれの第2子以降は増額）。20〜24歳の就学中の子は数えていません。" : "Allowances for a spouse without income (salary 0) and children aged 19 or under are applied (higher for second and later children born from 2018). Children aged 20–24 in education are not counted.")
                     : city.taxSystem === "china"
                       ? (language === "ja" ? "一人親か、配偶者の給与が0の夫婦なら、1〜17歳の子ども1人につき年¥24,000の専項付加控除を反映します。配偶者に所得がある場合は両親の配分を選べるため使っていません。" : "Single parents, or couples whose spouse salary is 0, get the ¥24,000-a-year special deduction for each child aged 1–17. With an earning spouse the parents choose how to split it, so it is not used.")
-                      : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません。" : "Spouse salary and children's ages are not yet used for this city's tax.")}</p> : null}
+                      : city.taxSystem === "vietnam"
+                        ? (language === "ja" ? "一人親か、配偶者の給与が0の夫婦なら、1〜17歳の子ども1人につき月₫6,200,000の扶養控除を反映します。配偶者に所得がある場合は両親のどちらが申告するか選べるため使っていません。" : "Single parents, or couples whose spouse salary is 0, get the ₫6.2 million monthly dependant deduction for each child aged 1–17. With an earning spouse the parents choose who claims it, so it is not used.")
+                        : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません。" : "Spouse salary and children's ages are not yet used for this city's tax.")}</p> : null}
         {result.childAllowance && (() => {
           const allowance = result.childAllowance;
           const monthly = formatMoney(allowance.monthly, allowance.currency, language);
