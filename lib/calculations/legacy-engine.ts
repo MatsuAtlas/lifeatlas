@@ -528,11 +528,20 @@ export function koreaForeignWorkerFlatTax2026(grossAnnual: number) {
 }
 
 // タイ・2026課税年度（居住者・単身）。社会保険（第33条）は賃金の5%で、2026年1月から月額上限は賃金฿17,500（最大฿875）。
-// 課税所得＝給与−給与所得控除（50%・上限฿100,000）−基礎控除฿60,000−社会保険料。配偶者・子どもの控除は未反映。
-export function calculateThailandPayroll(grossAnnual: number) {
+// 課税所得＝給与−給与所得控除（50%・上限฿100,000）−基礎控除฿60,000−社会保険料−家族の控除。
+// 家族の控除（歳入局「ผู้มีเงินได้มีสิทธิหักลดหย่อนอะไรได้บ้าง?」）：所得のない配偶者฿60,000（配偶者の給与を0と入れた場合）、
+// 子ども1人฿30,000、2018年以降に生まれた第2子以降は฿60,000。子どもは12月31日に19歳以下（年中ずっと未成年）だけを数え、
+// 20〜24歳の就学中の子は入力から判定できないため数えません。第2子以降かは入力した子の年齢順で判定します。
+export function thailandFamilyAllowance(family: { spouseSalary?: number; childrenAges?: number[] } = {}) {
+  const ages = [...(family.childrenAges ?? [])].sort((a, b) => b - a);
+  const children = ages.reduce((total, age, index) => age > 19 ? total : total + (index >= 1 && age <= 8 ? 60_000 : 30_000), 0);
+  return (family.spouseSalary === 0 ? 60_000 : 0) + children;
+}
+
+export function calculateThailandPayroll(grossAnnual: number, family: { spouseSalary?: number; childrenAges?: number[] } = {}) {
   const gross = Math.max(0, grossAnnual);
   const socialSecurity = Math.min(gross / 12, 17_500) * 0.05 * 12;
-  const taxable = Math.max(0, gross - Math.min(gross * 0.5, 100_000) - 60_000 - socialSecurity);
+  const taxable = Math.max(0, gross - Math.min(gross * 0.5, 100_000) - 60_000 - socialSecurity - thailandFamilyAllowance(family));
   const incomeTax = taxFromAnnualBrackets(taxable, [
     { limit: 150_000, rate: 0 }, { limit: 300_000, rate: 0.05 }, { limit: 500_000, rate: 0.1 }, { limit: 750_000, rate: 0.15 },
     { limit: 1_000_000, rate: 0.2 }, { limit: 2_000_000, rate: 0.25 }, { limit: 5_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
@@ -1078,7 +1087,8 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
   }
   if (city.taxSystem === "thailand") {
-    const { incomeTax, socialSecurity } = calculateThailandPayroll(grossAnnual);
+    const married = household === "couple" || household === "coupleOneChild" || household === "family" || household === "familyThreeChildren";
+    const { incomeTax, socialSecurity } = calculateThailandPayroll(grossAnnual, { spouseSalary: married ? family.spouseSalary : undefined, childrenAges: family.childrenAges });
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (incomeTax + socialSecurity) / 12 };
   }
   if (city.taxSystem === "germany") {

@@ -1077,7 +1077,9 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                 ? (language === "ja" ? "配偶者の給与が0なら片働き夫婦の合算課税、18歳以下の子がいる一人親なら単親控除を反映します。共働き夫婦の合算課税とHome Carer控除は使っていません。" : "A spouse salary of 0 applies one-income married assessment; a single parent with a child aged 18 or under gets the single person child carer credit. Two-income joint assessment and the home carer credit are not used.")
                 : city.taxSystem === "uk"
                   ? (language === "ja" ? "配偶者の給与が£12,570未満で本人が基本税率の納税者なら、Marriage Allowance（最大£252）を反映します。子どもの年齢は使っていません。" : "If your spouse earns below £12,570 and you pay the basic rate, Marriage Allowance (up to £252) is applied. Children's ages are not used.")
-                  : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません（現在は日本・韓国・香港・英国・アイルランドの都市だけ）。" : "Spouse salary and children's ages are not yet used for this city's tax (Japanese, Korean, Hong Kong, UK and Irish cities only for now).")}</p> : null}
+                  : city.taxSystem === "thailand"
+                    ? (language === "ja" ? "所得のない配偶者（給与0）と19歳以下の子どもの控除を反映します（2018年以降生まれの第2子以降は増額）。20〜24歳の就学中の子は数えていません。" : "Allowances for a spouse without income (salary 0) and children aged 19 or under are applied (higher for second and later children born from 2018). Children aged 20–24 in education are not counted.")
+                    : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません（現在は日本・韓国・香港・英国・アイルランド・タイの都市だけ）。" : "Spouse salary and children's ages are not yet used for this city's tax (Japanese, Korean, Hong Kong, UK, Irish and Thai cities only for now).")}</p> : null}
         {result.childAllowance && (() => {
           const allowance = result.childAllowance;
           const monthly = formatMoney(allowance.monthly, allowance.currency, language);
