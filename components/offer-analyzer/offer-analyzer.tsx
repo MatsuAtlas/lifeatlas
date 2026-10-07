@@ -1071,7 +1071,9 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           ? (language === "ja" ? "配偶者控除・配偶者特別控除・扶養控除・ひとり親控除のうち、入力から判定できるものを反映した手取りです（子どもに所得がない前提）。" : "Take-home reflects the spouse, dependant and single-parent deductions that the inputs settle (children assumed to have no income).")
           : city.taxSystem === "korea"
             ? (language === "ja" ? "配偶者・子どもの基本控除、一人親の追加控除、子女税額控除のうち、入力から判定できるものを反映した手取りです（子どもに所得がない前提。出産の税額控除は未反映）。" : "Take-home reflects the basic deductions for spouse and children, the single-parent deduction and the child tax credit that the inputs settle (children assumed to have no income; the birth credit is not included).")
-            : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません（現在は日本と韓国の都市だけ）。" : "Spouse salary and children's ages are not yet used for this city's tax (Japanese and Korean cities only for now).")}</p> : null}
+            : city.taxSystem === "hongKong"
+              ? (language === "ja" ? "配偶者の給与が0なら既婚者控除を反映します。配偶者に所得がある場合の合算課税と、子どもの年齢は使っていません（子ども控除は人数で計算）。" : "A spouse salary of 0 applies the married person's allowance. Joint assessment with an earning spouse and children's ages are not used (child allowances follow the number of children).")
+              : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません（現在は日本・韓国・香港の都市だけ）。" : "Spouse salary and children's ages are not yet used for this city's tax (Japanese, Korean and Hong Kong cities only for now).")}</p> : null}
         {result.childAllowance && (() => {
           const allowance = result.childAllowance;
           const monthly = formatMoney(allowance.monthly, allowance.currency, language);
