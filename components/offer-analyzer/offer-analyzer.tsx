@@ -1070,6 +1070,16 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
         })() ? <p className="oa-expat-note">{city.taxSystem === "japan"
           ? (language === "ja" ? "配偶者控除・配偶者特別控除・扶養控除・ひとり親控除のうち、入力から判定できるものを反映した手取りです（子どもに所得がない前提）。" : "Take-home reflects the spouse, dependant and single-parent deductions that the inputs settle (children assumed to have no income).")
           : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません（現在は日本の都市だけ）。" : "Spouse salary and children's ages are not yet used for this city's tax (Japanese cities only for now).")}</p> : null}
+        {result.childAllowance && (() => {
+          const allowance = result.childAllowance;
+          const monthly = formatMoney(allowance.monthly, allowance.currency, language);
+          const annual = formatMoney(allowance.annual, allowance.currency, language);
+          return <p className="oa-expat-note">
+            {language === "ja" ? `参考：児童手当は12月31日時点の年齢で月${monthly}（年${annual}相当）です。他の国の手当が未対応のため、手取り・収支・スコアには含めていません。` : `For reference: Japan's child allowance at the 31 December ages is ${monthly} a month (${annual} a year). It is not added to take-home, savings or the score because other countries' benefits are not modelled yet.`}
+            {allowance.countsOlderSiblingsAsSupported ? (language === "ja" ? " 19〜22歳の子は生活費を負担している前提で第3子以降の数え方に含めています。" : " Children aged 19–22 are counted towards the third-child rate on the assumption that you support them.") : ""}
+            {" "}<a href={allowance.source.url} target="_blank" rel="noreferrer">{language === "ja" ? "出典" : "Source"}</a>
+          </p>;
+        })()}
         {result.workVisaSalary && (() => {
           const visa = result.workVisaSalary;
           const threshold = formatMoney(visa.annualThreshold, visa.currency, language);
