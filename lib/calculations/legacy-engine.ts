@@ -273,6 +273,11 @@ function calculateUsIncomeTax(city: City, grossAnnual: number) {
   return federalTax;
 }
 
+// 夫婦（子どもの有無を問わない）の世帯区分か。配偶者の給与を使う家族の控除で共通に使います。
+function isMarriedHousehold(household: keyof typeof householdMultipliers) {
+  return household === "couple" || household === "coupleOneChild" || household === "family" || household === "familyThreeChildren";
+}
+
 // 香港・薪俸税（2026/27課税年度、2026年5月13日成立の改正後）と従業員MPF強制拠出。
 // 基礎控除と子ども控除（世帯区分の人数）を使い、Offer Analyzerで配偶者の給与を0と入れた夫婦だけ既婚者控除（基礎控除の代わり）を使います。
 // 配偶者に所得がある場合の合算課税（選択制）は、本人分の税を分けられないため使いません。
@@ -287,7 +292,7 @@ const HONG_KONG_MPF_DEDUCTION_CAP = 18_000;
 const hongKongChildren = { single: 0, couple: 0, singleParent: 1, coupleOneChild: 1, family: 2, familyThreeChildren: 3 } as const;
 
 export function calculateHongKongSalariesTax(grossAnnual: number, household: keyof typeof householdMultipliers, spouseSalary?: number) {
-  const married = household === "couple" || household === "coupleOneChild" || household === "family" || household === "familyThreeChildren";
+  const married = isMarriedHousehold(household);
   const monthlyIncome = Math.max(0, grossAnnual) / 12;
   const mpf = monthlyIncome < HONG_KONG_MPF_MIN_MONTHLY_INCOME ? 0 : Math.min(monthlyIncome, HONG_KONG_MPF_MAX_MONTHLY_INCOME) * HONG_KONG_MPF_RATE * 12;
   const netIncome = Math.max(0, grossAnnual - Math.min(mpf, HONG_KONG_MPF_DEDUCTION_CAP));
@@ -594,14 +599,17 @@ export function calculatePhilippinesPayroll(grossAnnual: number) {
 
 // ベトナム・2026年（居住者・単身、ホーチミン市＝地域I）。所得税は法律109/2025/QH15の5段階（月額、2026年1月から）、
 // 本人控除は月₫15,500,000。社会保険（従業員）：年金等8%＋医療1.5%（上限は基本給の20倍：1〜6月₫46.8百万、7〜12月₫50.6百万）、
-// 失業1%（上限は地域I最低賃金₫5.31百万の20倍）。扶養控除と外国人の失業保険対象外は未反映です。
-export function calculateVietnamPayroll(grossAnnual: number) {
+// 失業1%（上限は地域I最低賃金₫5.31百万の20倍）。外国人の失業保険対象外は未反映です。
+// 扶養控除（決議110/2025/UBTVQH15：1人月₫6,200,000、2026年分から）は、扶養家族を両親のどちらが申告するか選べるため、
+// 本人が申告すると決まる一人親か配偶者の給与を0と入れた夫婦だけ、12月31日に1〜17歳（1年を通して18歳未満）の子に使います。
+// 0歳（出生月が不明）、18歳以上の子、所得のない配偶者（労働能力がない場合などに限られる）は数えません。
+export function calculateVietnamPayroll(grossAnnual: number, dependants = 0) {
   const monthly = Math.max(0, grossAnnual) / 12;
   let incomeTax = 0;
   let socialInsurance = 0;
   for (const cap of [46_800_000, 50_600_000]) {
     const insurance = Math.min(monthly, cap) * 0.095 + Math.min(monthly, 106_200_000) * 0.01;
-    const tax = taxFromAnnualBrackets(Math.max(0, monthly - insurance - 15_500_000), [
+    const tax = taxFromAnnualBrackets(Math.max(0, monthly - insurance - 15_500_000 - dependants * 6_200_000), [
       { limit: 10_000_000, rate: 0.05 }, { limit: 30_000_000, rate: 0.15 }, { limit: 60_000_000, rate: 0.25 }, { limit: 100_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
     ]);
     incomeTax += tax * 6;
@@ -1026,7 +1034,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
   }
   if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
-    const married = household === "couple" || household === "coupleOneChild" || household === "family" || household === "familyThreeChildren";
+    const married = isMarriedHousehold(household);
     const claimsFull = household === "singleParent" || (married && family.spouseSalary === 0);
     const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion, chinaChildDeduction(family.childrenAges, claimsFull));
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
@@ -1087,7 +1095,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
   }
   if (city.taxSystem === "vietnam") {
-    const { incomeTax, socialInsurance } = calculateVietnamPayroll(grossAnnual);
+    const married = isMarriedHousehold(household);
+    const claimsDependants = household === "singleParent" || (married && family.spouseSalary === 0);
+    const vietnamDependants = claimsDependants ? (family.childrenAges ?? []).filter((age) => age >= 1 && age <= 17).length : 0;
+    const { incomeTax, socialInsurance } = calculateVietnamPayroll(grossAnnual, vietnamDependants);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
   }
   if (city.taxSystem === "philippines") {
@@ -1095,7 +1106,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
   }
   if (city.taxSystem === "thailand") {
-    const married = household === "couple" || household === "coupleOneChild" || household === "family" || household === "familyThreeChildren";
+    const married = isMarriedHousehold(household);
     const { incomeTax, socialSecurity } = calculateThailandPayroll(grossAnnual, { spouseSalary: married ? family.spouseSalary : undefined, childrenAges: family.childrenAges });
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (incomeTax + socialSecurity) / 12 };
   }
@@ -1106,7 +1117,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, reconstructionSurtaxMonthly: solidarity / 12, healthInsuranceMonthly: health / 12, careInsuranceMonthly: care / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: unemployment / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
   }
   if (city.taxSystem === "ireland") {
-    const married = household === "couple" || household === "coupleOneChild" || household === "family" || household === "familyThreeChildren";
+    const married = isMarriedHousehold(household);
     const status: IrelandFilingStatus = married && family.spouseSalary === 0 ? "marriedOneIncome"
       : household === "singleParent" && (family.childrenAges ?? []).some((age) => age <= 18) ? "singleParent" : "single";
     const { incomeTax, usc, prsi } = calculateIrelandPayrollTax(grossAnnual, status);
@@ -1198,7 +1209,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     const ni = Math.max(0, Math.min(grossAnnual, 50_270) - 12_570) * 0.08 + Math.max(0, grossAnnual - 50_270) * 0.02;
     // Marriage Allowance：配偶者の収入が個人控除£12,570未満で、本人が基本税率（スコットランドは starter・basic・intermediate）の
     // 納税者なら、移転された£1,260の20%（最大£252）を本人の所得税から差し引きます（GOV.UK「Marriage Allowance」）。
-    const married = household === "couple" || household === "coupleOneChild" || household === "family" || household === "familyThreeChildren";
+    const married = isMarriedHousehold(household);
     const basicRateLimit = city.taxRegion === "scotland" ? 43_662 : 50_270;
     const marriageAllowance = married && family.spouseSalary !== undefined && family.spouseSalary < 12_570 && grossAnnual > 12_570 && grossAnnual <= basicRateLimit ? Math.min(252, incomeTax) : 0;
     const incomeTaxAfterAllowance = incomeTax - marriageAllowance;
