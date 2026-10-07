@@ -190,6 +190,7 @@ export function localizedSourcePeriod(period: string, language: SupportedLanguag
 }
 
 const SOURCE_NAME_EN: Record<string, string> = {
+  "California EDD・Rates and Withholding": "California EDD · Rates and Withholding",
   "CLEISS・Le régime français de protection sociale (cotisations 2026)": "CLEISS · The French social security system (2026 contributions)",
   "Regione Lazio・Addizionale regionale IRPEF 2026": "Regione Lazio · Regional IRPEF surcharge 2026",
   "Roma Capitale・Addizionale Irpef": "Roma Capitale · Municipal IRPEF surcharge",

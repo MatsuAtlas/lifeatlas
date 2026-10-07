@@ -224,6 +224,18 @@ function calculateCanadaTax(city: City, grossAnnual: number) {
   return { federalTax, provincialTax: provincialTaxBeforeSurtax + surtax, healthPremium: calculateOntarioHealthPremium(taxable) };
 }
 
+// 米国の州の給与天引き（2026年、州の公式資料）。カリフォルニア：州障害保険SDI 1.3%（上限なし、EDD）。
+// ワシントン：有給家族・医療休暇1.13%の本人負担71.43%（社会保障の上限$184,500まで）とWA Cares 0.58%（上限なし。
+// 一時的な就労ビザの人などは申請で免除される場合がある）。ニューヨーク：有給家族休暇0.432%（年$411.91まで）。
+// ニューヨークの障害保険（週$0.60まで）とマサチューセッツの有給休暇保険は未反映。
+export function usStatePayrollDeductions2026(taxRegion: string, grossAnnual: number) {
+  const gross = Math.max(0, grossAnnual);
+  if (taxRegion === "california") return gross * 0.013;
+  if (taxRegion === "washington") return Math.min(gross, 184_500) * 0.0113 * 0.7143 + gross * 0.0058;
+  if (taxRegion === "newYork") return Math.min(gross * 0.00432, 411.91);
+  return 0;
+}
+
 function calculateUsIncomeTax(city: City, grossAnnual: number) {
   const federalTax = taxFromAnnualBrackets(Math.max(0, grossAnnual - 16_100), [
     { limit: 12_400, rate: 0.1 }, { limit: 50_400, rate: 0.12 }, { limit: 105_700, rate: 0.22 }, { limit: 201_775, rate: 0.24 }, { limit: 256_225, rate: 0.32 }, { limit: 640_600, rate: 0.35 }, { limit: Number.POSITIVE_INFINITY, rate: 0.37 },
@@ -1120,9 +1132,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     const socialSecurity = Math.min(grossAnnual, city.insurance.socialSecurityWageBase ?? 184_500) * city.insurance.socialSecurityRateEmployee;
     const medicare = grossAnnual * city.insurance.medicareRate + Math.max(0, grossAnnual - (city.insurance.additionalMedicareThreshold ?? 200_000)) * (city.insurance.additionalMedicareRate ?? 0);
     const health = household === "single" ? city.insurance.healthInsuranceEmployeeMonthly * 12 : city.insurance.healthInsuranceFamilyMonthly * 12;
+    const statePayroll = usStatePayrollDeductions2026(city.taxRegion, grossAnnual);
     const totalTax = incomeTax + medicare;
-    const totalInsurance = socialSecurity + health;
-    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, medicareLevyMonthly: medicare / 12, healthInsuranceMonthly: health / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
+    const totalInsurance = socialSecurity + health + statePayroll;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, medicareLevyMonthly: medicare / 12, healthInsuranceMonthly: health / 12, pensionMonthly: socialSecurity / 12, employmentInsuranceMonthly: statePayroll / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
   }
   if (city.taxSystem === "uk") {
     const allowance = grossAnnual > 100_000 ? Math.max(0, 12_570 - (grossAnnual - 100_000) / 2) : 12_570;

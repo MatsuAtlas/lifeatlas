@@ -244,6 +244,7 @@ const translations = {
     spainStateTax: "国の所得税（IRPF）",
     spainRegionalTax: "マドリード州の所得税（IRPF）",
     spainSocialSecurity: "社会保険料（年金・失業・職業訓練ほか）",
+    usStatePayroll: "州の障害・有給休暇保険",
     swissFederalTax: "直接連邦税",
     swissCantonCityTax: "チューリッヒ州・市の所得税（人頭税を含む）",
     swissNonOccupationalAccident: "業務外の労災保険（NBU・平均1%）",
@@ -473,6 +474,7 @@ const translations = {
     spainStateTax: "State income tax (IRPF)",
     spainRegionalTax: "Madrid regional income tax (IRPF)",
     spainSocialSecurity: "Social security (pension, unemployment, training and more)",
+    usStatePayroll: "State disability and paid leave insurance",
     swissFederalTax: "Federal income tax",
     swissCantonCityTax: "Zurich cantonal and city income tax (incl. personal tax)",
     swissNonOccupationalAccident: "Non-occupational accident insurance (NBU, 1% average)",
@@ -1371,7 +1373,7 @@ export default function Home() {
                     {breakdown.residentTaxMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "korea" ? t.koreaLocalIncomeTax : result.city.taxSystem === "spain" ? t.spainRegionalTax : result.city.taxSystem === "switzerland" ? t.swissCantonCityTax : t.localTax}</span><strong>{dualMoney(breakdown.residentTaxMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
                     {breakdown.healthInsuranceMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "us" ? t.employerHealth : result.city.taxSystem === "france" ? t.medicalSocial : result.city.taxSystem === "mexico" ? t.imssHealth : result.city.taxSystem === "switzerland" ? t.swissNonOccupationalAccident : t.healthInsurance}</span><strong>{dualMoney(breakdown.healthInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
                     {breakdown.pensionMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? t.cppPension : result.city.taxSystem === "us" ? t.socialSecurity : result.city.taxSystem === "italy" ? t.inpsPension : result.city.taxSystem === "mexico" ? t.retirementFund : result.city.taxSystem === "france" ? t.pensionInsurance : result.city.taxSystem === "spain" ? t.spainSocialSecurity : result.city.taxSystem === "switzerland" ? t.swissPension : t.retirement}</span><strong>{dualMoney(breakdown.pensionMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
-                    {breakdown.employmentInsuranceMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? "EI employment insurance" : result.city.taxSystem === "uk" ? "National Insurance" : result.city.taxSystem === "france" ? t.unemployment : t.employmentInsurance}</span><strong>{dualMoney(breakdown.employmentInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
+                    {breakdown.employmentInsuranceMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "canada" ? "EI employment insurance" : result.city.taxSystem === "uk" ? "National Insurance" : result.city.taxSystem === "france" ? t.unemployment : result.city.taxSystem === "us" ? t.usStatePayroll : t.employmentInsurance}</span><strong>{dualMoney(breakdown.employmentInsuranceMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
                     {breakdown.medicareLevyMonthly > 0 && <div className="deduction-row"><span>{result.city.taxSystem === "australia" ? "Medicare levy" : t.medicare}</span><strong>{dualMoney(breakdown.medicareLevyMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
                     {breakdown.employerSuperMonthly > 0 && <div className="deduction-row is-employer"><span>{t.employerSuper}</span><strong>{dualMoney(breakdown.employerSuperMonthly, result.city.currency, result.city.fxToJpy)}</strong></div>}
                   </>}
