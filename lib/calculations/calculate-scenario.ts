@@ -3,6 +3,7 @@ import { convertCurrency, FALLBACK_FX_TO_JPY } from "../../data/currencies.ts";
 import type { AgeBand, HouseholdType } from "../../types/finance";
 import type { DataConfidence, ScenarioCalculationOptions, ScenarioInput, ScenarioResult } from "../../types/scenario";
 import { calculateCity, householdMultipliers, lifestyleMultipliers } from "./legacy-engine.ts";
+import { japanChildAllowance } from "./child-allowance.ts";
 import { checkWorkVisaSalary } from "./work-visa.ts";
 
 export const CALCULATION_VERSION = "2026.08-v2.1";
@@ -190,6 +191,7 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
     unavailableReason: legacy.calculationUnavailableReason,
     // 給与基準は賞与を除いた基本給で判定します（各国の基準が基本給・保証給与のため）。
     workVisaSalary: checkWorkVisaSalary(city.countryCode, city.currency, convertCurrency(input.annualSalary, input.salaryCurrency, city.currency, ratesToJpy), convertCurrency(input.bonus ?? 0, input.salaryCurrency, city.currency, ratesToJpy), input.age),
+    childAllowance: city.taxSystem === "japan" ? japanChildAllowance(input.childrenAges?.slice(0, input.children)) : null,
     assumptions: {
       ageBand,
       householdModel,

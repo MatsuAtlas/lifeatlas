@@ -62,6 +62,15 @@ export type DataConfidence = {
 };
 
 // 主な就労ビザの給与基準との比較（lib/calculations/work-visa.ts）。給与以外の条件は判定しません。
+// 日本の児童手当（12月31日時点の年齢での月額）。手取り・スコアには含めない参考値です。
+export type ChildAllowance = {
+  monthly: number;
+  annual: number;
+  currency: CurrencyCode;
+  countsOlderSiblingsAsSupported: boolean;
+  source: { name: string; url: string; period: string };
+};
+
 export type WorkVisaSalaryCheck = {
   countryCode: string;
   route: { ja: string; en: string };
@@ -116,6 +125,7 @@ export type ScenarioResult = {
   calculationStatus: TaxCalculationStatus;
   unavailableReason: "tax" | "salary" | null;
   workVisaSalary: WorkVisaSalaryCheck | null;
+  childAllowance: ChildAllowance | null;
   assumptions: ScenarioAssumptions;
 };
 
