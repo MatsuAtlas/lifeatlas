@@ -716,3 +716,18 @@ test("Canada 2026 takes basic personal, employment, CPP and EI amounts as credit
   // バンクーバー$100,000：税軽減は0
   close((tax("vancouver", 100_000)?.incomeTaxMonthly ?? 0) * 12, 13_301.5972 + 5_555.52088);
 });
+
+test("US 2026 adds California SDI, Washington paid leave and WA Cares, and New York paid family leave", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  const statePayroll = (cityId: "losAngeles" | "seattle" | "newYork" | "chicago", gross: number) => (calculateCity(cities[cityId], gross, "single", "onebed", "balanced", "under40").taxBreakdown?.employmentInsuranceMonthly ?? 0) * 12;
+  // カリフォルニアSDI 1.3%（上限なし）
+  close(statePayroll("losAngeles", 300_000), 3_900);
+  // ワシントン：有給休暇 1.13%×71.43%（$184,500まで）＋WA Cares 0.58%（上限なし）
+  close(statePayroll("seattle", 100_000), 100_000 * 0.0113 * 0.7143 + 580);
+  close(statePayroll("seattle", 300_000), 184_500 * 0.0113 * 0.7143 + 1_740);
+  // ニューヨーク有給家族休暇 0.432%（年$411.91まで）
+  close(statePayroll("newYork", 50_000), 216);
+  close(statePayroll("newYork", 200_000), 411.91);
+  // イリノイは州の給与天引きなし
+  assert.equal(statePayroll("chicago", 100_000), 0);
+});
