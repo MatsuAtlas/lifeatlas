@@ -305,17 +305,27 @@ export function calculateHongKongSalariesTax(grossAnnual: number, household: key
 // アイルランド・2026課税年度（単独課税の給与所得者）。所得税20%/40%（標準税率帯€44,000）から
 // 基礎控除額（Personal €2,000・Employee €2,000）を差し引き、USCとPRSI Class A1を加えます。
 // PRSIは2026年10月1日に4.2%→4.35%へ上がるため、年間では9か月4.2%・3か月4.35%で按分します。
-// 配偶者の所得、単親控除、家賃控除などは未反映です。
+// Offer Analyzerで配偶者の給与を0と入れた夫婦は、片働き夫婦の合算課税（標準税率帯€53,000、既婚者控除€4,000）を使います。
+// 一人親は子どもの年齢を入れ、12月31日に18歳以下（年初に18歳未満）の子がいる場合に Single Person Child Carer Credit €1,900と
+// 標準税率帯€48,000を使います（Revenue「Tax rates, bands and reliefs」2026年）。配偶者に所得がある場合の合算課税、
+// Home Carer控除、家賃控除などは未反映です。
 const IRELAND_STANDARD_RATE_BAND = 44_000;
 const IRELAND_TAX_CREDITS = 4_000;
+export type IrelandFilingStatus = "single" | "marriedOneIncome" | "singleParent";
+const irelandBands: Record<IrelandFilingStatus, { band: number; credits: number }> = {
+  single: { band: IRELAND_STANDARD_RATE_BAND, credits: IRELAND_TAX_CREDITS },
+  marriedOneIncome: { band: 53_000, credits: 4_000 + 2_000 },
+  singleParent: { band: 48_000, credits: IRELAND_TAX_CREDITS + 1_900 },
+};
 const IRELAND_USC_EXEMPTION = 13_000;
 const IRELAND_PRSI_RATE = 0.042 * 0.75 + 0.0435 * 0.25;
 const IRELAND_PRSI_WEEKLY_THRESHOLD = 352;
 const IRELAND_PRSI_MAX_WEEKLY_CREDIT = 12;
 
-export function calculateIrelandPayrollTax(grossAnnual: number) {
+export function calculateIrelandPayrollTax(grossAnnual: number, status: IrelandFilingStatus = "single") {
   const gross = Math.max(0, grossAnnual);
-  const incomeTax = Math.max(0, taxFromAnnualBrackets(gross, [{ limit: IRELAND_STANDARD_RATE_BAND, rate: 0.2 }, { limit: Number.POSITIVE_INFINITY, rate: 0.4 }]) - IRELAND_TAX_CREDITS);
+  const { band, credits } = irelandBands[status];
+  const incomeTax = Math.max(0, taxFromAnnualBrackets(gross, [{ limit: band, rate: 0.2 }, { limit: Number.POSITIVE_INFINITY, rate: 0.4 }]) - credits);
   const usc = gross <= IRELAND_USC_EXEMPTION ? 0 : taxFromAnnualBrackets(gross, [
     { limit: 12_012, rate: 0.005 }, { limit: 28_700, rate: 0.02 }, { limit: 70_044, rate: 0.03 }, { limit: Number.POSITIVE_INFINITY, rate: 0.08 },
   ]);
@@ -1078,7 +1088,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, reconstructionSurtaxMonthly: solidarity / 12, healthInsuranceMonthly: health / 12, careInsuranceMonthly: care / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: unemployment / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (totalTax + totalInsurance) / 12 };
   }
   if (city.taxSystem === "ireland") {
-    const { incomeTax, usc, prsi } = calculateIrelandPayrollTax(grossAnnual);
+    const married = household === "couple" || household === "coupleOneChild" || household === "family" || household === "familyThreeChildren";
+    const status: IrelandFilingStatus = married && family.spouseSalary === 0 ? "marriedOneIncome"
+      : household === "singleParent" && (family.childrenAges ?? []).some((age) => age <= 18) ? "singleParent" : "single";
+    const { incomeTax, usc, prsi } = calculateIrelandPayrollTax(grossAnnual, status);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, residentTaxMonthly: usc / 12, pensionMonthly: prsi / 12, totalTaxMonthly: (incomeTax + usc) / 12, totalInsuranceMonthly: prsi / 12, totalDeductionsMonthly: (incomeTax + usc + prsi) / 12 };
   }
   if (city.taxSystem === "netherlands") {
@@ -1165,7 +1178,13 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
       ? taxFromAnnualBrackets(taxableIncome, [{ limit: 3_967, rate: 0.19 }, { limit: 16_956, rate: 0.2 }, { limit: 31_092, rate: 0.21 }, { limit: 62_430, rate: 0.42 }, { limit: 125_140, rate: 0.45 }, { limit: Number.POSITIVE_INFINITY, rate: 0.47 }])
       : taxFromAnnualBrackets(taxableIncome, [{ limit: 37_700, rate: 0.2 }, { limit: 125_140 - 12_570, rate: 0.4 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 }]);
     const ni = Math.max(0, Math.min(grossAnnual, 50_270) - 12_570) * 0.08 + Math.max(0, grossAnnual - 50_270) * 0.02;
-    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, employmentInsuranceMonthly: ni / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: ni / 12, totalDeductionsMonthly: (incomeTax + ni) / 12 };
+    // Marriage Allowance：配偶者の収入が個人控除£12,570未満で、本人が基本税率（スコットランドは starter・basic・intermediate）の
+    // 納税者なら、移転された£1,260の20%（最大£252）を本人の所得税から差し引きます（GOV.UK「Marriage Allowance」）。
+    const married = household === "couple" || household === "coupleOneChild" || household === "family" || household === "familyThreeChildren";
+    const basicRateLimit = city.taxRegion === "scotland" ? 43_662 : 50_270;
+    const marriageAllowance = married && family.spouseSalary !== undefined && family.spouseSalary < 12_570 && grossAnnual > 12_570 && grossAnnual <= basicRateLimit ? Math.min(252, incomeTax) : 0;
+    const incomeTaxAfterAllowance = incomeTax - marriageAllowance;
+    return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTaxAfterAllowance / 12, employmentInsuranceMonthly: ni / 12, totalTaxMonthly: incomeTaxAfterAllowance / 12, totalInsuranceMonthly: ni / 12, totalDeductionsMonthly: (incomeTaxAfterAllowance + ni) / 12 };
   }
   if (city.taxSystem === "france") {
     const { pension, csgCrds, incomeTax } = calculateFrancePayroll(grossAnnual);
