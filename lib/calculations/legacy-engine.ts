@@ -552,19 +552,25 @@ export function calculateThailandPayroll(grossAnnual: number, family: { spouseSa
 // 中国・2026年（居住者の総合所得、単身）。個人所得税は3〜45%の7段階、基本控除¥60,000。
 // 社会保険（従業員）：年金8%・医療2%・失業0.5%。月額の基数は都市ごとの上下限の間に収め、2026年は1〜6月を
 // 2025年度、7〜12月を2026年度の上下限で按分します。北京は医療の大額互助金として月¥3を加えます。
-// 住宅積立金（勤務先により5〜12%）、専項付加控除、外国人の非課税手当は未反映です。
+// 住宅積立金（勤務先により5〜12%）、子ども以外の専項付加控除、外国人の非課税手当は未反映です。
+// 子どもの専項付加控除（国家税務総局公告2023年第14号：3歳未満の乳幼児の養育・子女教育とも1人月¥2,000）は、両親の一方が100%か
+// 双方が50%ずつかを選べるため、本人が全額を控除すると決まる場合（一人親、または配偶者の給与を0と入れた夫婦）だけ使います。
+// 12月31日に1〜17歳の子は1年を通して対象（年¥24,000）。0歳（出生月が不明）と18歳以上（全日制の在学か不明）は数えません。
+export function chinaChildDeduction(childrenAges: number[] = [], claimsFull: boolean) {
+  return claimsFull ? childrenAges.filter((age) => age >= 1 && age <= 17).length * 24_000 : 0;
+}
 const chinaContributionBases = {
   beijing: [{ months: 6, lower: 7_162, upper: 35_811 }, { months: 6, lower: 7_270, upper: 36_348 }],
   shanghai: [{ months: 6, lower: 7_460, upper: 37_302 }, { months: 6, lower: 7_546, upper: 37_731 }],
 } as const;
 
-export function calculateChinaPayroll(grossAnnual: number, region: keyof typeof chinaContributionBases) {
+export function calculateChinaPayroll(grossAnnual: number, region: keyof typeof chinaContributionBases, childDeduction = 0) {
   const monthly = Math.max(0, grossAnnual) / 12;
   const socialInsurance = chinaContributionBases[region].reduce((total, period) => {
     const base = Math.min(Math.max(monthly, period.lower), period.upper);
     return total + (base * (0.08 + 0.02 + 0.005) + (region === "beijing" ? 3 : 0)) * period.months;
   }, 0);
-  const incomeTax = taxFromAnnualBrackets(Math.max(0, grossAnnual - 60_000 - socialInsurance), [
+  const incomeTax = taxFromAnnualBrackets(Math.max(0, grossAnnual - 60_000 - socialInsurance - childDeduction), [
     { limit: 36_000, rate: 0.03 }, { limit: 144_000, rate: 0.1 }, { limit: 300_000, rate: 0.2 }, { limit: 420_000, rate: 0.25 },
     { limit: 660_000, rate: 0.3 }, { limit: 960_000, rate: 0.35 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 },
   ]);
@@ -1020,7 +1026,9 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, totalTaxMonthly: incomeTax / 12, totalDeductionsMonthly: incomeTax / 12 };
   }
   if (city.taxSystem === "china" && (city.taxRegion === "beijing" || city.taxRegion === "shanghai")) {
-    const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion);
+    const married = household === "couple" || household === "coupleOneChild" || household === "family" || household === "familyThreeChildren";
+    const claimsFull = household === "singleParent" || (married && family.spouseSalary === 0);
+    const { incomeTax, socialInsurance } = calculateChinaPayroll(grossAnnual, city.taxRegion, chinaChildDeduction(family.childrenAges, claimsFull));
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
   }
   if (city.taxSystem === "portugal") {
