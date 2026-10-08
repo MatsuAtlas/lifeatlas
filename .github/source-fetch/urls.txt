@@ -1,4 +1,0 @@
-https://www.huduser.gov/portal/datasets/fmr.html FY 2026|FY2026|xlsx|One-Bedroom
-https://www.huduser.gov/portal/datasets/fmr/fmr2026/FY26_FMRs.xlsx
-https://www.huduser.gov/portal/datasets/fmr/fmr2026/fy2026_safmrs.xlsx
-https://www.census.gov/quickfacts/fact/table/newyorkcitynewyork,losangelescitycalifornia/HSG860224 Median gross rent
