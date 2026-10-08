@@ -1158,13 +1158,28 @@ export function italyAdditionalCredit2026(reddito: number) {
   return 1_000 * (40_000 - reddito) / 8_000;
 }
 
-export function calculateItalyPayroll(grossAnnual: number, taxRegion: string) {
+// 配偶者の税額控除（TUIR第12条、Agenzia delle Entrate「Istruzioni 730/2026」の表1）。配偶者の所得が€2,840.51以下なら使います。
+export function italySpouseCredit(reddito: number) {
+  if (reddito <= 15_000) return 800 - 110 * reddito / 15_000;
+  if (reddito <= 29_000) return 690;
+  if (reddito <= 29_200) return 700;
+  if (reddito <= 34_700) return 710;
+  if (reddito <= 35_000) return 720;
+  if (reddito <= 35_100) return 710;
+  if (reddito <= 35_200) return 700;
+  if (reddito <= 40_000) return 690;
+  if (reddito <= 80_000) return 690 * (80_000 - reddito) / 40_000;
+  return 0;
+}
+
+export function calculateItalyPayroll(grossAnnual: number, taxRegion: string, spouseSalary?: number) {
   const gross = Math.max(0, grossAnnual);
   const base = Math.min(gross, ITALY_INPS_CEILING_2026);
   const pension = base * 0.0919 + Math.max(0, base - ITALY_INPS_FIRST_BAND_2026) * 0.01;
   const reddito = Math.max(0, gross - pension);
   const grossTax = taxFromAnnualBrackets(reddito, [{ limit: 28_000, rate: 0.23 }, { limit: 50_000, rate: 0.33 }, { limit: Number.POSITIVE_INFINITY, rate: 0.43 }]);
-  const credits = italyEmployeeTaxCredit2026(reddito) + italyAdditionalCredit2026(reddito);
+  const credits = italyEmployeeTaxCredit2026(reddito) + italyAdditionalCredit2026(reddito)
+    + (spouseSalary !== undefined && spouseSalary <= 2_840.51 ? italySpouseCredit(reddito) : 0);
   const nationalTax = Math.max(0, grossTax - credits);
   // 地方付加税：ローマはラツィオ州（課税所得€28,000以下は全体に1.73%、超えると€15,000まで1.73%・超過分3.33%、
   // €28,001〜30,000は€60を控除。州法2025年第20号）とローマ市0.9%（課税所得€14,000以下は免除、超えると全体に課税）。
@@ -1421,7 +1436,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: csgCrds / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (incomeTax + totalInsurance) / 12 };
   }
   if (city.taxSystem === "italy") {
-    const { pension, nationalTax, localTax } = calculateItalyPayroll(grossAnnual, city.taxRegion);
+    const { pension, nationalTax, localTax } = calculateItalyPayroll(grossAnnual, city.taxRegion, isMarriedHousehold(household) ? family.spouseSalary : undefined);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: nationalTax / 12, residentTaxMonthly: localTax / 12, pensionMonthly: pension / 12, totalTaxMonthly: (nationalTax + localTax) / 12, totalInsuranceMonthly: pension / 12, totalDeductionsMonthly: (nationalTax + localTax + pension) / 12 };
   }
   if (city.taxSystem === "mexico") {
