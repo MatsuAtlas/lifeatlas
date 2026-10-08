@@ -9,5 +9,5 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - run: pip install -q openpyxl
+      - run: pip install -q openpyxl xlrd
       - run: python3 -u .github/source-fetch/hud.py
