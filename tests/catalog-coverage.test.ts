@@ -50,3 +50,11 @@ test("US city rents use HUD's FY2026 one-bedroom Fair Market Rents", () => {
     assert.ok(cities[cityId].dataSources.some((item) => item.source.startsWith("U.S. Department of Housing and Urban Development") && item.item.startsWith("家賃")), cityId);
   }
 });
+
+test("UK city rents use ONS Price Index of Private Rents one-bedroom averages for August 2026", () => {
+  const expected = { london: 1_760, manchester: 1_003, edinburgh: 1_035 } as const;
+  for (const [cityId, rent] of Object.entries(expected) as Array<[keyof typeof expected, number]>) {
+    assert.equal(cities[cityId].costs.rent, rent, cityId);
+    assert.ok(cities[cityId].dataSources.some((item) => item.source.startsWith("Office for National Statistics・Price Index of Private Rents") && item.item.startsWith("家賃")), cityId);
+  }
+});
