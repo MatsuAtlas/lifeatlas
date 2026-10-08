@@ -8,6 +8,7 @@ import { DEFAULT_PRIORITIES } from "../../lib/scoring/life-atlas-score";
 import { localizedCity, localizedUpdatedAt } from "../../lib/cities/localization";
 import { trackProductEvent, trackProductEventOnce } from "../../lib/analytics/client";
 import { buildWhatIfChanges, simulateWhatIf } from "../../lib/calculations/what-if";
+import { calculateScenario } from "../../lib/calculations/calculate-scenario";
 import { calculationOptionsFor, isExchangeRateSnapshot, type ExchangeRateSnapshot } from "../../lib/data/exchange-rates";
 import { isUserProfile } from "../../lib/user-profile";
 import { validateAIRecommendation } from "../../lib/ai/recommendation";
@@ -31,7 +32,7 @@ import type { BillingStatusResponse, Entitlements } from "../../types/billing";
 import type { ComparisonRecord, SavedAnalyzerInput, SavedAnalyzerResult } from "../../types/comparison";
 import type { CalculationCity, HousingType, LifestyleType } from "../../types/finance";
 import type { UserProfile } from "../../types/profile";
-import type { PriorityKey, ScenarioHousehold, ScenarioInput, ScenarioResult, ScenarioScore, UserPriorities } from "../../types/scenario";
+import type { PriorityKey, ScenarioCalculationOptions, ScenarioHousehold, ScenarioInput, ScenarioResult, ScenarioScore, UserPriorities } from "../../types/scenario";
 
 const CITY_COUNT = cityOrder.length;
 
@@ -547,6 +548,8 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
   const [language, setLanguage] = useState<Language>("ja");
   const [darkMode, setDarkMode] = useState(false);
   const [scenarios, setScenarios] = useState<ScenarioInput[]>(initialScenarios);
+  // 障害者控除の対象人数は健康に関わる情報のため、シナリオ（保存・共有・AIへ送る入力）とは別に画面の中だけで持ちます。
+  const [japanDisability, setJapanDisability] = useState<Record<string, NonNullable<ScenarioCalculationOptions["japanDisability"]>>>({});
   const [priorities, setPriorities] = useState<UserPriorities>(DEFAULT_PRIORITIES);
   const [whatIfScenarioId, setWhatIfScenarioId] = useState(initialScenarios[1].id);
   const [salaryPercent, setSalaryPercent] = useState(0);
@@ -1084,6 +1087,18 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                       : city.taxSystem === "vietnam"
                         ? (language === "ja" ? "一人親か、配偶者の給与が0の夫婦なら、1〜17歳の子ども1人につき月₫6,200,000の扶養控除を反映します。配偶者に所得がある場合は両親のどちらが申告するか選べるため使っていません。" : "Single parents, or couples whose spouse salary is 0, get the ₫6.2 million monthly dependant deduction for each child aged 1–17. With an earning spouse the parents choose who claims it, so it is not used.")
                         : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません。" : "Spouse salary and children's ages are not yet used for this city's tax.")}</p> : null}
+        {(() => {
+          const counts = japanDisability[input.id];
+          if (city.taxSystem !== "japan" || !counts || counts.general + counts.special + counts.cohabitingSpecial === 0 || result.netAnnual === null) return null;
+          // 計算は共通エンジンで行い、結果はこの画面だけに示します（スコア・順位・保存・共有・AIの説明は控除なしのまま）。
+          const withDisability = calculateScenario(input, { ...calculationOptions, japanDisability: counts });
+          if (withDisability.netAnnual === null) return null;
+          const net = formatMoney(withDisability.netAnnual, result.currency, language);
+          const gain = formatMoney(withDisability.netAnnual - result.netAnnual, result.currency, language);
+          return <p className="oa-expat-note">{language === "ja"
+            ? `障害者控除を反映した手取りは年${net}（+${gain}）です。この入力は健康に関わる情報のため保存・共有・AIの説明に使わず、スコアと順位も控除なしの手取りで決めています。`
+            : `With the disability deduction, take-home is ${net} a year (+${gain}). Because this is health-related, it is not saved, shared or sent to the AI explanation, and the score and ranking use take-home without it.`}</p>;
+        })()}
         {result.childAllowance && (() => {
           const allowance = result.childAllowance;
           const monthly = formatMoney(allowance.monthly, allowance.currency, language);
@@ -1212,6 +1227,10 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                   <label>{t.customRent}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customRent)} placeholder={language === "ja" ? "Proでカスタム設定" : "Custom with Pro"} onChange={(event) => updateScenario(scenario.id, { customRent: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
                   <label>{t.customSpending}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customMonthlySpending)} placeholder={language === "ja" ? "Proでカスタム設定" : "Custom with Pro"} onChange={(event) => updateScenario(scenario.id, { customMonthlySpending: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
                   <label>{t.savingsTarget}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customSavingsTarget)} placeholder={language === "ja" ? "Proで設定" : "Set with Pro"} onChange={(event) => updateScenario(scenario.id, { customSavingsTarget: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
+                  {city.taxSystem === "japan" && ([["general", "障害者控除：障害者の人数（保存しません）", "Disability deduction: people with a disability (not saved)"], ["special", "特別障害者の人数", "People with a severe disability"], ["cohabitingSpecial", "同居特別障害者の人数（配偶者・扶養親族）", "Severely disabled spouse or dependants living with you"]] as const).map(([key, ja, en]) => <label key={key}>{language === "ja" ? ja : en}<input type="number" min="0" max="20" value={japanDisability[scenario.id]?.[key] || ""} placeholder="0" onChange={(event) => {
+                    const count = Math.min(20, Math.max(0, Math.floor(Number(event.target.value) || 0)));
+                    setJapanDisability((current) => ({ ...current, [scenario.id]: { ...(current[scenario.id] ?? { general: 0, special: 0, cohabitingSpecial: 0 }), [key]: count } }));
+                  }} /></label>)}
                   {expatRegimeCopy[city.taxSystem] && <label className="oa-checkbox"><input type="checkbox" checked={scenario.expatTaxRegime === true} onChange={(event) => updateScenario(scenario.id, { expatTaxRegime: event.target.checked || undefined })} /><span>{expatRegimeCopy[city.taxSystem]!.option[language]}</span></label>}
                 </div>
               </article>;

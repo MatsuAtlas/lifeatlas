@@ -86,6 +86,9 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
   assertFiniteInRange("customMonthlySpending", input.customMonthlySpending ?? 0, 0, 1_000_000_000_000);
   assertFiniteInRange("customSavingsTarget", input.customSavingsTarget ?? 0, 0, 10_000_000_000_000);
   assertFiniteInRange("currentSavings", input.currentSavings ?? 0, 0, 10_000_000_000_000);
+  if (options.japanDisability && !Object.values(options.japanDisability).every((count) => Number.isInteger(count) && count >= 0 && count <= 20)) {
+    throw new RangeError("japanDisability counts must be integers between 0 and 20.");
+  }
   assertFiniteInRange("spouseAnnualSalary", input.spouseAnnualSalary ?? 0, 0, 1_000_000_000_000);
   if (input.childrenAges !== undefined && (input.childrenAges.length > input.children || !input.childrenAges.every((age) => Number.isInteger(age) && age >= 0 && age <= 30))) {
     throw new RangeError("childrenAges must list up to children integer ages between 0 and 30.");
@@ -104,6 +107,7 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
   const family = {
     spouseSalary: input.householdType === "couple" && input.spouseAnnualSalary !== undefined ? convertCurrency(input.spouseAnnualSalary, input.salaryCurrency, city.currency, ratesToJpy) : undefined,
     childrenAges: input.childrenAges,
+    disability: options.japanDisability,
   };
   const legacy = calculateCity(city, grossAnnual, householdModel, input.housing, input.lifestyle, ageBand, { expatTaxRegime: input.expatTaxRegime === true, family });
   const rentMonthly = input.customRent ?? legacy.rent;

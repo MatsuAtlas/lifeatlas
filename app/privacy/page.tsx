@@ -21,7 +21,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
     ["1. Operator", ["LifeAtlas is operated by the LifeAtlas operator (an individual). The operator's name and address will be disclosed without delay on request."]],
     ["2. Information we collect", [
       "Account: your email address (passwords are stored hashed by Supabase, never in plain text). If you sign in with Google, we receive the basic profile Google shares, such as your email address, name, profile picture URL and account identifier.",
-      "Saved comparisons: the cities, salary amounts, household, housing and lifestyle settings, your spouse's salary and your children's ages if you enter them, whether you chose a newcomer tax regime (such as the Dutch 30% ruling or Korea's 19% flat rate for foreign workers), and results you choose to save.",
+      "Saved comparisons: the cities, salary amounts, household, housing and lifestyle settings, your spouse's salary and your children's ages if you enter them, whether you chose a newcomer tax regime (such as the Dutch 30% ruling or Korea's 19% flat rate for foreign workers), and results you choose to save. The number of people eligible for Japan's disability deduction is used only on your screen to show a separate figure; it is not saved, shared or sent to our servers or the AI.",
       "Profile: age, household type, number of children, base currency, current city and priorities you enter.",
       "AI explanations: the structured calculation results and any follow-up question you type. Your email address is not sent to the AI model.",
       "Billing: Stripe customer ID, subscription status, plan and renewal date. Card numbers are entered on Stripe's page and are never stored by LifeAtlas.",
@@ -44,7 +44,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
     ["1. 事業者", ["LifeAtlasは、LifeAtlas運営者（個人）が運営しています。運営者の氏名・住所は、請求があれば遅滞なく開示します。"]],
     ["2. 取得する情報", [
       "アカウント：メールアドレス（パスワードはSupabaseが復元できない形に変換して保管し、そのままの形では保存しません）。Googleでログインした場合は、メールアドレス・氏名・プロフィール画像のURL・アカウントの識別子など、Googleから提供される基本情報。",
-      "保存した比較：保存を選んだ都市、給与額、世帯・住居・生活スタイルの条件、入力した場合は配偶者の給与年収と子どもの年齢、移住者向けの税の特例（オランダの30%ルール、韓国の外国人勤労者の単一税率など）を選んだかどうか、計算結果。",
+      "保存した比較：保存を選んだ都市、給与額、世帯・住居・生活スタイルの条件、入力した場合は配偶者の給与年収と子どもの年齢、移住者向けの税の特例（オランダの30%ルール、韓国の外国人勤労者の単一税率など）を選んだかどうか、計算結果。日本の障害者控除の対象人数は、画面の中で別の金額を示すためだけに使い、保存・共有せず、サーバーやAIにも送りません。",
       "プロフィール：入力した年齢、世帯、子どもの人数、基準通貨、現在の都市、優先軸。",
       "AIによる説明：計算済みの結果と、入力した追加の質問文。メールアドレスはAIに送りません。",
       "課金：Stripeの顧客ID、契約状態、プラン、更新日。カード番号はStripeの画面で入力され、LifeAtlasでは一切保存しません。",
