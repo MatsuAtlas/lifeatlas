@@ -103,6 +103,7 @@ export function localizedSourceLevel(level: City["dataSources"][number]["level"]
 }
 
 const SOURCE_PERIOD_EN: Record<string, string> = {
+  "2026会計年度": "FY2026",
   "2025年10月調査": "October 2025 survey",
   "2026年1月15日改正版": "As amended on 15 January 2026",
   "2026年2月1日〜2027年1月31日": "1 February 2026 to 31 January 2027",
