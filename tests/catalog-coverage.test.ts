@@ -34,3 +34,11 @@ test("calculable cities never cite an unsupported tax source, and saved-estimate
     assert.equal(officialSalaryBenchmarkSource(cities[cityId]), null, `${cityId} must not expose an official salary benchmark`);
   }
 });
+
+test("Canadian city rents use CMHC's October 2025 one-bedroom turnover-unit averages", () => {
+  const expected = { vancouver: 2_107, toronto: 2_073, montreal: 1_327, calgary: 1_562, ottawa: 1_738, edmonton: 1_305 } as const;
+  for (const [cityId, rent] of Object.entries(expected) as Array<[keyof typeof expected, number]>) {
+    assert.equal(cities[cityId].costs.rent, rent, cityId);
+    assert.ok(cities[cityId].dataSources.some((item) => item.source.startsWith("Canada Mortgage and Housing Corporation") && item.item.startsWith("家賃")), cityId);
+  }
+});
