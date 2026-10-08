@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { cities, cityOrder } from "../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../data/currencies.ts";
-import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateChilePayroll, calculateColombiaPayroll, calculateArgentinaPayroll, calculateFrancePayroll, calculateItalyPayroll, italyEmployeeTaxCredit2026, italyAdditionalCredit2026, calculateZurichPayroll, swissFederalIncomeTax2026, zurichSimpleStateTax2026, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
+import { calculateCity, calculateHongKongSalariesTax, calculateIrelandPayrollTax, calculateGermanyPayroll, calculateThailandPayroll, calculateChinaPayroll, calculatePhilippinesPayroll, calculateVietnamPayroll, calculateBrazilPayroll, calculateIndiaIncomeTax, calculateNetherlandsPayroll, netherlandsLabourCredit2026, calculateTaiwanPayroll, calculateIndonesiaPayroll, calculateMalaysiaPayroll, calculateKoreaPayroll, koreaEarnedIncomeDeduction2026, koreaEarnedIncomeTaxCredit2026, calculatePortugalPayroll, calculateSpainMadridPayroll, calculateChilePayroll, calculateColombiaPayroll, calculateArgentinaPayroll, calculateMexicoImssEmployee2026, calculateFrancePayroll, calculateItalyPayroll, italyEmployeeTaxCredit2026, italyAdditionalCredit2026, calculateZurichPayroll, swissFederalIncomeTax2026, zurichSimpleStateTax2026, germanIncomeTax2026, taxCalculationStatus } from "../lib/calculations/legacy-engine.ts";
 import type { CalculationCity, InsuranceConfig } from "../types/finance.ts";
 
 const noInsurance: InsuranceConfig = {
@@ -730,4 +730,19 @@ test("US 2026 adds California SDI, Washington paid leave and WA Cares, and New Y
   close(statePayroll("newYork", 200_000), 411.91);
   // イリノイは州の給与天引きなし
   assert.equal(statePayroll("chicago", 100_000), 0);
+});
+
+test("Mexico 2026 IMSS employee contributions follow the Social Security Law rates with the UMA ceilings", () => {
+  const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} != ${expected}`);
+  // 年収$600,000（日額1,643.84）：医療0.625%＋UMA3倍超の0.40%（1月はUMA$113.14、2月から$117.31）、年金1.75%
+  const middle = calculateMexicoImssEmployee2026(600_000);
+  close(middle.health, 5_637.73344);
+  close(middle.pension, 10_500);
+  // 年収$3,000,000：保険料の基礎はUMAの25倍が上限
+  const high = calculateMexicoImssEmployee2026(3_000_000);
+  close(high.health, 10_426.75894);
+  close(high.pension, 18_676.385);
+  const city = calculateCity(cities.mexicoCity, 600_000, "single", "onebed", "balanced", "under40");
+  close((city.taxBreakdown?.healthInsuranceMonthly ?? 0) * 12, 5_637.73344);
+  close((city.taxBreakdown?.pensionMonthly ?? 0) * 12, 10_500);
 });
