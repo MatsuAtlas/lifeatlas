@@ -51,7 +51,10 @@ export function isScenarioInput(value: unknown): value is ScenarioInput {
     && isOptionalFiniteInRange(value.spouseAnnualSalary, 0, 1_000_000_000_000)
     && (value.childrenAges === undefined || (Array.isArray(value.childrenAges)
       && value.childrenAges.length <= (value.children as number)
-      && value.childrenAges.every((age) => Number.isInteger(age) && isFiniteInRange(age, 0, 30))));
+      && value.childrenAges.every((age) => Number.isInteger(age) && isFiniteInRange(age, 0, 30))))
+    && (value.childrenSalaries === undefined || (Array.isArray(value.childrenSalaries)
+      && value.childrenSalaries.length <= (Array.isArray(value.childrenAges) ? value.childrenAges.length : 0)
+      && value.childrenSalaries.every((salary) => typeof salary === "number" && isFiniteInRange(salary, 0, 1_000_000_000_000))));
 }
 
 export function isUserPriorities(value: unknown): value is Record<PriorityKey, number> {

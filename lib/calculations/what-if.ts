@@ -69,7 +69,7 @@ function applyTargetedChange(
   }
   if (change.type === "household") scenarios[index] = { ...current, householdType: change.householdType };
   // 子どもの人数を減らす場合は、年齢の入力も人数分に切り詰めます。
-  if (change.type === "children") scenarios[index] = { ...current, children: change.value, childrenAges: current.childrenAges?.slice(0, change.value) };
+  if (change.type === "children") scenarios[index] = { ...current, children: change.value, childrenAges: current.childrenAges?.slice(0, change.value), childrenSalaries: current.childrenSalaries?.slice(0, change.value) };
   if (change.type === "customRent") scenarios[index] = { ...current, customRent: change.value ?? undefined };
   if (change.type === "customMonthlySpending") scenarios[index] = { ...current, customMonthlySpending: change.value ?? undefined };
   if (change.type === "customSavingsTarget") scenarios[index] = { ...current, customSavingsTarget: change.value ?? undefined };

@@ -72,7 +72,21 @@ function japaneseBasicDeduction(grossAnnual: number) {
 // 障害者控除（国税庁No.1160：障害者27万・特別障害者40万・同居特別障害者75万円、横浜市：住民税26万・30万・53万円）は、
 // Offer Analyzerで本人が入力した対象人数だけを使います。健康に関わる情報のため保存・共有・AIの説明には含めません。
 export type JapanDisabilityCounts = { general: number; special: number; cohabitingSpecial: number };
-export type JapanFamily = { spouseSalary?: number; childrenAges?: number[]; singleParent?: boolean; disability?: JapanDisabilityCounts };
+// 子どもの給与を入れた場合（childrenSalaries、都市の通貨・年齢と同じ順）は、給与所得控除後の所得で判定します。所得税（令和8年分）は
+// 扶養親族の所得要件62万円以下、19〜22歳で62万円超123万円以下なら特定親族特別控除（国税庁No.1177：63万〜3万円）、ひとり親控除の子は
+// 総所得金額等62万円以下（No.1171）。住民税は横浜市（令和8年度）の58万円以下、特定親族特別控除45万〜3万円、ひとり親の子58万円以下。
+export type JapanFamily = { spouseSalary?: number; childrenAges?: number[]; childrenSalaries?: number[]; singleParent?: boolean; disability?: JapanDisabilityCounts };
+
+const japanSpecifiedRelativeBands = [
+  { upTo: 850_000, incomeTax: 630_000 }, { upTo: 900_000, incomeTax: 610_000 }, { upTo: 950_000, incomeTax: 510_000 },
+  { upTo: 1_000_000, incomeTax: 410_000 }, { upTo: 1_050_000, incomeTax: 310_000 }, { upTo: 1_100_000, incomeTax: 210_000 },
+  { upTo: 1_150_000, incomeTax: 110_000 }, { upTo: 1_200_000, incomeTax: 60_000 }, { upTo: 1_230_000, incomeTax: 30_000 },
+];
+const japanSpecifiedRelativeResidentBands = [
+  { upTo: 950_000, residentTax: 450_000 }, { upTo: 1_000_000, residentTax: 410_000 }, { upTo: 1_050_000, residentTax: 310_000 },
+  { upTo: 1_100_000, residentTax: 210_000 }, { upTo: 1_150_000, residentTax: 110_000 }, { upTo: 1_200_000, residentTax: 60_000 },
+  { upTo: 1_230_000, residentTax: 30_000 },
+];
 
 const japanSpouseSpecialBands = [
   { upTo: 950_000, incomeTax: [380_000, 260_000, 130_000], residentTax: [330_000, 220_000, 110_000] },
@@ -104,15 +118,24 @@ export function japanFamilyDeductions(taxpayerTotalIncome: number, family: Japan
       }
     }
   }
-  for (const age of family.childrenAges ?? []) {
-    if (age < 16) continue;
+  const childIncomes = (family.childrenAges ?? []).map((_age, index) => {
+    const salary = family.childrenSalaries?.[index];
+    return salary === undefined ? 0 : Math.max(0, salary - japaneseSalaryDeduction(Math.max(0, salary)));
+  });
+  (family.childrenAges ?? []).forEach((age, index) => {
+    if (age < 16) return;
+    const income = childIncomes[index];
     const specific = age >= 19 && age <= 22;
-    incomeTax += specific ? 630_000 : 380_000;
-    residentTax += specific ? 450_000 : 330_000;
-  }
+    if (income <= 620_000) incomeTax += specific ? 630_000 : 380_000;
+    else if (specific) incomeTax += japanSpecifiedRelativeBands.find((band) => income <= band.upTo)?.incomeTax ?? 0;
+    if (income <= 580_000) residentTax += specific ? 450_000 : 330_000;
+    else if (specific) residentTax += japanSpecifiedRelativeResidentBands.find((band) => income <= band.upTo)?.residentTax ?? 0;
+  });
+  // 子どもの給与が分からない場合は所得なしとして扱います（ひとり親控除の子の所得要件を満たす）。
+  const hasChildUnder = (limit: number) => (family.childrenAges ?? []).length === 0 || childIncomes.some((income) => income <= limit);
   if (family.singleParent && taxpayerTotalIncome <= 5_000_000) {
-    incomeTax += 350_000;
-    residentTax += 300_000;
+    if (hasChildUnder(620_000)) incomeTax += 350_000;
+    if (hasChildUnder(580_000)) residentTax += 300_000;
   }
   if (family.disability) {
     const { general, special, cohabitingSpecial } = family.disability;

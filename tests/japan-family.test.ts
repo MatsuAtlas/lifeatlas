@@ -67,3 +67,25 @@ test("Japanese disability deduction uses the NTA and Yokohama amounts and stays 
   assert.equal("japanDisability" in input, false);
   assert.throws(() => calculateScenario(input, { japanDisability: { general: -1, special: 0, cohabitingSpecial: 0 } }), RangeError);
 });
+
+test("Japanese children's salaries decide the dependant, specified-relative and single-parent deductions", () => {
+  // 令和8年分：給与所得控除の最低74万円。給与130万円→所得56万円（扶養・住民税とも対象）
+  assert.deepEqual(japanFamilyDeductions(5_000_000, { childrenAges: [20], childrenSalaries: [1_300_000] }), { incomeTax: 630_000, residentTax: 450_000 });
+  // 給与136万円→所得62万円：所得税は特定扶養、住民税は58万円超なので特定親族特別控除45万円
+  assert.deepEqual(japanFamilyDeductions(5_000_000, { childrenAges: [20], childrenSalaries: [1_360_000] }), { incomeTax: 630_000, residentTax: 450_000 });
+  // 給与170万円→所得96万円：特定親族特別控除（所得税41万円・住民税41万円）
+  assert.deepEqual(japanFamilyDeductions(5_000_000, { childrenAges: [20], childrenSalaries: [1_700_000] }), { incomeTax: 410_000, residentTax: 410_000 });
+  // 給与197万円→所得123万円：3万円。198万円は0
+  assert.deepEqual(japanFamilyDeductions(5_000_000, { childrenAges: [21], childrenSalaries: [1_970_000] }), { incomeTax: 30_000, residentTax: 30_000 });
+  assert.deepEqual(japanFamilyDeductions(5_000_000, { childrenAges: [21], childrenSalaries: [1_980_000] }), { incomeTax: 0, residentTax: 0 });
+  // 17歳で所得62万円超は扶養控除なし（特定親族は19〜22歳だけ）
+  assert.deepEqual(japanFamilyDeductions(5_000_000, { childrenAges: [17], childrenSalaries: [1_500_000] }), { incomeTax: 0, residentTax: 0 });
+  // ひとり親：所得要件を満たす子がいなければ控除なし（所得税62万円・住民税58万円）
+  assert.deepEqual(japanFamilyDeductions(4_000_000, { childrenAges: [10], childrenSalaries: [1_500_000], singleParent: true }), { incomeTax: 0, residentTax: 0 });
+  assert.deepEqual(japanFamilyDeductions(4_000_000, { childrenAges: [10], childrenSalaries: [1_350_000], singleParent: true }), { incomeTax: 350_000, residentTax: 0 });
+  // 保存できる入力として検証される
+  const input: ScenarioInput = { id: "tokyo", cityId: "tokyo", annualSalary: 6_000_000, salaryCurrency: "JPY", age: 45, householdType: "couple", children: 1, housing: "twobed", lifestyle: "balanced", childrenAges: [20], childrenSalaries: [1_700_000] };
+  assert.equal(isScenarioInput(input), true);
+  assert.equal(isScenarioInput({ ...input, childrenSalaries: [1, 2] }), false);
+  assert.ok(calculateScenario({ ...input, childrenSalaries: [0] }).netAnnual! > calculateScenario(input).netAnnual!);
+});
