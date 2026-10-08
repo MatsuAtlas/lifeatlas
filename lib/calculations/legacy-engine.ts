@@ -1024,7 +1024,12 @@ export function calculateSpainMadridPayroll(grossAnnual: number, descendants: { 
 // 本人負担の社会保険（年収を12で割った月額を最低賃金1倍〜25倍の範囲に収めた額が基礎）：年金4%、医療4%、
 // 年金連帯基金（最低賃金4倍以上で1%、16倍以上は0.2〜1%を上乗せ）。年金改革法（法律2381/2024）は2027年4月1日から施行。
 // 課税所得＝給与−社会保険料（非課税）−給与の25%の非課税所得（年790 UVTまで。控除合計は40%・1,340 UVTが上限）。第241条の税率表（UVT建て）。
-// 扶養控除、任意年金・AFC、電子インボイスの購入額1%控除、賞与・手当の区別は未反映です。
+// 扶養控除（dependientes、第387条第2項の範囲）：18歳以下の子と、年間所得が260 UVT未満の配偶者。扶養家族がいれば
+// 第387条の控除（給与の10%、月32 UVT＝年384 UVTまで。40%・1,340 UVTの上限の内側）と、第336条第3号第2段の控除（1人72 UVT、
+// 4人まで。上限の外側）を使います。給与所得者は同じ扶養家族で両方を使えます（政令2231/2023第3条、国務院2025年1月21日の決定で
+// 停止されず）。25%の非課税所得は、控除を差し引いた後の額で計算します（第206条第10号）。子は両親のどちらが申告するか決まらないため、
+// 一人親か配偶者の給与を0と入れた夫婦だけ数えます。18〜23歳の在学中の子は在学を判定できないため数えません。
+// 任意年金・AFC、電子インボイスの購入額1%控除、賞与・手当の区別は未反映です。
 const COLOMBIA_UVT_2026 = 52_374;
 const COLOMBIA_MINIMUM_WAGE_2026 = 1_750_905;
 const colombiaTariffUvt = [
@@ -1032,7 +1037,12 @@ const colombiaTariffUvt = [
   { lower: 4_100, rate: 0.33, fixed: 788 }, { lower: 1_700, rate: 0.28, fixed: 116 }, { lower: 1_090, rate: 0.19, fixed: 0 },
 ] as const;
 
-export function calculateColombiaPayroll(grossAnnual: number) {
+export function colombiaDependants(childrenAges: number[] = [], claimsChildren: boolean, spouseSalary?: number) {
+  const children = claimsChildren ? childrenAges.filter((age) => age <= 18).length : 0;
+  return children + (spouseSalary !== undefined && spouseSalary < 260 * COLOMBIA_UVT_2026 ? 1 : 0);
+}
+
+export function calculateColombiaPayroll(grossAnnual: number, dependants = 0) {
   const gross = Math.max(0, grossAnnual);
   const monthly = gross / 12;
   const base = monthly > 0 ? Math.min(Math.max(monthly, COLOMBIA_MINIMUM_WAGE_2026), 25 * COLOMBIA_MINIMUM_WAGE_2026) : 0;
@@ -1041,8 +1051,11 @@ export function calculateColombiaPayroll(grossAnnual: number) {
   const pension = base * (0.04 + solidarityFund) * 12;
   const health = base * 0.04 * 12;
   const netIncome = Math.max(0, gross - pension - health);
-  const exempt = Math.min(netIncome * 0.25, 790 * COLOMBIA_UVT_2026, netIncome * 0.4, 1_340 * COLOMBIA_UVT_2026);
-  const taxableUvt = (netIncome - exempt) / COLOMBIA_UVT_2026;
+  const dependantDeduction = dependants > 0 ? Math.min(gross * 0.1, 384 * COLOMBIA_UVT_2026) : 0;
+  const additionalDependants = Math.min(dependants, 4) * 72 * COLOMBIA_UVT_2026;
+  const exempt25 = Math.min(Math.max(0, netIncome - dependantDeduction - additionalDependants) * 0.25, 790 * COLOMBIA_UVT_2026);
+  const capped = Math.min(dependantDeduction + exempt25, netIncome * 0.4, 1_340 * COLOMBIA_UVT_2026);
+  const taxableUvt = Math.max(0, netIncome - capped - additionalDependants) / COLOMBIA_UVT_2026;
   const row = colombiaTariffUvt.find((item) => taxableUvt > item.lower);
   const incomeTax = row ? ((taxableUvt - row.lower) * row.rate + row.fixed) * COLOMBIA_UVT_2026 : 0;
   return { incomeTax, pension, health };
@@ -1284,7 +1297,8 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: stateTax / 12, residentTaxMonthly: regionalTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: totalTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (totalTax + socialSecurity) / 12 };
   }
   if (city.taxSystem === "colombia") {
-    const { incomeTax, pension, health } = calculateColombiaPayroll(grossAnnual);
+    const claimsChildren = household === "singleParent" || (isMarriedHousehold(household) && family.spouseSalary === 0);
+    const { incomeTax, pension, health } = calculateColombiaPayroll(grossAnnual, colombiaDependants(family.childrenAges, claimsChildren, isMarriedHousehold(household) ? family.spouseSalary : undefined));
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
   }
   if (city.taxSystem === "chile") {
