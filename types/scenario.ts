@@ -75,7 +75,7 @@ export type ChildAllowance = {
 
 // 夫婦合算で課税する国の世帯の手取り（本人＋配偶者、年額・都市の通貨）。スコアと順位には使わない参考値です。
 export type HouseholdTakeHome = {
-  basis: "germanySplitting";
+  basis: "germanySplitting" | "franceQuotientFamilial";
   jointNetAnnual: number;
   separateNetAnnual: number;
   currency: CurrencyCode;

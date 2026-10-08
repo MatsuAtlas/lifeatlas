@@ -975,11 +975,34 @@ export function calculateFrancePayroll(grossAnnual: number) {
   const netTaxableSalary = Math.max(0, gross - pension - deductibleCsg);
   const allowance = Math.min(netTaxableSalary, Math.min(14_555, Math.max(509, netTaxableSalary * 0.1)));
   const taxableIncome = netTaxableSalary - allowance;
-  const grossTax = taxFromAnnualBrackets(taxableIncome, [{ limit: 11_600, rate: 0 }, { limit: 29_579, rate: 0.11 }, { limit: 84_577, rate: 0.3 }, { limit: 181_917, rate: 0.41 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 }]);
+  const grossTax = taxFromAnnualBrackets(taxableIncome, franceBrackets);
   const decote = grossTax <= 1_982 ? Math.min(grossTax, Math.max(0, 897 - grossTax * 0.4525)) : 0;
   const afterDecote = grossTax - decote;
   const incomeTax = afterDecote < 61 ? 0 : afterDecote;
   return { pension, csgCrds, deductibleCsg, netTaxableSalary, taxableIncome, grossTax, decote, incomeTax };
+}
+
+// 夫婦の共同申告（quotient familial）での世帯の手取り（service-public.fr「Calcul de l'impôt」「Quotient familial d'un couple
+// marié ou pacsé」、2026年4月15日確認）。課税所得は2人の合計、parts は夫婦2＋子ども（第1・第2子0.5、第3子から1）。
+// 子どもによる軽減は半part当たり€1,807が上限、décote は税額€3,277以下で€1,483−税額×45.25%、€61未満は徴収しません。
+// 子どもは12月31日に17歳以下（1年を通して未成年）だけを数えます。比較用に2人を単身として課税した場合の手取りも返します。
+const franceBrackets: TaxSlice[] = [{ limit: 11_600, rate: 0 }, { limit: 29_579, rate: 0.11 }, { limit: 84_577, rate: 0.3 }, { limit: 181_917, rate: 0.41 }, { limit: Number.POSITIVE_INFINITY, rate: 0.45 }];
+
+export function franceHouseholdTakeHome2026(grossAnnual: number, spouseGrossAnnual: number, childrenAges: number[] = []) {
+  const people = [calculateFrancePayroll(grossAnnual), calculateFrancePayroll(spouseGrossAnnual)];
+  const gross = Math.max(0, grossAnnual) + Math.max(0, spouseGrossAnnual);
+  const contributions = people.reduce((total, person) => total + person.pension + person.csgCrds, 0);
+  const taxableIncome = people.reduce((total, person) => total + person.taxableIncome, 0);
+  const childParts = childrenAges.filter((age) => age <= 17).reduce((total, _age, index) => total + (index < 2 ? 0.5 : 1), 0);
+  const parts = 2 + childParts;
+  const coupleTax = 2 * taxFromAnnualBrackets(taxableIncome / 2, franceBrackets);
+  const quotientTax = parts * taxFromAnnualBrackets(taxableIncome / parts, franceBrackets);
+  const grossTax = Math.max(quotientTax, coupleTax - childParts * 2 * 1_807);
+  const decote = grossTax <= 3_277 ? Math.min(grossTax, Math.max(0, 1_483 - grossTax * 0.4525)) : 0;
+  const afterDecote = grossTax - decote;
+  const jointTax = afterDecote < 61 ? 0 : afterDecote;
+  const separateTax = people.reduce((total, person) => total + person.incomeTax, 0);
+  return { jointNetAnnual: gross - contributions - jointTax, separateNetAnnual: gross - contributions - separateTax };
 }
 
 // イタリア・2026年（居住者・単身の給与所得者、ローマ＝ラツィオ州、ミラノ＝ロンバルディア州）。
