@@ -224,12 +224,14 @@ function calculateCanadaTax(city: City, grossAnnual: number) {
     return { federalTax, provincialTax, healthPremium: 0 };
   }
   // オンタリオ州2026：最低税率5.05%、基礎控除$12,989（税額控除）、基本州税$5,818超に20%・$7,446超に36%の付加税。
-  // 低所得者向けのOntario tax reductionは未反映。
   const provincialTaxBeforeSurtax = Math.max(0, taxFromAnnualBrackets(taxable, [
     { limit: 53_891, rate: 0.0505 }, { limit: 107_785, rate: 0.0915 }, { limit: 150_000, rate: 0.1116 }, { limit: 220_000, rate: 0.1216 }, { limit: Number.POSITIVE_INFINITY, rate: 0.1316 },
   ]) - (12_989 + pension.creditablePart + ei) * 0.0505);
   const surtax = provincialTaxBeforeSurtax <= 5_818 ? 0 : (provincialTaxBeforeSurtax <= 7_446 ? (provincialTaxBeforeSurtax - 5_818) * 0.2 : (provincialTaxBeforeSurtax - 5_818) * 0.2 + (provincialTaxBeforeSurtax - 7_446) * 0.36);
-  return { federalTax, provincialTax: provincialTaxBeforeSurtax + surtax, healthPremium: calculateOntarioHealthPremium(taxable) };
+  // Ontario tax reduction（T4127の係数S）：州税（付加税込み）と「2×$300−州税」の小さい方を差し引く（単身・扶養なし）。
+  const ontarioTax = provincialTaxBeforeSurtax + surtax;
+  const ontarioReduction = Math.max(0, Math.min(ontarioTax, 2 * 300 - ontarioTax));
+  return { federalTax, provincialTax: ontarioTax - ontarioReduction, healthPremium: calculateOntarioHealthPremium(taxable) };
 }
 
 // 米国の州の給与天引き（2026年、州の公式資料）。カリフォルニア：州障害保険SDI 1.3%（上限なし、EDD）。
