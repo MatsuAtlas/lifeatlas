@@ -42,3 +42,11 @@ test("Canadian city rents use CMHC's October 2025 one-bedroom turnover-unit aver
     assert.ok(cities[cityId].dataSources.some((item) => item.source.startsWith("Canada Mortgage and Housing Corporation") && item.item.startsWith("家賃")), cityId);
   }
 });
+
+test("US city rents use HUD's FY2026 one-bedroom Fair Market Rents", () => {
+  const expected = { newYork: 2_655, losAngeles: 2_085, sanFrancisco: 2_977, sanJose: 2_982, sanDiego: 2_459, seattle: 2_146, chicago: 1_581, boston: 2_476, washingtonDc: 2_015, dallas: 1_648, houston: 1_323, austin: 1_562, miami: 1_995 } as const;
+  for (const [cityId, rent] of Object.entries(expected) as Array<[keyof typeof expected, number]>) {
+    assert.equal(cities[cityId].costs.rent, rent, cityId);
+    assert.ok(cities[cityId].dataSources.some((item) => item.source.startsWith("U.S. Department of Housing and Urban Development") && item.item.startsWith("家賃")), cityId);
+  }
+});
