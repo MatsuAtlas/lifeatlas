@@ -1002,6 +1002,22 @@ export function calculateItalyPayroll(grossAnnual: number, taxRegion: string) {
   return { pension, reddito, grossTax, credits, nationalTax, localTax };
 }
 
+// メキシコ・IMSSの本人負担（社会保障法、2026年1月15日改正版）。保険料の基礎（SBC）は年収÷365の日額で、上限はUMAの25倍
+// （第28条）。医療：現金給付0.25%（第107条）、年金受給者の医療0.375%（第25条）、UMAの3倍を超える部分に0.40%（第106条II、
+// 経過規定第19条で2%から引き下げ）。年金：障害・遺族0.625%（第147条）、老齢・高齢退職1.125%（第168条II b）。
+// UMAの日額は2026年1月が$113.14、2月から$117.31（INEGI、2026年1月9日官報）。
+export function calculateMexicoImssEmployee2026(grossAnnual: number) {
+  const daily = Math.max(0, grossAnnual) / 365;
+  let health = 0;
+  let pension = 0;
+  for (const [days, uma] of [[31, 113.14], [334, 117.31]] as const) {
+    const base = Math.min(daily, uma * 25);
+    health += days * (base * (0.0025 + 0.00375) + Math.max(0, base - uma * 3) * 0.004);
+    pension += days * base * (0.00625 + 0.01125);
+  }
+  return { health, pension };
+}
+
 export function taxCalculationStatus(city: City): TaxCalculationStatus {
   if (city.taxSystem === "estimate") return "unavailable";
   if (city.taxSystem === "spain" && city.taxRegion !== "madrid") return "unavailable";
@@ -1236,8 +1252,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     const incomeTax = taxFromFixedTariff(grossAnnual, [
       { lower: 0.01, upper: 10_135.11, fixed: 0, rate: 0.0192 }, { lower: 10_135.12, upper: 86_022.11, fixed: 194.59, rate: 0.064 }, { lower: 86_022.12, upper: 151_176.19, fixed: 5_051.37, rate: 0.1088 }, { lower: 151_176.20, upper: 175_735.66, fixed: 12_140.13, rate: 0.16 }, { lower: 175_735.67, upper: 210_403.69, fixed: 16_069.64, rate: 0.1792 }, { lower: 210_403.70, upper: 424_353.97, fixed: 22_282.14, rate: 0.2136 }, { lower: 424_353.98, upper: 668_840.14, fixed: 67_981.92, rate: 0.2352 }, { lower: 668_840.15, upper: 1_276_925.98, fixed: 125_485.07, rate: 0.3 }, { lower: 1_276_925.99, upper: 1_702_567.97, fixed: 307_910.81, rate: 0.32 }, { lower: 1_702_567.98, upper: 5_107_703.92, fixed: 444_116.23, rate: 0.34 }, { lower: 5_107_703.93, upper: Number.POSITIVE_INFINITY, fixed: 1_601_862.46, rate: 0.35 },
     ]);
-    const health = grossAnnual * city.insurance.healthRateEmployee;
-    const pension = grossAnnual * city.insurance.pensionRateEmployee;
+    const { health, pension } = calculateMexicoImssEmployee2026(grossAnnual);
     const totalInsurance = health + pension;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (incomeTax + totalInsurance) / 12 };
   }
