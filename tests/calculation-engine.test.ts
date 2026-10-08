@@ -713,6 +713,10 @@ test("Canada 2026 takes basic personal, employment, CPP and EI amounts as credit
   // バンクーバー$30,000：BC州の税額控除（5.60%）後824.222から低所得者の税軽減 690−(29,735−25,570)×3.56%＝541.726
   const vancouver = tax("vancouver", 30_000);
   close((vancouver?.incomeTaxMonthly ?? 0) * 12, 1_397.375 + 282.496);
+  // トロント$23,000：オンタリオ州税428.030425に低所得者の税軽減 2×300−428.030425＝171.969575（連邦491.659）
+  close((tax("toronto", 23_000)?.incomeTaxMonthly ?? 0) * 12, 491.659 + 256.06085);
+  // トロント$20,000：州税288.01は軽減で0
+  close((tax("toronto", 20_000)?.incomeTaxMonthly ?? 0) * 12, 103.495);
   // バンクーバー$100,000：税軽減は0
   close((tax("vancouver", 100_000)?.incomeTaxMonthly ?? 0) * 12, 13_301.5972 + 5_555.52088);
 });
