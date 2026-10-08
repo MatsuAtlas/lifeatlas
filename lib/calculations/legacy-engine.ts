@@ -775,12 +775,15 @@ export function calculateVietnamPayroll(grossAnnual: number, dependants = 0) {
 // ブラジル・2026年（月給×12、13か月目の給与は未反映）。INSS（従業員）は7.5/9/12/14%の累進、上限R$8,475.55。
 // 所得税の基礎＝月給−max(INSS, 簡易控除R$607.20)。月額累進表（R$2,428.80まで非課税〜27.5%）の税額から、
 // 法律15.270/2025の減額（月収R$5,000以下は最大R$312.89、R$7,350以下はR$978.62−0.133145×月収）を差し引きます。
-export function calculateBrazilPayroll(grossAnnual: number) {
+// 扶養控除（法律9.250第4条III、2026年は1人月R$189.59、連邦歳入庁の2026年の表）はINSSと合わせた法定控除で、簡易控除
+// （同条§2）とはどちらか多い方だけを使います。両親に共通の子はどちらか一方しか申告できないため、本人が申告すると決まる
+// 一人親か配偶者の給与を0と入れた夫婦だけ、12月31日に21歳以下の子に使います（22〜24歳の在学中の子は在学を判定できないため数えません）。
+export function calculateBrazilPayroll(grossAnnual: number, dependants = 0) {
   const monthly = Math.max(0, grossAnnual) / 12;
   const inss = taxFromAnnualBrackets(Math.min(monthly, 8_475.55), [
     { limit: 1_621, rate: 0.075 }, { limit: 2_902.84, rate: 0.09 }, { limit: 4_354.27, rate: 0.12 }, { limit: 8_475.55, rate: 0.14 },
   ]);
-  const base = Math.max(0, monthly - Math.max(inss, 607.2));
+  const base = Math.max(0, monthly - Math.max(inss + dependants * 189.59, 607.2));
   const tableTax = taxFromAnnualBrackets(base, [
     { limit: 2_428.8, rate: 0 }, { limit: 2_826.65, rate: 0.075 }, { limit: 3_751.05, rate: 0.15 }, { limit: 4_664.68, rate: 0.225 }, { limit: Number.POSITIVE_INFINITY, rate: 0.275 },
   ]);
@@ -1317,7 +1320,9 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: healthInsurance / 12, pensionMonthly: laborInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (laborInsurance + healthInsurance) / 12, totalDeductionsMonthly: (incomeTax + laborInsurance + healthInsurance) / 12 };
   }
   if (city.taxSystem === "brazil") {
-    const { incomeTax, socialInsurance } = calculateBrazilPayroll(grossAnnual);
+    const claimsDependants = household === "singleParent" || (isMarriedHousehold(household) && family.spouseSalary === 0);
+    const dependants = claimsDependants ? (family.childrenAges ?? []).filter((age) => age <= 21).length : 0;
+    const { incomeTax, socialInsurance } = calculateBrazilPayroll(grossAnnual, dependants);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
   }
   if (city.taxSystem === "vietnam") {
