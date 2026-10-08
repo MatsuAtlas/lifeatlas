@@ -9,5 +9,5 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get install -y -q poppler-utils >/dev/null
-      - run: python3 -u .github/source-fetch/fetch.py .github/source-fetch/urls.txt
+      - run: pip install -q openpyxl
+      - run: python3 -u .github/source-fetch/hud.py
