@@ -2,7 +2,7 @@ import { cities } from "../../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../../data/currencies.ts";
 import type { AgeBand, HouseholdType } from "../../types/finance";
 import type { DataConfidence, ScenarioCalculationOptions, ScenarioInput, ScenarioResult } from "../../types/scenario";
-import { calculateCity, franceHouseholdTakeHome2026, germanyHouseholdTakeHome2026, householdMultipliers, lifestyleMultipliers, usHouseholdTakeHome2026 } from "./legacy-engine.ts";
+import { calculateCity, franceHouseholdTakeHome2026, germanyHouseholdTakeHome2026, householdMultipliers, lifestyleMultipliers, usHouseholdTakeHome2026, zurichHouseholdTakeHome2026 } from "./legacy-engine.ts";
 import { japanChildAllowance } from "./child-allowance.ts";
 import { checkWorkVisaSalary } from "./work-visa.ts";
 
@@ -198,6 +198,7 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
     householdTakeHome: family.spouseSalary === undefined || grossAnnual <= 0 || legacy.taxBreakdown === null ? null
       : city.taxSystem === "germany" ? { basis: "germanySplitting", ...germanyHouseholdTakeHome2026(grossAnnual, family.spouseSalary, householdModel), currency: city.currency }
         : city.taxSystem === "france" ? { basis: "franceQuotientFamilial", ...franceHouseholdTakeHome2026(grossAnnual, family.spouseSalary, input.childrenAges), currency: city.currency }
+          : city.taxSystem === "switzerland" ? { basis: "zurichJointAssessment", ...zurichHouseholdTakeHome2026(grossAnnual, family.spouseSalary, input.childrenAges), currency: city.currency }
           : (() => {
             const us = usHouseholdTakeHome2026(city, grossAnnual, family.spouseSalary);
             return us ? { basis: "usMarriedFilingJointly" as const, ...us, currency: city.currency } : null;
