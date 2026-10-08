@@ -56,3 +56,14 @@ test("scenario inputs validate spouse salary and children's ages, and What-If tr
   const simulation = simulateWhatIf({ scenarios: [input, other], changes: [{ type: "children", scenarioId: "a", value: 1 }], priorities: DEFAULT_PRIORITIES });
   assert.deepEqual(simulation.after.inputs.find((item) => item.id === "a")!.childrenAges, [10]);
 });
+
+test("Japanese disability deduction uses the NTA and Yokohama amounts and stays outside the saved scenario input", () => {
+  assert.deepEqual(japanFamilyDeductions(5_000_000, { disability: { general: 1, special: 1, cohabitingSpecial: 1 } }), { incomeTax: 270_000 + 400_000 + 750_000, residentTax: 260_000 + 300_000 + 530_000 });
+  const input: ScenarioInput = { id: "tokyo", cityId: "tokyo", annualSalary: 6_000_000, salaryCurrency: "JPY", age: 35, householdType: "single", children: 0, housing: "onebed", lifestyle: "balanced" };
+  const base = calculateScenario(input);
+  const withDisability = calculateScenario(input, { japanDisability: { general: 1, special: 0, cohabitingSpecial: 0 } });
+  assert.ok(withDisability.netAnnual! > base.netAnnual!);
+  // 障害者控除はシナリオ入力ではないため、保存できる入力の検証には関係しない
+  assert.equal("japanDisability" in input, false);
+  assert.throws(() => calculateScenario(input, { japanDisability: { general: -1, special: 0, cohabitingSpecial: 0 } }), RangeError);
+});

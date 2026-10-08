@@ -8,6 +8,8 @@ export type ScenarioCalculationOptions = {
   exchangeRateStatus?: "live" | "fallback";
   // 指定時は、シナリオの給与通貨と都市通貨がともに含まれる場合だけ為替を"live"として扱います。
   liveCurrencies?: CurrencyCode[];
+  // 日本の障害者控除の対象人数。健康に関わる情報のため ScenarioInput に入れず、画面の計算だけで使います（保存・共有・AIへ送らない）。
+  japanDisability?: { general: number; special: number; cohabitingSpecial: number };
 };
 
 export type ScenarioInput = {

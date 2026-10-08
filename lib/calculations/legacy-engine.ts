@@ -68,8 +68,11 @@ function japaneseBasicDeduction(grossAnnual: number) {
 // 令和8年度が58万円以下（令和9年度から62万円の予定）ですが、58万円超62万円以下の帯では住民税の配偶者控除と
 // 配偶者特別控除が同額（33万・22万・11万円）のため、どちらの要件でも結果は変わりません。
 // 子どもは所得がない前提で、年齢は12月31日時点。16歳未満は扶養控除なし、16〜18歳と23歳以上は一般、19〜22歳は特定扶養。
-// ひとり親控除は単身＋子どもありの世帯で本人の合計所得500万円以下の場合。障害者控除・老人扶養・調整控除・非課税限度額は未反映。
-export type JapanFamily = { spouseSalary?: number; childrenAges?: number[]; singleParent?: boolean };
+// ひとり親控除は単身＋子どもありの世帯で本人の合計所得500万円以下の場合。老人扶養・調整控除・非課税限度額は未反映。
+// 障害者控除（国税庁No.1160：障害者27万・特別障害者40万・同居特別障害者75万円、横浜市：住民税26万・30万・53万円）は、
+// Offer Analyzerで本人が入力した対象人数だけを使います。健康に関わる情報のため保存・共有・AIの説明には含めません。
+export type JapanDisabilityCounts = { general: number; special: number; cohabitingSpecial: number };
+export type JapanFamily = { spouseSalary?: number; childrenAges?: number[]; singleParent?: boolean; disability?: JapanDisabilityCounts };
 
 const japanSpouseSpecialBands = [
   { upTo: 950_000, incomeTax: [380_000, 260_000, 130_000], residentTax: [330_000, 220_000, 110_000] },
@@ -110,6 +113,11 @@ export function japanFamilyDeductions(taxpayerTotalIncome: number, family: Japan
   if (family.singleParent && taxpayerTotalIncome <= 5_000_000) {
     incomeTax += 350_000;
     residentTax += 300_000;
+  }
+  if (family.disability) {
+    const { general, special, cohabitingSpecial } = family.disability;
+    incomeTax += general * 270_000 + special * 400_000 + cohabitingSpecial * 750_000;
+    residentTax += general * 260_000 + special * 300_000 + cohabitingSpecial * 530_000;
   }
   return { incomeTax, residentTax };
 }
