@@ -35,6 +35,8 @@ export type ScenarioInput = {
   // 子どもの年齢は12月31日時点で、人数分まで。現在は日本の都市の税計算に使います。
   spouseAnnualSalary?: number;
   childrenAges?: number[];
+  // 子どもの給与年収（給与の通貨、childrenAges と同じ順）。日本の扶養控除・特定親族特別控除・ひとり親控除の所得要件の判定に使います。
+  childrenSalaries?: number[];
 };
 
 export type ScenarioAssumptions = {

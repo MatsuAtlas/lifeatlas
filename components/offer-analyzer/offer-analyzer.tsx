@@ -976,12 +976,14 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
       householdType: profileDefaults.householdType,
       children: profileDefaults.children,
       childrenAges: scenario.childrenAges?.slice(0, profileDefaults.children),
+      childrenSalaries: scenario.childrenSalaries?.slice(0, profileDefaults.children),
     } : {
       ...scenario,
       age: profileDefaults.age,
       householdType: profileDefaults.householdType,
       children: profileDefaults.children,
       childrenAges: scenario.childrenAges?.slice(0, profileDefaults.children),
+      childrenSalaries: scenario.childrenSalaries?.slice(0, profileDefaults.children),
     }));
     setPriorities({ ...profileDefaults.priorities });
     setSaveMessage(t.profileApplied);
@@ -1071,7 +1073,9 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           const familyEntered = (input.spouseAnnualSalary !== undefined && input.householdType === "couple") || (input.childrenAges?.length ?? 0) > 0;
           return city.taxSystem === "japan" ? familyEntered || (input.householdType === "single" && input.children > 0) : familyEntered;
         })() ? <p className="oa-expat-note">{city.taxSystem === "japan"
-          ? (language === "ja" ? "配偶者控除・配偶者特別控除・扶養控除・ひとり親控除のうち、入力から判定できるものを反映した手取りです（子どもに所得がない前提）。" : "Take-home reflects the spouse, dependant and single-parent deductions that the inputs settle (children assumed to have no income).")
+          ? (language === "ja"
+            ? `配偶者控除・配偶者特別控除・扶養控除・特定親族特別控除・ひとり親控除のうち、入力から判定できるものを反映した手取りです（${input.childrenSalaries?.length ? "子どもの所得は入力した給与で判定" : "子どもに所得がない前提"}）。`
+            : `Take-home reflects the spouse, dependant, specified-relative and single-parent deductions that the inputs settle (${input.childrenSalaries?.length ? "children's income from the salaries you entered" : "children assumed to have no income"}).`)
           : city.taxSystem === "korea"
             ? (language === "ja" ? "配偶者・子どもの基本控除、一人親の追加控除、子女税額控除のうち、入力から判定できるものを反映した手取りです（子どもに所得がない前提。出産の税額控除は未反映）。" : "Take-home reflects the basic deductions for spouse and children, the single-parent deduction and the child tax credit that the inputs settle (children assumed to have no income; the birth credit is not included).")
             : city.taxSystem === "hongKong"
@@ -1233,13 +1237,18 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                   <label>{t.bonus}<div className="input-with-unit"><input type="number" min="0" value={optionalNumber(scenario.bonus)} placeholder="0" onChange={(event) => updateScenario(scenario.id, { bonus: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{scenario.salaryCurrency}</span></div></label>
                   <label>{t.age}<input type="number" min="18" max="100" value={scenario.age} onChange={(event) => updateScenario(scenario.id, { age: Number(event.target.value) })} /></label>
                   <label>{t.household}<select value={scenario.householdType} onChange={(event) => updateScenario(scenario.id, { householdType: event.target.value as ScenarioHousehold })}><option value="single">{t.single}</option><option value="couple">{t.couple}</option></select></label>
-                  <label>{t.children}<input type="number" min="0" max="10" value={scenario.children} onChange={(event) => { const children = Number(event.target.value); updateScenario(scenario.id, { children, childrenAges: scenario.childrenAges?.slice(0, Math.max(0, children)) }); }} /></label>
+                  <label>{t.children}<input type="number" min="0" max="10" value={scenario.children} onChange={(event) => { const children = Number(event.target.value); updateScenario(scenario.id, { children, childrenAges: scenario.childrenAges?.slice(0, Math.max(0, children)), childrenSalaries: scenario.childrenSalaries?.slice(0, Math.max(0, children)) }); }} /></label>
                   {scenario.householdType === "couple" && <label>{language === "ja" ? "配偶者の給与年収（任意）" : "Spouse's annual salary (optional)"}<div className="input-with-unit"><input type="number" min="0" value={optionalNumber(scenario.spouseAnnualSalary)} placeholder={language === "ja" ? "なし・不明なら空欄" : "Leave blank if none or unknown"} onChange={(event) => updateScenario(scenario.id, { spouseAnnualSalary: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{scenario.salaryCurrency}</span></div></label>}
                   {scenario.children > 0 && <label>{language === "ja" ? "子どもの年齢（12月31日時点・任意）" : "Children's ages on 31 December (optional)"}<input key={`${scenario.id}-${scenario.children}-${(scenario.childrenAges ?? []).join(",")}`} type="text" inputMode="numeric" defaultValue={(scenario.childrenAges ?? []).join(", ")} placeholder={language === "ja" ? "例：5, 12" : "e.g. 5, 12"} onBlur={(event) => {
                     // カンマ区切りの年齢を、人数分まで0〜30の整数として読み取ります。読めない値は使いません。
                     const ages = event.target.value.split(/[,、\s]+/).filter((part) => part !== "").map(Number).filter((age) => Number.isInteger(age) && age >= 0 && age <= 30).slice(0, scenario.children);
-                    updateScenario(scenario.id, { childrenAges: ages.length > 0 ? ages : undefined });
+                    updateScenario(scenario.id, { childrenAges: ages.length > 0 ? ages : undefined, childrenSalaries: ages.length > 0 ? scenario.childrenSalaries?.slice(0, ages.length) : undefined });
                   }} /></label>}
+                  {city.taxSystem === "japan" && (scenario.childrenAges?.length ?? 0) > 0 && <label>{language === "ja" ? "子どもの給与年収（年齢と同じ順・任意）" : "Children's annual salaries, same order as ages (optional)"}<div className="input-with-unit"><input key={`${scenario.id}-salaries-${(scenario.childrenSalaries ?? []).join(",")}`} type="text" inputMode="numeric" defaultValue={(scenario.childrenSalaries ?? []).join(", ")} placeholder={language === "ja" ? "所得がなければ空欄" : "Leave blank if none"} onBlur={(event) => {
+                    // カンマ区切りの給与を、年齢を入れた人数分まで0以上の数として読み取ります。読めない値は使いません。
+                    const salaries = event.target.value.split(/[,、\s]+/).filter((part) => part !== "").map(Number).filter((salary) => Number.isFinite(salary) && salary >= 0).slice(0, scenario.childrenAges?.length ?? 0);
+                    updateScenario(scenario.id, { childrenSalaries: salaries.length > 0 ? salaries : undefined });
+                  }} /><span>{scenario.salaryCurrency}</span></div></label>}
                   <label>{t.housing}<select value={scenario.housing} onChange={(event) => updateScenario(scenario.id, { housing: event.target.value as HousingType })}><option value="shared">{language === "ja" ? "シェア" : "Shared"}</option><option value="studio">{language === "ja" ? "ワンルーム" : "Studio"}</option><option value="onebed">{language === "ja" ? "1ベッド" : "1 bedroom"}</option><option value="condo">{language === "ja" ? "コンドミニアム" : "Condo"}</option><option value="twobed">{language === "ja" ? "2ベッド" : "2 bedrooms"}</option><option value="house">{language === "ja" ? "戸建て" : "House"}</option></select></label>
                   <label>{t.lifestyle}<select value={scenario.lifestyle} onChange={(event) => updateScenario(scenario.id, { lifestyle: event.target.value as LifestyleType })}><option value="lean">{language === "ja" ? "節約" : "Lean"}</option><option value="balanced">{language === "ja" ? "標準" : "Balanced"}</option><option value="comfortable">{language === "ja" ? "ゆとり" : "Comfortable"}</option></select></label>
                   <label>{t.customRent}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customRent)} placeholder={language === "ja" ? "Proでカスタム設定" : "Custom with Pro"} onChange={(event) => updateScenario(scenario.id, { customRent: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
