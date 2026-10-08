@@ -244,6 +244,34 @@ export function usStatePayrollDeductions2026(taxRegion: string, grossAnnual: num
   return 0;
 }
 
+// 夫婦合算申告（married filing jointly）での世帯の手取り。連邦はIRS「tax inflation adjustments for tax year 2026」（標準控除
+// $32,200、10%〜37%の区切り$24,800/$100,800/$211,400/$403,550/$512,450/$768,700）、Additional Medicare Taxは2人の給与の合計
+// $250,000超に0.9%。州はテキサス・フロリダ・ワシントン（所得税なし）、マサチューセッツ（夫婦の控除$8,800、課税所得$1,107,750超に4%）、
+// イリノイ（控除$2,925×2人、連邦AGI$500,000超は控除なし）だけで、夫婦の扱いを確認できていないカリフォルニア・ニューヨーク・DCはnull。
+// 社会保障税と州の給与天引きは1人ずつ、医療保険料は本人の家族プランだけを差し引きます。
+const usJointStateRegions = ["texas", "florida", "washington", "massachusetts", "illinois"];
+
+export function usHouseholdTakeHome2026(city: City, grossAnnual: number, spouseGrossAnnual: number) {
+  if (city.taxSystem !== "us" || !usJointStateRegions.includes(city.taxRegion)) return null;
+  const earners = [Math.max(0, grossAnnual), Math.max(0, spouseGrossAnnual)];
+  const combined = earners[0] + earners[1];
+  const federalTax = taxFromAnnualBrackets(Math.max(0, combined - 32_200), [
+    { limit: 24_800, rate: 0.1 }, { limit: 100_800, rate: 0.12 }, { limit: 211_400, rate: 0.22 }, { limit: 403_550, rate: 0.24 }, { limit: 512_450, rate: 0.32 }, { limit: 768_700, rate: 0.35 }, { limit: Number.POSITIVE_INFINITY, rate: 0.37 },
+  ]);
+  const stateTax = city.taxRegion === "massachusetts"
+    ? Math.max(0, combined - 8_800) * 0.05 + Math.max(0, combined - 8_800 - 1_107_750) * 0.04
+    : city.taxRegion === "illinois" ? Math.max(0, combined - (combined > 500_000 ? 0 : 2 * 2_925)) * 0.0495 : 0;
+  const perPerson = (gross: number) => Math.min(gross, city.insurance.socialSecurityWageBase ?? 184_500) * city.insurance.socialSecurityRateEmployee
+    + gross * city.insurance.medicareRate + usStatePayrollDeductions2026(city.taxRegion, gross);
+  const additionalMedicare = Math.max(0, combined - 250_000) * (city.insurance.additionalMedicareRate ?? 0);
+  const health = city.insurance.healthInsuranceFamilyMonthly * 12;
+  const jointNetAnnual = combined - federalTax - stateTax - additionalMedicare - earners.reduce((total, gross) => total + perPerson(gross), 0) - health;
+  // 比較用：2人を単身として申告した場合（本人の家族プランの医療保険料だけを差し引く）。
+  const separateNetAnnual = earners.reduce((total, gross) => total + gross - calculateUsIncomeTax(city, gross) - perPerson(gross)
+    - Math.max(0, gross - (city.insurance.additionalMedicareThreshold ?? 200_000)) * (city.insurance.additionalMedicareRate ?? 0), 0) - health;
+  return { jointNetAnnual, separateNetAnnual };
+}
+
 function calculateUsIncomeTax(city: City, grossAnnual: number) {
   const federalTax = taxFromAnnualBrackets(Math.max(0, grossAnnual - 16_100), [
     { limit: 12_400, rate: 0.1 }, { limit: 50_400, rate: 0.12 }, { limit: 105_700, rate: 0.22 }, { limit: 201_775, rate: 0.24 }, { limit: 256_225, rate: 0.32 }, { limit: 640_600, rate: 0.35 }, { limit: Number.POSITIVE_INFINITY, rate: 0.37 },
