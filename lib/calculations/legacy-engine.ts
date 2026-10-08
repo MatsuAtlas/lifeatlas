@@ -247,9 +247,11 @@ export function usStatePayrollDeductions2026(taxRegion: string, grossAnnual: num
 // 夫婦合算申告（married filing jointly）での世帯の手取り。連邦はIRS「tax inflation adjustments for tax year 2026」（標準控除
 // $32,200、10%〜37%の区切り$24,800/$100,800/$211,400/$403,550/$512,450/$768,700）、Additional Medicare Taxは2人の給与の合計
 // $250,000超に0.9%。州はテキサス・フロリダ・ワシントン（所得税なし）、マサチューセッツ（夫婦の控除$8,800、課税所得$1,107,750超に4%）、
-// イリノイ（控除$2,925×2人、連邦AGI$500,000超は控除なし）だけで、夫婦の扱いを確認できていないカリフォルニア・ニューヨーク・DCはnull。
+// イリノイ（控除$2,925×2人、連邦AGI$500,000超は控除なし）、カリフォルニア（FTB 2025年 Schedule Y と標準控除$11,412。単身と同じく
+// 人的控除の税額控除は未反映）、ニューヨーク（州法§601(a)(1)(B)(vii)の2026年の夫婦の税率表、標準控除$16,050＝IT-201-I、
+// 市税は§1304の夫婦の区切り$21,600/$45,000/$90,000に単身と同じ14%加算後の税率）。夫婦の標準控除を確認できていないDCはnull。
 // 社会保障税と州の給与天引きは1人ずつ、医療保険料は本人の家族プランだけを差し引きます。
-const usJointStateRegions = ["texas", "florida", "washington", "massachusetts", "illinois"];
+const usJointStateRegions = ["texas", "florida", "washington", "massachusetts", "illinois", "california", "newYork"];
 
 export function usHouseholdTakeHome2026(city: City, grossAnnual: number, spouseGrossAnnual: number) {
   if (city.taxSystem !== "us" || !usJointStateRegions.includes(city.taxRegion)) return null;
@@ -260,7 +262,15 @@ export function usHouseholdTakeHome2026(city: City, grossAnnual: number, spouseG
   ]);
   const stateTax = city.taxRegion === "massachusetts"
     ? Math.max(0, combined - 8_800) * 0.05 + Math.max(0, combined - 8_800 - 1_107_750) * 0.04
-    : city.taxRegion === "illinois" ? Math.max(0, combined - (combined > 500_000 ? 0 : 2 * 2_925)) * 0.0495 : 0;
+    : city.taxRegion === "illinois" ? Math.max(0, combined - (combined > 500_000 ? 0 : 2 * 2_925)) * 0.0495
+      : city.taxRegion === "california" ? taxFromAnnualBrackets(Math.max(0, combined - 11_412), [
+        { limit: 22_158, rate: 0.01 }, { limit: 52_528, rate: 0.02 }, { limit: 82_904, rate: 0.04 }, { limit: 115_084, rate: 0.06 }, { limit: 145_448, rate: 0.08 }, { limit: 742_958, rate: 0.093 }, { limit: 891_542, rate: 0.103 }, { limit: 1_485_906, rate: 0.113 }, { limit: Number.POSITIVE_INFINITY, rate: 0.123 },
+      ])
+        : city.taxRegion === "newYork" ? taxFromAnnualBrackets(Math.max(0, combined - 16_050), [
+          { limit: 17_150, rate: 0.039 }, { limit: 23_600, rate: 0.044 }, { limit: 27_900, rate: 0.0515 }, { limit: 161_550, rate: 0.054 }, { limit: 323_200, rate: 0.059 }, { limit: 2_155_350, rate: 0.0685 }, { limit: 5_000_000, rate: 0.0965 }, { limit: 25_000_000, rate: 0.103 }, { limit: Number.POSITIVE_INFINITY, rate: 0.109 },
+        ]) + taxFromAnnualBrackets(Math.max(0, combined - 16_050), [
+          { limit: 21_600, rate: 0.03078 }, { limit: 45_000, rate: 0.03762 }, { limit: 90_000, rate: 0.03819 }, { limit: Number.POSITIVE_INFINITY, rate: 0.03876 },
+        ]) : 0;
   const perPerson = (gross: number) => Math.min(gross, city.insurance.socialSecurityWageBase ?? 184_500) * city.insurance.socialSecurityRateEmployee
     + gross * city.insurance.medicareRate + usStatePayrollDeductions2026(city.taxRegion, gross);
   const additionalMedicare = Math.max(0, combined - 250_000) * (city.insurance.additionalMedicareRate ?? 0);
