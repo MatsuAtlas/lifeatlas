@@ -634,7 +634,7 @@ export function netherlandsExpatAllowance2026(grossAnnual: number) {
 // 移住者向けの税の特例の適用状況。off＝本人が選んでいない、applied＝適用、notEligible＝都市の特例はあるが
 // 給与などの条件を満たさない、notModeled＝この都市の特例は未実装（居住者の通常税制で計算）。
 // notBeneficial＝選択制の特例だが、この給与では通常税制のほうが税が少ないため使わない。
-export function expatTaxRegimeStatus(city: City, grossAnnual: number | null, requested: boolean, family: KoreaFamily = {}): ExpatTaxRegimeStatus {
+export function expatTaxRegimeStatus(city: City, grossAnnual: number | null, requested: boolean, family: JapanFamily = {}): ExpatTaxRegimeStatus {
   if (!requested) return "off";
   if (city.taxSystem === "netherlands") return grossAnnual !== null && netherlandsExpatAllowance2026(grossAnnual) > 0 ? "applied" : "notEligible";
   if (city.taxSystem === "korea") {
@@ -650,7 +650,8 @@ export function expatTaxRegimeStatus(city: City, grossAnnual: number | null, req
     if (grossAnnual === null || grossAnnual <= 0) return "notEligible";
     const ifici = portugalIficiTax2026(grossAnnual);
     if (ifici === null) return "unverified";
-    return ifici < calculatePortugalPayroll(grossAnnual).incomeTax ? "applied" : "notBeneficial";
+    const regular = calculatePortugalPayroll(grossAnnual, portugalDependantCredit(family.childrenAges, family.childrenSalaries, family.singleParent ? 1 : 0.5));
+    return ifici < regular.incomeTax ? "applied" : "notBeneficial";
   }
   return "notModeled";
 }
@@ -943,7 +944,17 @@ const portugalBrackets: TaxSlice[] = [
   { limit: 43_090, rate: 0.349 }, { limit: 46_566, rate: 0.431 }, { limit: 86_634, rate: 0.446 }, { limit: Number.POSITIVE_INFINITY, rate: 0.48 },
 ];
 
-export function calculatePortugalPayroll(grossAnnual: number) {
+// 子どもの税額控除（第78条のA）：扶養する子1人につき€600、12月31日に3歳以下なら€126加算、2人目以降で6歳以下なら€300加算
+// （€126と€300は重複しない、第4項）。扶養する子（第13条第5項）は未成年と、25歳以下で年間の所得が最低賃金の月額
+// （2026年€920、法令139/2025）以下の子。子の給与を入れなければ所得はない前提。年上の子を1人目とします。
+// 夫婦（分離課税）は同じ子を両方の申告に載せるため半分ずつ（第78条第9項）、一人親は全額。税額を上限とし、連帯付加税からは引きません。
+const PORTUGAL_MINIMUM_WAGE_2026 = 920;
+export function portugalDependantCredit(childrenAges: number[] = [], childrenSalaries: number[] = [], share: number) {
+  const ages = childrenAges.filter((age, index) => age < 18 || (age <= 25 && (childrenSalaries[index] ?? 0) <= PORTUGAL_MINIMUM_WAGE_2026)).sort((a, b) => b - a);
+  return ages.reduce((total, age, index) => total + 600 + (index > 0 && age <= 6 ? 300 : age <= 3 ? 126 : 0), 0) * share;
+}
+
+export function calculatePortugalPayroll(grossAnnual: number, dependantCredit = 0) {
   const gross = Math.max(0, grossAnnual);
   const socialSecurity = gross * 0.11;
   const specificDeduction = Math.min(gross, Math.max(PORTUGAL_IAS_2026 * 8.54, socialSecurity));
@@ -959,7 +970,7 @@ export function calculatePortugalPayroll(grossAnnual: number) {
     minimumExistence = Math.min(Math.max(0, raw), gross - specificDeduction);
   }
   const taxable = Math.max(0, gross - specificDeduction - minimumExistence);
-  const normalTax = Math.max(0, taxFromAnnualBrackets(taxable, portugalBrackets) - PORTUGAL_GENERAL_EXPENSES_CREDIT);
+  const normalTax = Math.max(0, taxFromAnnualBrackets(taxable, portugalBrackets) - PORTUGAL_GENERAL_EXPENSES_CREDIT - dependantCredit);
   const solidarity = Math.max(0, Math.min(taxable, 250_000) - 80_000) * 0.025 + Math.max(0, taxable - 250_000) * 0.05;
   return { incomeTax: normalTax + solidarity, socialSecurity, taxable };
 }
@@ -1255,7 +1266,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialInsurance / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialInsurance / 12, totalDeductionsMonthly: (incomeTax + socialInsurance) / 12 };
   }
   if (city.taxSystem === "portugal") {
-    const regular = calculatePortugalPayroll(grossAnnual);
+    const regular = calculatePortugalPayroll(grossAnnual, portugalDependantCredit(family.childrenAges, family.childrenSalaries, household === "singleParent" ? 1 : 0.5));
     const { socialSecurity } = regular;
     const incomeTax = expatTaxRegime ? portugalIficiTax2026(grossAnnual) ?? regular.incomeTax : regular.incomeTax;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (incomeTax + socialSecurity) / 12 };

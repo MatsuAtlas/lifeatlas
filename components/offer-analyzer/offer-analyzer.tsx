@@ -1090,6 +1090,8 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                       ? (language === "ja" ? "配偶者の給与が€2,840.51以下なら、配偶者の税額控除（TUIR第12条）を反映します。子どもの控除は、21歳未満の子が手当（assegno unico）に移ったため使っていません。" : "A spouse earning €2,840.51 or less gives the spouse tax credit (TUIR art. 12). Child credits are not used because children under 21 moved to the assegno unico allowance.")
                     : city.taxSystem === "spain"
                       ? (language === "ja" ? "24歳以下の子どもの最低生活保障（国・マドリード州）を反映します。両親がいる世帯は半分ずつ、一人親は全額です（子どもに所得がない前提）。" : "The minimum for descendants aged 24 or under (state and Madrid) is applied: half each for two parents, in full for a single parent (children assumed to have no income).")
+                    : city.taxSystem === "portugal"
+                      ? (language === "ja" ? "扶養する子ども（未成年と、所得が€920以下の25歳以下の子）1人につき€600の税額控除（3歳以下は€126、2人目以降で6歳以下は€300加算）を反映します。夫婦は半分ずつ、一人親は全額です。IFICIを使う場合は反映しません。" : "A €600 tax credit for each dependent child (minors, and children aged 25 or under earning €920 or less) is applied, plus €126 up to age 3, or €300 for second and later children up to age 6. Couples get half each; single parents get it in full. Not applied under IFICI.")
                     : city.taxSystem === "china"
                       ? (language === "ja" ? "一人親か、配偶者の給与が0の夫婦なら、1〜17歳の子ども1人につき年¥24,000の専項付加控除を反映します。配偶者に所得がある場合は両親の配分を選べるため使っていません。" : "Single parents, or couples whose spouse salary is 0, get the ¥24,000-a-year special deduction for each child aged 1–17. With an earning spouse the parents choose how to split it, so it is not used.")
                       : city.taxSystem === "vietnam"
