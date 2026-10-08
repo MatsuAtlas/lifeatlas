@@ -1086,7 +1086,9 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                       ? (language === "ja" ? "一人親か、配偶者の給与が0の夫婦なら、1〜17歳の子ども1人につき年¥24,000の専項付加控除を反映します。配偶者に所得がある場合は両親の配分を選べるため使っていません。" : "Single parents, or couples whose spouse salary is 0, get the ¥24,000-a-year special deduction for each child aged 1–17. With an earning spouse the parents choose how to split it, so it is not used.")
                       : city.taxSystem === "vietnam"
                         ? (language === "ja" ? "一人親か、配偶者の給与が0の夫婦なら、1〜17歳の子ども1人につき月₫6,200,000の扶養控除を反映します。配偶者に所得がある場合は両親のどちらが申告するか選べるため使っていません。" : "Single parents, or couples whose spouse salary is 0, get the ₫6.2 million monthly dependant deduction for each child aged 1–17. With an earning spouse the parents choose who claims it, so it is not used.")
-                        : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません。" : "Spouse salary and children's ages are not yet used for this city's tax.")}</p> : null}
+                        : city.taxSystem === "germany"
+                          ? (language === "ja" ? "配偶者の給与は、下の世帯の手取り（夫婦合算課税）だけに使います。子どもの年齢はまだ使っていません。" : "Spouse salary is used only for the household take-home below (joint assessment). Children's ages are not used yet.")
+                          : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません。" : "Spouse salary and children's ages are not yet used for this city's tax.")}</p> : null}
         {(() => {
           const counts = japanDisability[input.id];
           if (city.taxSystem !== "japan" || !counts || counts.general + counts.special + counts.cohabitingSpecial === 0 || result.netAnnual === null) return null;
@@ -1098,6 +1100,14 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           return <p className="oa-expat-note">{language === "ja"
             ? `障害者控除を反映した手取りは年${net}（+${gain}）です。この入力は健康に関わる情報のため保存・共有・AIの説明に使わず、スコアと順位も控除なしの手取りで決めています。`
             : `With the disability deduction, take-home is ${net} a year (+${gain}). Because this is health-related, it is not saved, shared or sent to the AI explanation, and the score and ranking use take-home without it.`}</p>;
+        })()}
+        {result.householdTakeHome && (() => {
+          const household = result.householdTakeHome;
+          const joint = formatMoney(household.jointNetAnnual, household.currency, language);
+          const difference = formatMoney(household.jointNetAnnual - household.separateNetAnnual, household.currency, language);
+          return <p className="oa-expat-note">{language === "ja"
+            ? `夫婦合算課税（splitting）での世帯の手取りは、本人と配偶者の合計で年${joint}です（2人を別々に課税した場合より${difference}多い）。夫婦の税をどちらの分とも決められないため、上の手取り・スコア・順位は本人の単身税率のままです。子どもの控除と児童手当は含めていません。`
+            : `With joint assessment (income splitting), household take-home for you and your spouse is ${joint} a year (${difference} more than taxing you separately). Because the joint tax cannot be split between you, the take-home, score and ranking above stay on your own single-rate tax. Child allowances and Kindergeld are not included.`}</p>;
         })()}
         {result.childAllowance && (() => {
           const allowance = result.childAllowance;
