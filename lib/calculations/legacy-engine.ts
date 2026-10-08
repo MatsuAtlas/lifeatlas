@@ -643,7 +643,7 @@ export function expatTaxRegimeStatus(city: City, grossAnnual: number | null, req
   }
   if (city.taxSystem === "spain") {
     if (grossAnnual === null || grossAnnual <= 0) return "notEligible";
-    const regular = calculateSpainMadridPayroll(grossAnnual);
+    const regular = calculateSpainMadridPayroll(grossAnnual, spainDescendantMinimums(family.childrenAges, family.singleParent ? 1 : 0.5));
     return spainImpatriateTax2026(grossAnnual) < regular.stateTax + regular.regionalTax ? "applied" : "notBeneficial";
   }
   if (city.taxSystem === "portugal") {
@@ -970,6 +970,14 @@ export function calculatePortugalPayroll(grossAnnual: number) {
 // 所得税（IRPF）：給与−社会保険料−必要経費€2,000−勤労所得減額（第20条）を課税所得とし、国の税率表（第63条）と
 // マドリード州の税率表（州法第1条）でそれぞれ課税し、本人控除（国€5,550・州€5,956.65）に相当する税額を差し引きます。
 // 低所得の給与所得者の税額控除（追加規定第61条、2026年）を反映。州独自の税額控除（家賃など）は未反映です。
+// 子どもの最低生活保障（mínimo por descendientes）：国（第58条、AEAT「Manual práctico de Renta 2025」）€2,400・2,700・4,000・4,500、
+// 3歳未満は€2,800加算。マドリード州（州の「IRPF」ページ）€2,575.85・2,897.83・4,400・4,950、3歳未満は€3,005.16加算。
+// 12月31日に24歳以下の子を年上から数え、両親が同居する夫婦は半分ずつ（第61条）、一人親は全額とします。子どもの所得はない前提です。
+export function spainDescendantMinimums(childrenAges: number[] = [], share: number) {
+  const ages = childrenAges.filter((age) => age <= 24).sort((a, b) => b - a);
+  const sum = (amounts: number[], underThree: number) => ages.reduce((total, age, index) => total + amounts[Math.min(index, 3)] + (age <= 2 ? underThree : 0), 0) * share;
+  return { state: sum([2_400, 2_700, 4_000, 4_500], 2_800), regional: sum([2_575.85, 2_897.83, 4_400, 4_950], 3_005.16) };
+}
 const SPAIN_MAX_MONTHLY_BASE_2026 = 5_101.2;
 const spainStateScale: TaxSlice[] = [
   { limit: 12_450, rate: 0.095 }, { limit: 20_200, rate: 0.12 }, { limit: 35_200, rate: 0.15 }, { limit: 60_000, rate: 0.185 }, { limit: 300_000, rate: 0.225 }, { limit: Number.POSITIVE_INFINITY, rate: 0.245 },
@@ -978,7 +986,7 @@ const madridScale: TaxSlice[] = [
   { limit: 13_362.22, rate: 0.085 }, { limit: 19_004.63, rate: 0.107 }, { limit: 35_425.68, rate: 0.128 }, { limit: 57_320.4, rate: 0.174 }, { limit: Number.POSITIVE_INFINITY, rate: 0.205 },
 ];
 
-export function calculateSpainMadridPayroll(grossAnnual: number) {
+export function calculateSpainMadridPayroll(grossAnnual: number, descendants: { state: number; regional: number } = { state: 0, regional: 0 }) {
   const gross = Math.max(0, grossAnnual);
   const monthly = gross / 12;
   const excess = Math.max(0, monthly - SPAIN_MAX_MONTHLY_BASE_2026);
@@ -991,8 +999,8 @@ export function calculateSpainMadridPayroll(grossAnnual: number) {
     : netWork <= 17_673.52 ? 7_302 - 1.75 * (netWork - 14_852)
       : netWork < 19_747.5 ? 2_364.34 - 1.14 * (netWork - 17_673.52) : 0;
   const taxable = Math.max(0, netWork - 2_000 - reduction);
-  const stateTax = Math.max(0, taxFromAnnualBrackets(taxable, spainStateScale) - taxFromAnnualBrackets(Math.min(taxable, 5_550), spainStateScale));
-  const regionalTax = Math.max(0, taxFromAnnualBrackets(taxable, madridScale) - taxFromAnnualBrackets(Math.min(taxable, 5_956.65), madridScale));
+  const stateTax = Math.max(0, taxFromAnnualBrackets(taxable, spainStateScale) - taxFromAnnualBrackets(Math.min(taxable, 5_550 + descendants.state), spainStateScale));
+  const regionalTax = Math.max(0, taxFromAnnualBrackets(taxable, madridScale) - taxFromAnnualBrackets(Math.min(taxable, 5_956.65 + descendants.regional), madridScale));
   // 追加規定第61条：給与€17,094以下は€590.89、€20,048.45未満は€590.89−0.2×(給与−€17,094)。国・州の税額の合計が上限。
   const workCredit = Math.min(stateTax + regionalTax, gross <= 17_094 ? 590.89 : gross < 20_048.45 ? 590.89 - 0.2 * (gross - 17_094) : 0);
   return { stateTax: Math.max(0, stateTax - workCredit), regionalTax: regionalTax - Math.max(0, workCredit - stateTax), socialSecurity, taxable };
@@ -1238,7 +1246,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: socialSecurity / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: socialSecurity / 12, totalDeductionsMonthly: (incomeTax + socialSecurity) / 12 };
   }
   if (city.taxSystem === "spain") {
-    const regular = calculateSpainMadridPayroll(grossAnnual);
+    const regular = calculateSpainMadridPayroll(grossAnnual, spainDescendantMinimums(family.childrenAges, household === "singleParent" ? 1 : 0.5));
     const { socialSecurity } = regular;
     // 特別制度では州の税がなく、24%/47%の1本の税額になります。
     const stateTax = expatTaxRegime ? spainImpatriateTax2026(grossAnnual) : regular.stateTax;

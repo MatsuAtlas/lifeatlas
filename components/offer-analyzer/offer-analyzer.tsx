@@ -1086,6 +1086,8 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                   ? (language === "ja" ? "配偶者の給与が£12,570未満で本人が基本税率の納税者なら、Marriage Allowance（最大£252）を反映します。子どもの年齢は使っていません。" : "If your spouse earns below £12,570 and you pay the basic rate, Marriage Allowance (up to £252) is applied. Children's ages are not used.")
                   : city.taxSystem === "thailand"
                     ? (language === "ja" ? "所得のない配偶者（給与0）と19歳以下の子どもの控除を反映します（2018年以降生まれの第2子以降は増額）。20〜24歳の就学中の子は数えていません。" : "Allowances for a spouse without income (salary 0) and children aged 19 or under are applied (higher for second and later children born from 2018). Children aged 20–24 in education are not counted.")
+                    : city.taxSystem === "spain"
+                      ? (language === "ja" ? "24歳以下の子どもの最低生活保障（国・マドリード州）を反映します。両親がいる世帯は半分ずつ、一人親は全額です（子どもに所得がない前提）。" : "The minimum for descendants aged 24 or under (state and Madrid) is applied: half each for two parents, in full for a single parent (children assumed to have no income).")
                     : city.taxSystem === "china"
                       ? (language === "ja" ? "一人親か、配偶者の給与が0の夫婦なら、1〜17歳の子ども1人につき年¥24,000の専項付加控除を反映します。配偶者に所得がある場合は両親の配分を選べるため使っていません。" : "Single parents, or couples whose spouse salary is 0, get the ¥24,000-a-year special deduction for each child aged 1–17. With an earning spouse the parents choose how to split it, so it is not used.")
                       : city.taxSystem === "vietnam"
