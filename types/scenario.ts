@@ -73,6 +73,14 @@ export type ChildAllowance = {
   source: { name: string; url: string; period: string };
 };
 
+// 夫婦合算で課税する国の世帯の手取り（本人＋配偶者、年額・都市の通貨）。スコアと順位には使わない参考値です。
+export type HouseholdTakeHome = {
+  basis: "germanySplitting";
+  jointNetAnnual: number;
+  separateNetAnnual: number;
+  currency: CurrencyCode;
+};
+
 export type WorkVisaSalaryCheck = {
   countryCode: string;
   route: { ja: string; en: string };
@@ -128,6 +136,7 @@ export type ScenarioResult = {
   unavailableReason: "tax" | "salary" | null;
   workVisaSalary: WorkVisaSalaryCheck | null;
   childAllowance: ChildAllowance | null;
+  householdTakeHome: HouseholdTakeHome | null;
   assumptions: ScenarioAssumptions;
 };
 

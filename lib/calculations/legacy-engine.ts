@@ -371,7 +371,13 @@ export function germanIncomeTax2026(taxableIncome: number) {
   return Math.floor(0.45 * x - 19_470.38);
 }
 
-export function calculateGermanyPayroll(grossAnnual: number, household: keyof typeof householdMultipliers) {
+// 連帯付加税（SolZG §3・§4）：所得税が免除額以下なら0、超過分は差額の11.9%を上限に5.5%。免除額は単身€20,350、夫婦合算課税€40,700。
+function germanySolidarity(incomeTax: number, exemption: number) {
+  return incomeTax <= exemption ? 0 : Math.min(incomeTax * 0.055, (incomeTax - exemption) * 0.119);
+}
+
+// 1人分の社会保険料と課税所得（被用者控除€1,230は給与を上限、特別支出控除€36）。
+function germanyEmployeeBase(grossAnnual: number, household: keyof typeof householdMultipliers) {
   const gross = Math.max(0, grossAnnual);
   const pensionBase = Math.min(gross, GERMANY_PENSION_CEILING);
   const healthBase = Math.min(gross, GERMANY_HEALTH_CEILING);
@@ -381,11 +387,31 @@ export function calculateGermanyPayroll(grossAnnual: number, household: keyof ty
   const unemployment = pensionBase * 0.013;
   const health = healthBase * (0.073 + 0.0145);
   const care = healthBase * careRate;
-  const taxable = gross - 1_230 - 36 - (pension + health * 0.96 + care);
+  const taxable = gross - Math.min(gross, 1_230) - 36 - (pension + health * 0.96 + care);
+  return { gross, taxable, pension, unemployment, health, care };
+}
+
+export function calculateGermanyPayroll(grossAnnual: number, household: keyof typeof householdMultipliers) {
+  const { taxable, pension, unemployment, health, care } = germanyEmployeeBase(grossAnnual, household);
   const incomeTax = germanIncomeTax2026(taxable);
-  // 連帯付加税：所得税€20,350以下は免除、超過分は差額の11.9%を上限に5.5%。
-  const solidarity = incomeTax <= 20_350 ? 0 : Math.min(incomeTax * 0.055, (incomeTax - 20_350) * 0.119);
+  const solidarity = germanySolidarity(incomeTax, 20_350);
   return { incomeTax, solidarity, pension, unemployment, health, care };
+}
+
+// 夫婦合算課税（EStG §32a Abs.5 の splitting）での世帯の手取り。2人の課税所得を合算し、その半分に対する税額の2倍を所得税とします。
+// 個別課税（2人とも単身の税率表）との比較用に、2人の手取りの合計も返します。子どもの Kinderfreibetrag・Kindergeld は扱いません。
+export function germanyHouseholdTakeHome2026(grossAnnual: number, spouseGrossAnnual: number, household: keyof typeof householdMultipliers) {
+  const people = [germanyEmployeeBase(grossAnnual, household), germanyEmployeeBase(spouseGrossAnnual, household)];
+  const insurance = people.reduce((total, person) => total + person.pension + person.unemployment + person.health + person.care, 0);
+  const gross = people.reduce((total, person) => total + person.gross, 0);
+  const jointTaxable = people.reduce((total, person) => total + person.taxable, 0);
+  const jointIncomeTax = 2 * germanIncomeTax2026(jointTaxable / 2);
+  const jointTax = jointIncomeTax + germanySolidarity(jointIncomeTax, 40_700);
+  const separateTax = people.reduce((total, person) => {
+    const incomeTax = germanIncomeTax2026(person.taxable);
+    return total + incomeTax + germanySolidarity(incomeTax, 20_350);
+  }, 0);
+  return { jointNetAnnual: gross - insurance - jointTax, separateNetAnnual: gross - insurance - separateTax };
 }
 
 // オランダ・2026年（AOW年齢未満の居住者、給与所得者）。Box 1は€38,883まで35.75%（所得税8.10%＋国民保険27.65%）、
