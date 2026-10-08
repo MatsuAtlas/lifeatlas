@@ -539,6 +539,62 @@ export function calculateZurichPayroll(grossAnnual: number) {
   return { ahv, alv, nbu, bvg, netWage, federalTaxable, cantonalTaxable, federalTax, simpleTax, cantonCityTax };
 }
 
+// チューリッヒの夫婦（共同課税）での世帯の手取り。連邦はESTV「Tarife 2026」（Form. 58 c）の夫婦・ひとり親の税率表
+// （CHF 29,700から1%〜13%、税額がCHF 25未満なら0、高所得では課税所得の11.5%で頭打ち、子ども1人につき税額からCHF 263を減額）。
+// 州は州法§35 Abs.2 の夫婦の税率表（2026年4月1日版）、共働き控除CHF 6,200（§31 Abs.2）、子どもの控除CHF 9,400（§34 Abs.1 lit.a）、
+// 保険料控除は夫婦CHF 5,800＋子ども1人CHF 1,300（§31 Abs.1 lit.g）。連邦の夫婦控除CHF 2,800、共働き控除（少ない方の所得の50%、
+// CHF 8,600〜14,100）、保険料控除CHF 3,700＋子ども1人CHF 700、子どもの控除CHF 6,800は州の源泉税の計算基準（2026年）の値。
+// 職業経費・通勤費・昼食費は給与のある人ごとに単身と同じ想定で差し引き、人頭税はCHF 24×2人。子どもは12月31日に17歳以下を数えます。
+const swissFederalMarriedTariff2026: { from: number; base: number; per100: number }[] = [
+  { from: 29_700, base: 0, per100: 1 }, { from: 53_400, base: 237, per100: 2 }, { from: 61_300, base: 395, per100: 3 },
+  { from: 79_100, base: 929, per100: 4 }, { from: 94_900, base: 1_561, per100: 5 }, { from: 108_700, base: 2_251, per100: 6 },
+  { from: 120_600, base: 2_965, per100: 7 }, { from: 130_500, base: 3_658, per100: 8 }, { from: 138_400, base: 4_290, per100: 9 },
+  { from: 144_300, base: 4_821, per100: 10 }, { from: 148_300, base: 5_221, per100: 11 }, { from: 150_400, base: 5_452, per100: 12 },
+  { from: 152_400, base: 5_692, per100: 13 },
+];
+
+export function swissFederalMarriedIncomeTax2026(taxableIncome: number) {
+  const x = Math.floor(Math.max(0, taxableIncome) / 100) * 100;
+  const step = [...swissFederalMarriedTariff2026].reverse().find((item) => x >= item.from);
+  const scheduled = step ? step.base + ((x - step.from) / 100) * step.per100 : 0;
+  const tax = Math.min(scheduled, x * 0.115);
+  return tax < 25 ? 0 : tax;
+}
+
+export function zurichMarriedSimpleStateTax2026(taxableIncome: number) {
+  return taxFromAnnualBrackets(Math.max(0, taxableIncome), [
+    { limit: 14_100, rate: 0 }, { limit: 20_500, rate: 0.02 }, { limit: 28_600, rate: 0.03 }, { limit: 38_400, rate: 0.04 },
+    { limit: 49_600, rate: 0.05 }, { limit: 64_100, rate: 0.06 }, { limit: 96_300, rate: 0.07 }, { limit: 128_700, rate: 0.08 },
+    { limit: 177_200, rate: 0.09 }, { limit: 235_100, rate: 0.1 }, { limit: 298_000, rate: 0.11 }, { limit: 370_600, rate: 0.12 },
+    { limit: Number.POSITIVE_INFINITY, rate: 0.13 },
+  ]);
+}
+
+export function zurichHouseholdTakeHome2026(grossAnnual: number, spouseGrossAnnual: number, childrenAges: number[] = []) {
+  const earners = [Math.max(0, grossAnnual), Math.max(0, spouseGrossAnnual)].map((gross) => {
+    const payroll = calculateZurichPayroll(gross);
+    const professionalFlat = gross > 0 ? Math.min(4_000, Math.max(2_000, payroll.netWage * 0.03)) : 0;
+    return {
+      gross,
+      payroll,
+      federalNet: gross > 0 ? payroll.netWage - 800 - 3_200 - professionalFlat : 0,
+      cantonalNet: gross > 0 ? payroll.netWage - 1_400 - 3_200 - professionalFlat : 0,
+    };
+  });
+  const children = childrenAges.filter((age) => age <= 17).length;
+  const lowerIncome = Math.min(earners[0].federalNet, earners[1].federalNet);
+  const federalTwoEarner = lowerIncome > 0 ? Math.min(14_100, Math.max(Math.min(8_600, lowerIncome), lowerIncome * 0.5)) : 0;
+  const federalTaxable = earners[0].federalNet + earners[1].federalNet - 3_700 - children * 700 - 2_800 - federalTwoEarner - children * 6_800;
+  const cantonalTwoEarner = earners[0].cantonalNet > 0 && earners[1].cantonalNet > 0 ? Math.min(6_200, earners[0].cantonalNet, earners[1].cantonalNet) : 0;
+  const cantonalTaxable = earners[0].cantonalNet + earners[1].cantonalNet - 5_800 - children * 1_300 - cantonalTwoEarner - children * 9_400;
+  const federalTax = Math.max(0, swissFederalMarriedIncomeTax2026(federalTaxable) - children * 263);
+  const cantonCityTax = zurichMarriedSimpleStateTax2026(cantonalTaxable) * (ZURICH_CANTON_MULTIPLIER_2026 + ZURICH_CITY_MULTIPLIER_2026) + 24 * 2;
+  const contributions = earners.reduce((total, person) => total + person.payroll.ahv + person.payroll.alv + person.payroll.nbu + person.payroll.bvg, 0);
+  const gross = earners[0].gross + earners[1].gross;
+  const separateTax = earners.reduce((total, person) => total + person.payroll.federalTax + person.payroll.cantonCityTax, 0);
+  return { jointNetAnnual: gross - contributions - federalTax - cantonCityTax, separateNetAnnual: gross - contributions - separateTax };
+}
+
 // オランダ・30%ルール（expatregeling、2026年）。条件（国外から採用された「ingekomen werknemer」であること、
 // 税務当局の決定）を満たすと本人が選んだ場合だけ使います。非課税手当は手当込みの給与の30%まで、上限€78,600
 // （給与€262,000で到達）で、手当を除く課税給与が€48,013を超えている必要があります（Belastingdienst「Inhoud van de

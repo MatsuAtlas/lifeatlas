@@ -1086,8 +1086,8 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                       ? (language === "ja" ? "一人親か、配偶者の給与が0の夫婦なら、1〜17歳の子ども1人につき年¥24,000の専項付加控除を反映します。配偶者に所得がある場合は両親の配分を選べるため使っていません。" : "Single parents, or couples whose spouse salary is 0, get the ¥24,000-a-year special deduction for each child aged 1–17. With an earning spouse the parents choose how to split it, so it is not used.")
                       : city.taxSystem === "vietnam"
                         ? (language === "ja" ? "一人親か、配偶者の給与が0の夫婦なら、1〜17歳の子ども1人につき月₫6,200,000の扶養控除を反映します。配偶者に所得がある場合は両親のどちらが申告するか選べるため使っていません。" : "Single parents, or couples whose spouse salary is 0, get the ₫6.2 million monthly dependant deduction for each child aged 1–17. With an earning spouse the parents choose who claims it, so it is not used.")
-                        : city.taxSystem === "germany" || city.taxSystem === "france" || result.householdTakeHome !== null
-                          ? (city.taxSystem === "france"
+                        : city.taxSystem === "germany" || city.taxSystem === "france" || city.taxSystem === "switzerland" || result.householdTakeHome !== null
+                          ? (city.taxSystem === "france" || city.taxSystem === "switzerland"
                             ? (language === "ja" ? "配偶者の給与と子どもの年齢は、下の世帯の手取り（夫婦の共同申告）だけに使います。" : "Spouse salary and children's ages are used only for the household take-home below (joint filing).")
                             : (language === "ja" ? "配偶者の給与は、下の世帯の手取り（夫婦合算）だけに使います。子どもの年齢はまだ使っていません。" : "Spouse salary is used only for the household take-home below (joint taxation). Children's ages are not used yet."))
                           : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません。" : "Spouse salary and children's ages are not yet used for this city's tax.")}</p> : null}
@@ -1110,6 +1110,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           const copy = {
             germanySplitting: { ja: ["夫婦合算課税（splitting）", "子どもの控除と児童手当は含めていません。"], en: ["joint assessment (income splitting)", "Child allowances and Kindergeld are not included."] },
             franceQuotientFamilial: { ja: ["夫婦の共同申告（家族係数）", "子どもは17歳以下だけを家族係数に数えています。"], en: ["joint filing (quotient familial)", "Only children aged 17 or under count towards the parts."] },
+            zurichJointAssessment: { ja: ["夫婦の共同課税（連邦・州の夫婦の税率表）", "子どもは17歳以下だけを子どもの控除に数えています。"], en: ["joint assessment (federal and cantonal married tariffs)", "Only children aged 17 or under count for the child deductions."] },
             usMarriedFilingJointly: { ja: ["夫婦合算申告（married filing jointly）", "子どもの税額控除（Child Tax Credit）は含めていません。医療保険料は本人の家族プランだけを差し引いています。"], en: ["married filing jointly", "The Child Tax Credit is not included; only your family health plan premium is deducted."] },
           }[household.basis];
           return <p className="oa-expat-note">{language === "ja"
