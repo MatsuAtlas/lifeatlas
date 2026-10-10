@@ -63,3 +63,13 @@ test("Dublin rent uses the RTB one-bedroom new-tenancy average for Q4 2025", () 
   assert.equal(cities.dublin.costs.rent, 1_741);
   assert.ok(cities.dublin.dataSources.some((item) => item.source.startsWith("Residential Tenancies Board") && item.item.startsWith("家賃")));
 });
+
+test("Sydney, Brisbane and Adelaide rents use state bond-lodgement medians for one-bedroom flats (April–June 2026)", () => {
+  const expected = { sydney: [3_033, "NSW Department of Communities and Justice"], brisbane: [2_492, "Residential Tenancies Authority (Queensland)"], adelaide: [2_054, "Consumer and Business Services (South Australia)"] } as const;
+  for (const [cityId, [rent, agency]] of Object.entries(expected) as Array<[keyof typeof expected, readonly [number, string]]>) {
+    assert.equal(cities[cityId].costs.rent, rent, cityId);
+    assert.ok(cities[cityId].dataSources.some((item) => item.source.startsWith(agency) && item.item.startsWith("家賃")), cityId);
+  }
+  // 週額中央値（シドニー$700・ブリスベン$575・アデレード$474）×52÷12 を四捨五入した月額。
+  assert.deepEqual([700, 575, 474].map((weekly) => Math.round((weekly * 52) / 12)), [3_033, 2_492, 2_054]);
+});
