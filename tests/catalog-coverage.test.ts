@@ -58,3 +58,8 @@ test("UK city rents use ONS Price Index of Private Rents one-bedroom averages fo
     assert.ok(cities[cityId].dataSources.some((item) => item.source.startsWith("Office for National Statistics・Price Index of Private Rents") && item.item.startsWith("家賃")), cityId);
   }
 });
+
+test("Dublin rent uses the RTB one-bedroom new-tenancy average for Q4 2025", () => {
+  assert.equal(cities.dublin.costs.rent, 1_741);
+  assert.ok(cities.dublin.dataSources.some((item) => item.source.startsWith("Residential Tenancies Board") && item.item.startsWith("家賃")));
+});
