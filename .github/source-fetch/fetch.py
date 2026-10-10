@@ -3,7 +3,7 @@ import io, re, sys, urllib.request
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"}
 
 def get(url):
-    return urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60).read()
+    return urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=150).read()
 
 for line in open(sys.argv[1]):
     line = line.strip()
