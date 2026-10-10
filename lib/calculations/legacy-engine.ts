@@ -877,8 +877,17 @@ export function calculateKoreaPayroll(grossAnnual: number, family: KoreaFamily =
 
 // インドネシア・2026年（居住者・単身、PTKP Rp54,000,000）。従業員の社会保険：JHT 2%（上限なし）、JP 1%（月額上限は1〜2月Rp10,547,400、
 // 3〜12月Rp11,086,300）、JKN（医療）1%（月額上限Rp12,000,000）。会社負担のJKK（最低リスク0.24%と仮定）・JKM 0.30%・JKN 4%は課税所得に加算します。
-// 課税所得＝総額−職務費用（5%・上限年Rp6,000,000）−JHT・JP−PTKP（千ルピア未満切り捨て）。外国人のJP対象外、扶養控除は未反映です。
-export function calculateIndonesiaPayroll(grossAnnual: number) {
+// 課税所得＝総額−職務費用（5%・上限年Rp6,000,000）−JHT・JP−PTKP（千ルピア未満切り捨て）。外国人のJP対象外は未反映です。
+// 家族のPTKP（所得税法第7条・PMK 101/2016）：既婚Rp4,500,000、所得がなく生計を全面的に頼る家族1人Rp4,500,000（3人まで）。
+// 既婚女性の従業員は本人分だけで、夫に所得がない場合に限り家族分を加えます（PMK 168/2023第9条）。本人の性別は入力にないため、
+// 一人親か配偶者の給与を0と入れた夫婦だけ家族分を使います。PTKPは1月1日の状況で決まるため、12月31日に0歳の子
+// （年内に生まれた子）と、給与を入れた子は数えません。
+export function indonesiaFamilyPtkp(childrenAges: number[] = [], childrenSalaries: number[] = [], married: boolean) {
+  const dependants = childrenAges.filter((age, index) => age >= 1 && !(childrenSalaries[index] > 0)).length;
+  return (married ? 4_500_000 : 0) + Math.min(dependants, 3) * 4_500_000;
+}
+
+export function calculateIndonesiaPayroll(grossAnnual: number, familyPtkp = 0) {
   const monthly = Math.max(0, grossAnnual) / 12;
   const jht = monthly * 0.02 * 12;
   const jp = Math.min(monthly, 10_547_400) * 0.01 * 2 + Math.min(monthly, 11_086_300) * 0.01 * 10;
@@ -886,7 +895,7 @@ export function calculateIndonesiaPayroll(grossAnnual: number) {
   const employerPremiums = (monthly * (0.0024 + 0.003) + Math.min(monthly, 12_000_000) * 0.04) * 12;
   const bruto = monthly * 12 + employerPremiums;
   const netto = bruto - Math.min(bruto * 0.05, 6_000_000) - jht - jp;
-  const taxable = Math.floor(Math.max(0, netto - 54_000_000) / 1_000) * 1_000;
+  const taxable = Math.floor(Math.max(0, netto - 54_000_000 - familyPtkp) / 1_000) * 1_000;
   const incomeTax = taxFromAnnualBrackets(taxable, [
     { limit: 60_000_000, rate: 0.05 }, { limit: 250_000_000, rate: 0.15 }, { limit: 500_000_000, rate: 0.25 }, { limit: 5_000_000_000, rate: 0.3 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
   ]);
@@ -1318,7 +1327,9 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, pensionMonthly: epf / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: epf / 12, totalDeductionsMonthly: (incomeTax + epf) / 12 };
   }
   if (city.taxSystem === "indonesia") {
-    const { incomeTax, pension, health } = calculateIndonesiaPayroll(grossAnnual);
+    const married = isMarriedHousehold(household);
+    const familyPtkp = household === "singleParent" || (married && family.spouseSalary === 0) ? indonesiaFamilyPtkp(family.childrenAges, family.childrenSalaries, married) : 0;
+    const { incomeTax, pension, health } = calculateIndonesiaPayroll(grossAnnual, familyPtkp);
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
   }
   if (city.taxSystem === "korea") {
