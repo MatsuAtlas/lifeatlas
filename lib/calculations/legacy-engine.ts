@@ -1074,19 +1074,28 @@ export function calculateColombiaPayroll(grossAnnual: number, dependants = 0) {
 // 本人負担：年金11%・PAMI 3%・社会保障医療3%。拠出の月額上限は物価連動で毎月改定され、11・12月分が未公表のため、
 // 月給が2026年1月の上限$3,823,372.95（ANSES決議381/2025）以下の場合だけ計算し、それを超える給与はnull（計算不能）を返します。
 // 所得税（Ganancias）：ARCAの2026年分の年間表（最低課税所得・特別控除（第30条c)2、4.8倍）と、その合計の1/12の加算）と第94条の年間税率表。
-// 家族控除・その他の控除は未反映です。
+// 家族控除（第30条b、ARCAの2026年の年間表）：配偶者$5,669,323.06（年間所得が最低課税所得$6,019,671.36以下）、
+// 18歳未満の子1人$2,859,060.31。これも1/12を加算します。子の控除は両親が半分ずつか一方が全額を選べる（施行令第101条）ため、
+// 一人親か配偶者の給与を0と入れた夫婦だけ全額を使います。1年を通して18歳未満だったと言える12月31日に1〜17歳の子を数え、
+// 控除が月割りになる0歳・18歳の子は出生月が分からないため数えません。その他の控除は未反映です。
 export const ARGENTINA_MIN_VERIFIED_MONTHLY_CAP_2026 = 3_823_372.95;
-const ARGENTINA_PERSONAL_DEDUCTIONS_2026 = (6_019_671.36 + 28_894_422.56) * (13 / 12);
+const ARGENTINA_MNI_2026 = 6_019_671.36;
+const ARGENTINA_PERSONAL_DEDUCTIONS_2026 = (ARGENTINA_MNI_2026 + 28_894_422.56) * (13 / 12);
+export function argentinaFamilyDeduction(childrenAges: number[] = [], claimsChildren: boolean, spouseSalary?: number) {
+  const children = claimsChildren ? childrenAges.filter((age) => age >= 1 && age <= 17).length : 0;
+  const spouse = spouseSalary !== undefined && spouseSalary <= ARGENTINA_MNI_2026 ? 5_669_323.06 : 0;
+  return (spouse + children * 2_859_060.31) * (13 / 12);
+}
 const argentinaScale2026: TaxSlice[] = [
   { limit: 2_168_491.89, rate: 0.05 }, { limit: 4_336_983.77, rate: 0.09 }, { limit: 6_505_475.65, rate: 0.12 }, { limit: 9_758_213.49, rate: 0.15 }, { limit: 19_516_426.99, rate: 0.19 },
   { limit: 29_274_640.48, rate: 0.23 }, { limit: 43_911_960.73, rate: 0.27 }, { limit: 65_867_941.1, rate: 0.31 }, { limit: Number.POSITIVE_INFINITY, rate: 0.35 },
 ];
 
-export function calculateArgentinaPayroll(grossAnnual: number) {
+export function calculateArgentinaPayroll(grossAnnual: number, familyDeduction = 0) {
   const gross = Math.max(0, grossAnnual);
   if (gross / 13 > ARGENTINA_MIN_VERIFIED_MONTHLY_CAP_2026) return null;
   const socialSecurity = gross * 0.17;
-  const incomeTax = taxFromAnnualBrackets(Math.max(0, gross - socialSecurity - ARGENTINA_PERSONAL_DEDUCTIONS_2026), argentinaScale2026);
+  const incomeTax = taxFromAnnualBrackets(Math.max(0, gross - socialSecurity - ARGENTINA_PERSONAL_DEDUCTIONS_2026 - familyDeduction), argentinaScale2026);
   // PAMI（高齢者医療）は医療保険として表示します。
   return { incomeTax, pension: gross * 0.11, health: gross * 0.06 };
 }
@@ -1316,8 +1325,10 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, employmentInsuranceMonthly: unemployment / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: totalInsurance / 12, totalDeductionsMonthly: (incomeTax + totalInsurance) / 12 };
   }
   if (city.taxSystem === "argentina") {
+    const married = isMarriedHousehold(household);
+    const claimsChildren = household === "singleParent" || (married && family.spouseSalary === 0);
+    const payroll = calculateArgentinaPayroll(grossAnnual, argentinaFamilyDeduction(family.childrenAges, claimsChildren, married ? family.spouseSalary : undefined));
     // 拠出上限が未公表の月（11・12月）に影響する給与帯は計算しません。
-    const payroll = calculateArgentinaPayroll(grossAnnual);
     if (payroll === null) return null;
     const { incomeTax, pension, health } = payroll;
     return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, healthInsuranceMonthly: health / 12, pensionMonthly: pension / 12, totalTaxMonthly: incomeTax / 12, totalInsuranceMonthly: (pension + health) / 12, totalDeductionsMonthly: (incomeTax + pension + health) / 12 };
