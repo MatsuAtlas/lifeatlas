@@ -1,0 +1,4 @@
+LINKS https://www.dffh.vic.gov.au/publications/rental-report
+LINKS https://www.rta.qld.gov.au/forms-resources/median-rents-quarterly-data
+LINKS https://www.sa.gov.au/topics/housing/renting-and-letting/rental-data
+LINKS https://data.sa.gov.au/data/dataset/private-rent-report
