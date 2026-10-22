@@ -69,7 +69,7 @@ export default async function PublicSharePage({ params }: { params: Promise<{ id
           // 計算できない候補（ranked: false）には順位を表示しません。
           const ranked = scenario.ranked !== false;
           return <article className={ranked && scenario.rank === 1 ? "growth-card is-winner" : "growth-card"} key={scenario.cityId}>
-            <div className="growth-card-title"><span>{ranked ? `#${scenario.rank}` : (isJa ? "順位なし" : "Not ranked")}</span><div><small>{label.country}</small><h3>{label.name}</h3></div><strong>{scenario.score}<small>/100</small></strong></div>
+            <div className={ranked ? "growth-card-title" : "growth-card-title is-unranked"}><span>{ranked ? `#${scenario.rank}` : (isJa ? "順位なし" : "Not ranked")}</span><div><small>{label.country}</small><h3>{label.name}</h3></div><strong>{scenario.score}<small>/100</small></strong></div>
             <dl className="growth-metrics">
               <div><dt>{isJa ? "年収" : "Gross income"}</dt><dd>{formatCurrency(scenario.grossAnnual, scenario.currency, language)}</dd></div>
               <div><dt>{scenario.cashflowBasis === "household" ? (isJa ? "本人の年間手取り" : "Your annual take-home") : (isJa ? "年間手取り" : "Annual take-home")}</dt><dd>{formatCurrency(scenario.netAnnual, scenario.currency, language)}</dd></div>

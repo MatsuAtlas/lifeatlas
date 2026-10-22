@@ -1133,7 +1133,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
       <article className={`oa-result-card ${score.rank === 1 && score.eligible ? "is-winner" : ""}`} key={score.scenarioId} data-calculation-status={result.calculationStatus} data-eligible={score.eligible}>
         <div className="oa-result-top">
           {/* 計算できない候補は、計算できる候補と同列の順位を示しません。 */}
-          <div className="oa-rank"><span>{score.eligible ? `#${score.rank}` : t.notRanked}</span>{score.rank === 1 && score.eligible && <strong>{t.bestFit}</strong>}</div>
+          <div className={score.eligible ? "oa-rank" : "oa-rank is-unranked"}><span>{score.eligible ? `#${score.rank}` : t.notRanked}</span>{score.rank === 1 && score.eligible && <strong>{t.bestFit}</strong>}</div>
           <div className="oa-city-title"><small>{countryName(city, language)}</small><h3>{cityName(city, language)}</h3></div>
           <div className="oa-score"><strong>{score.score}</strong><span>/ 100<br />{t.score}</span></div>
         </div>
