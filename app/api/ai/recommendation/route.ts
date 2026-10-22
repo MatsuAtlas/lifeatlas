@@ -5,6 +5,7 @@ import { isSavedAnalyzerInput } from "../../../../lib/comparison-history";
 import { createAIProvider, getAIModelId, AI_PROMPT_VERSION } from "../../../../lib/ai/provider";
 import {
   buildRecommendationInput,
+  RecommendationUnavailableError,
   normalizeFollowUpQuestion,
   sha256Hex,
   stableRecommendationKey,
@@ -198,11 +199,20 @@ export async function POST(request: Request) {
     if (clientObservedOn !== undefined && clientObservedOn !== exchangeRates.observedOn) {
       return NextResponse.json({ error: "為替レートが更新されました。最新の為替で再計算してから、もう一度お試しください。", exchangeRatesChanged: true }, { status: 409 });
     }
-    const input = buildRecommendationInput(body.value.analysis, language, followUpQuestion, calculationOptionsFor(exchangeRates), {
-      whatIf: billing.entitlements.canUseWhatIf,
-      breakEven: billing.entitlements.canUseBreakEven,
-      longTermProjections: billing.entitlements.canUseLongTermProjections,
-    });
+    let input: ReturnType<typeof buildRecommendationInput>;
+    try {
+      input = buildRecommendationInput(body.value.analysis, language, followUpQuestion, calculationOptionsFor(exchangeRates), {
+        whatIf: billing.entitlements.canUseWhatIf,
+        breakEven: billing.entitlements.canUseBreakEven,
+        longTermProjections: billing.entitlements.canUseLongTermProjections,
+      });
+    } catch (error) {
+      // 順位を付けられる候補がない場合は、勝者を説明する生成をしません（AIの利用回数も数えません）。
+      if (error instanceof RecommendationUnavailableError) {
+        return NextResponse.json({ error: language === "ja" ? "金額を計算できる候補がないため、AIの説明は作成できません。" : "No option can be calculated, so an AI explanation cannot be created.", noRankableScenario: true }, { status: 422 });
+      }
+      throw error;
+    }
     const model = getAIModelId();
     const contextHash = await sha256Hex(stableRecommendationKey(input, model, AI_PROMPT_VERSION));
     const cached = await cachedGeneration(current.user.id, current.accessToken, contextHash, input);

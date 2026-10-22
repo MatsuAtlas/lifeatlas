@@ -34,7 +34,8 @@ export function buildAnalysisCsv(language: ReportLanguage, analysis: SavedAnalyz
     const city = cities[result.cityId];
     const localized = localizedCity(city, language);
     return [
-      score?.rank,
+      // 計算できない候補は順位を付けません（画面・共有と同じ扱い）。
+      score === undefined ? null : score.eligible ? score.rank : language === "ja" ? "順位なし" : "Not ranked",
       localized.name,
       localized.country,
       result.currency,

@@ -16,33 +16,41 @@ export function createPublicShareSnapshot(input: SavedAnalyzerInput, language: S
   }
   const simulation = simulateWhatIf({ scenarios: input.scenarios, changes, priorities: input.priorities });
   const resultByScenario = new Map(simulation.after.results.map((result) => [result.scenarioId, result]));
-  const winnerScore = simulation.after.scores[0];
-  const winnerResult = resultByScenario.get(winnerScore.scenarioId);
-  if (!winnerResult) throw new Error("SHARE_WINNER_MISSING");
-  const runnerScore = simulation.after.scores[1];
+  const rankedScores = simulation.after.scores.filter((score) => score.eligible);
+  // 順位の対象（計算できる候補）だけから最適候補と2位を選びます。1つもなければ最適候補は出しません。
+  const winnerScore = rankedScores[0] ?? null;
+  const winnerResult = winnerScore ? resultByScenario.get(winnerScore.scenarioId) ?? null : null;
+  const runnerScore = rankedScores[1] ?? null;
   const runnerResult = runnerScore ? resultByScenario.get(runnerScore.scenarioId) : null;
-  const winnerName = localizedCity(cities[winnerResult.cityId], language).name;
+  const winnerName = winnerResult ? localizedCity(cities[winnerResult.cityId], language).name : null;
   const runnerName = runnerResult ? localizedCity(cities[runnerResult.cityId], language).name : null;
-  const lead = runnerScore ? Math.round((winnerScore.score - runnerScore.score) * 10) / 10 : null;
+  const lead = winnerScore && runnerScore ? Math.round((winnerScore.score - runnerScore.score) * 10) / 10 : null;
   const title = simulation.after.scores
-    .map((score) => localizedCity(cities[(resultByScenario.get(score.scenarioId) as typeof winnerResult).cityId], language).name)
+    .map((score) => localizedCity(cities[(resultByScenario.get(score.scenarioId) as NonNullable<typeof winnerResult>).cityId], language).name)
     .join(" vs ")
     .slice(0, 120);
-  const explanation = runnerName && lead !== null
+  const unrankedCount = simulation.after.scores.length - rankedScores.length;
+  const unrankedNote = unrankedCount === 0 ? "" : language === "ja" ? ` 金額を計算できない${unrankedCount}件は順位の対象外です。` : ` ${unrankedCount} option(s) that cannot be calculated are not ranked.`;
+  const explanation = (winnerName === null
     ? language === "ja"
-      ? `${winnerName}が${runnerName}をLifeAtlas Scoreで${lead}ポイント上回りました。優先軸とデータ信頼度を含む決定的計算です。`
-      : `${winnerName} leads ${runnerName} by ${lead} LifeAtlas Score points after priorities and data confidence are applied.`
-    : language === "ja"
-      ? `${winnerName}が現在の条件で最上位です。`
-      : `${winnerName} ranks first for the current assumptions.`;
+      ? "金額を計算できる候補がないため、最適候補はありません。"
+      : "No option can be calculated, so there is no best fit."
+    : runnerName && lead !== null
+      ? language === "ja"
+        ? `${winnerName}が${runnerName}をLifeAtlas Scoreで${lead}ポイント上回りました。優先軸とデータ信頼度を含む決定的計算です。`
+        : `${winnerName} leads ${runnerName} by ${lead} LifeAtlas Score points after priorities and data confidence are applied.`
+      : language === "ja"
+        ? `${winnerName}が現在の条件で最上位です。`
+        : `${winnerName} ranks first for the current assumptions.`) + unrankedNote;
+  const calculationVersion = (resultByScenario.get(simulation.after.scores[0].scenarioId) as NonNullable<typeof winnerResult>).assumptions.calculationVersion;
 
   return {
     version: 1,
     title,
     language,
-    calculationVersion: winnerResult.assumptions.calculationVersion,
+    calculationVersion,
     calculatedAt: new Date().toISOString(),
-    winnerCityId: winnerResult.cityId,
+    winnerCityId: winnerResult?.cityId ?? null,
     explanation,
     scenarios: simulation.after.scores.map((score) => {
       const result = resultByScenario.get(score.scenarioId);
@@ -50,6 +58,7 @@ export function createPublicShareSnapshot(input: SavedAnalyzerInput, language: S
       return {
         cityId: result.cityId,
         rank: score.rank,
+        ranked: score.eligible,
         score: score.score,
         currency: result.currency,
         grossAnnual: result.grossAnnual,

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 // 実装に合わせて記載しています。保存する項目や委託先を変えたら、このページも同時に更新してください。
-const REVISED_ON = { ja: "2026年9月29日", en: "29 September 2026" };
+const REVISED_ON = { ja: "2026年10月22日", en: "22 October 2026" };
 
 export default async function PrivacyPage({ searchParams }: { searchParams: Promise<{ lang?: string }> }) {
   const { lang } = await searchParams;
@@ -33,7 +33,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
       "These providers may process data on servers outside your country, including in the United States. We use them only to run LifeAtlas and do not sell personal information.",
     ]],
     ["5. Cookies and device storage", ["Sign-in cookies (HTTP-only) keep you logged in. Your browser also stores comparisons you save on this device and the random usage ID. You can delete them from your browser at any time."]],
-    ["6. Public share links", ["If you create a share link, anyone with the link can see the cities, salaries and results in that snapshot. Your name and email address are not included."]],
+    ["6. Public share links", ["If you create a share link, anyone with the link can see the cities, gross salaries, your annual take-home and the results in that snapshot. When you compare as a couple, household (you plus your spouse) annual take-home is also shown, from which your spouse's income may be inferred. Your name, email address, age, your spouse's salary itself and custom spending are not included."]],
     ["7. Retention and deletion", [
       "You can delete saved comparisons one by one, or delete your whole account from the Account page. Deleting the account immediately removes your sign-in, saved comparisons, profile, AI explanation history, share links and subscription record, and cancels an active subscription (the remaining paid period is not refunded).",
       "Usage records are kept without your account link. Stripe keeps payment records as required by law.",
@@ -56,7 +56,7 @@ export default async function PrivacyPage({ searchParams }: { searchParams: Prom
       "これらの事業者は、米国を含む日本国外のサーバーで情報を処理することがあります。LifeAtlasの運営のためにのみ利用し、個人情報を販売しません。",
     ]],
     ["5. Cookieと端末内の保存", ["ログインを保つためのCookie（ブラウザのスクリプトから読めない設定）を使います。また、この端末に保存した比較とランダムな利用状況IDをブラウザ内に保存します。ブラウザの設定からいつでも削除できます。"]],
-    ["6. 公開共有リンク", ["共有リンクを作ると、リンクを知っている人は誰でも、その時点の都市・給与・計算結果を見られます。氏名やメールアドレスは含まれません。"]],
+    ["6. 公開共有リンク", ["共有リンクを作ると、リンクを知っている人は誰でも、その時点の都市・年収・本人の年間手取り・計算結果を見られます。夫婦で比較した場合は、世帯（本人＋配偶者）の年間手取りも公開され、そこから配偶者の収入を推測できる場合があります。氏名・メールアドレス・年齢・配偶者の給与額そのもの・カスタム支出は含まれません。"]],
     ["7. 保存期間と削除", [
       "保存した比較は1件ずつ削除できます。アカウントページからアカウント全体を削除することもでき、削除するとログイン情報、保存した比較、プロフィール、AIによる説明の履歴、共有リンク、契約情報をすぐに消去し、有効な定期課金は解約されます（支払い済みの残り期間分の返金はありません）。",
       "利用状況の記録は、アカウントとの結び付きを外して保持します。決済の記録は、法令に基づきStripeが保管します。",

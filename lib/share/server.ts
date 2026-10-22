@@ -14,7 +14,7 @@ function isPublicShareSnapshot(value: unknown): value is PublicShareSnapshot {
   return typeof value.title === "string"
     && typeof value.calculationVersion === "string"
     && typeof value.calculatedAt === "string"
-    && typeof value.winnerCityId === "string"
+    && (typeof value.winnerCityId === "string" || value.winnerCityId === null)
     && typeof value.explanation === "string"
     && Array.isArray(value.scenarios)
     && value.scenarios.length >= 2
@@ -22,6 +22,7 @@ function isPublicShareSnapshot(value: unknown): value is PublicShareSnapshot {
     && value.scenarios.every((scenario) => isObject(scenario)
       && typeof scenario.cityId === "string"
       && typeof scenario.rank === "number"
+      && (scenario.ranked === undefined || typeof scenario.ranked === "boolean")
       && typeof scenario.score === "number"
       && typeof scenario.currency === "string"
       && typeof scenario.grossAnnual === "number"

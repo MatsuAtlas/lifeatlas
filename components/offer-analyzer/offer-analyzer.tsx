@@ -33,6 +33,7 @@ import type { ComparisonRecord, SavedAnalyzerInput, SavedAnalyzerResult } from "
 import type { CalculationCity, HousingType, LifestyleType } from "../../types/finance";
 import type { UserProfile } from "../../types/profile";
 import type { PriorityKey, ScenarioCalculationOptions, ScenarioHousehold, ScenarioInput, ScenarioResult, ScenarioScore, UserPriorities } from "../../types/scenario";
+import type { WhatIfDelta } from "../../types/what-if";
 
 const CITY_COUNT = cityOrder.length;
 
@@ -255,6 +256,9 @@ const copy = {
     impact: "変化後の影響",
     rankChange: "順位変化",
     scoreChange: "スコア変化",
+    becameUnranked: "変更後は順位なし",
+    becameRanked: "変更後は順位の対象（変更前は順位なし）",
+    aiNoRankable: "金額を計算できる候補がないため、AIの説明は作成できません。各候補の注記を確認してください。",
     savingsChange: "年間貯蓄差",
     wealthChange: "10年後資産差",
     breakEven: "逆転に必要な給与",
@@ -289,7 +293,7 @@ const copy = {
     saveError: "保存履歴を処理できませんでした。",
     loading: "処理中…",
     shareTitle: "結果を公開共有する",
-    shareNote: "Proでは、氏名・メール・年齢・世帯・カスタム支出を含まない公開スナップショットを作成できます。",
+    shareNote: "Proでは、氏名・メール・年齢・配偶者の給与額・カスタム支出を含まない公開スナップショットを作成できます。都市・年収・本人の年間手取り・計算結果は公開され、夫婦の比較では世帯（本人＋配偶者）の年間手取りも公開されます（配偶者の収入を推測できる場合があります）。",
     createShare: "公開リンクを作成",
     creatingShare: "公開リンクを作成中…",
     copyShare: "リンクをコピー",
@@ -437,6 +441,9 @@ const copy = {
     impact: "Impact after change",
     rankChange: "Rank change",
     scoreChange: "Score change",
+    becameUnranked: "Not ranked after the change",
+    becameRanked: "Ranked after the change (not ranked before)",
+    aiNoRankable: "No option can be calculated, so an AI explanation cannot be created. Check the note on each option.",
     savingsChange: "Annual savings change",
     wealthChange: "10-year wealth change",
     breakEven: "Salary needed to overtake",
@@ -471,7 +478,7 @@ const copy = {
     saveError: "Saved analyses could not be processed.",
     loading: "Working…",
     shareTitle: "Share a public result",
-    shareNote: "Pro creates a public snapshot without your name, email, age, household or custom spending.",
+    shareNote: "Pro creates a public snapshot without your name, email, age, your spouse's salary or custom spending. Cities, gross income, your annual take-home and the results are public; for couples, household (you plus your spouse) annual take-home is public too, from which your spouse's income may be inferred.",
     createShare: "Create public link",
     creatingShare: "Creating public link…",
     copyShare: "Copy link",
@@ -530,6 +537,20 @@ function formatMoney(value: number | null, currency: CurrencyCode, language: Lan
     currencyDisplay: "narrowSymbol",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+// What-Ifで計算できる／できないが変わった理由の表示。
+const rankingReasonLabels = {
+  household: { ja: "世帯の収支を計算できない", en: "household cash flow cannot be calculated" },
+  tax: { ja: "税・保険の計算が未対応", en: "tax and insurance are not modelled" },
+  salary: { ja: "給与を計算できない", en: "salary cannot be calculated" },
+} as const;
+
+function rankingChangeText(change: WhatIfDelta["rankingChange"], labels: { becameUnranked: string; becameRanked: string }, language: "ja" | "en") {
+  if (!change) return null;
+  const reason = change.reason ? rankingReasonLabels[change.reason][language] : null;
+  const base = change.direction === "becameUnranked" ? labels.becameUnranked : labels.becameRanked;
+  return reason ? `${base}${language === "ja" ? `（${reason}）` : ` (${reason})`}` : base;
 }
 
 function formatSigned(value: number | null, formatter: (amount: number) => string) {
@@ -921,6 +942,11 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
 
   const generateAIRecommendation = async (question?: string) => {
     if (aiLoading) return;
+    // 計算できる候補がなければ、勝者を説明するAIの生成を依頼しません。
+    if (!winnerScore.eligible) {
+      setAiError(t.aiNoRankable);
+      return;
+    }
     if (!authUser) {
       setAiError(t.aiAccountRequired);
       return;
@@ -1268,7 +1294,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           <p><strong>{t.sourceRange}:</strong> {language === "ja" ? city.sourceLabel : `City inputs dated ${localizedUpdatedAt(city.updatedAt, language)}; tax status is shown separately.`}</p>
         </div>
         {whatIfChanges.length > 0 && delta && input.id === activeWhatIfScenario.id && (
-          <div className="oa-card-delta"><span>{t.impact}</span><strong>{formatSigned(delta.score, (value) => value.toFixed(1))} pt</strong><small>{formatSigned(delta.rankChange, (value) => `${Math.abs(value).toFixed(0)}`)} {t.rankChange}</small></div>
+          <div className="oa-card-delta"><span>{t.impact}</span><strong>{delta.score === null ? "—" : `${formatSigned(delta.score, (value) => value.toFixed(1))} pt`}</strong><small>{delta.rankingChange ? rankingChangeText(delta.rankingChange, t, language) : `${formatSigned(delta.rankChange, (value) => `${Math.abs(value).toFixed(0)}`)} ${t.rankChange}`}</small></div>
         )}
       </article>
     );
@@ -1367,7 +1393,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           <div className="oa-impact-grid">{simulation.deltas.map((delta) => {
             const result = resultById.get(delta.scenarioId) as ScenarioResult;
             const city = cities[result.cityId];
-            return <article key={delta.scenarioId} className={delta.scenarioId === activeWhatIfScenario.id ? "is-target" : ""}><span>{cityName(city, language)}</span><div><small>{t.rankChange}</small><strong>{formatSigned(delta.rankChange, (value) => Math.abs(value).toFixed(0))}</strong></div><div><small>{t.scoreChange}</small><strong>{formatSigned(delta.score, (value) => Math.abs(value).toFixed(1))}</strong></div><div><small>{t.savingsChange}</small><strong>{formatSigned(delta.annualSavings, (value) => formatMoney(Math.abs(value), result.currency, language))}</strong></div><div><small>{t.wealthChange}</small><strong>{formatSigned(delta.projectedSavings10Years, (value) => formatMoney(Math.abs(value), result.currency, language))}</strong></div></article>;
+            return <article key={delta.scenarioId} className={delta.scenarioId === activeWhatIfScenario.id ? "is-target" : ""}><span>{cityName(city, language)}</span><div><small>{t.rankChange}</small><strong>{formatSigned(delta.rankChange, (value) => Math.abs(value).toFixed(0))}</strong></div><div><small>{t.scoreChange}</small><strong>{formatSigned(delta.score, (value) => Math.abs(value).toFixed(1))}</strong></div><div><small>{t.savingsChange}</small><strong>{formatSigned(delta.annualSavings, (value) => formatMoney(Math.abs(value), result.currency, language))}</strong></div><div><small>{t.wealthChange}</small><strong>{formatSigned(delta.projectedSavings10Years, (value) => formatMoney(Math.abs(value), result.currency, language))}</strong></div>{delta.rankingChange && <p className="oa-ranking-change">{rankingChangeText(delta.rankingChange, t, language)}</p>}</article>;
           })}</div></fieldset>
           {!activeEntitlements.canUseWhatIf && <p className="oa-pro-note">{t.proRequired} <Link href="/pricing">{t.upgrade} →</Link></p>}
         </section>
@@ -1415,8 +1441,9 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           <div className="oa-section-heading"><div><p className="eyebrow">07 / EXPLAIN</p><h2>{t.aiTitle}</h2></div><p>{t.aiNote}</p></div>
           <div className="oa-ai-launch">
             <div><strong>{language === "ja" ? "計算は固定、説明だけAI" : "Fixed calculations, AI explanation only"}</strong><p>{t.aiPrivacy}</p></div>
-            <button className="primary-button" type="button" onClick={() => void generateAIRecommendation()} disabled={aiLoading || !authUser}>{aiLoading ? t.generatingAI : t.generateAI}</button>
+            <button className="primary-button" type="button" onClick={() => void generateAIRecommendation()} disabled={aiLoading || !authUser || !winnerScore.eligible}>{aiLoading ? t.generatingAI : t.generateAI}</button>
           </div>
+          {!winnerScore.eligible && <p className="oa-ai-error" role="status">{t.aiNoRankable}</p>}
           {!authUser && <p className="oa-save-signin">{t.aiAccountRequired} <Link href="/#account">{t.signInLink} →</Link></p>}
           {aiError && <p className="oa-ai-error" role="status" aria-live="polite">{aiError}</p>}
           {visibleAIGeneration && (

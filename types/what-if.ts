@@ -35,8 +35,11 @@ export type WhatIfDelta = {
   annualSavings: number | null;
   savingsRate: number | null;
   projectedSavings10Years: number | null;
-  score: number;
-  rankChange: number;
+  // 変更前後のどちらかが順位の対象外（計算できない）なら、スコア・順位の変化は null（画面は —）です。
+  score: number | null;
+  rankChange: number | null;
+  // 計算できる／できないが変わった場合の向きと、計算できない側の理由。変わらなければ null。
+  rankingChange: { direction: "becameUnranked" | "becameRanked"; reason: "tax" | "salary" | "household" | null } | null;
 };
 
 export type WhatIfSimulationInput = {

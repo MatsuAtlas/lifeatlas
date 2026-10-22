@@ -371,6 +371,7 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
 .oa-impact-grid article > span { font-size: 12px; font-weight: 800; }
 .oa-impact-grid article > div { display: grid; gap: 4px; min-width: 0; }
 .oa-impact-grid strong { overflow-wrap: anywhere; font-size: 11px; }
+.oa-impact-grid .oa-ranking-change { grid-column: 1 / -1; margin: 0; color: var(--faint); font-size: 11px; line-height: 1.5; }
 .oa-break-even-grid { display: grid; grid-template-columns: .85fr .85fr 1.3fr; align-items: end; gap: 14px; }
 .oa-break-even-result { display: grid; gap: 6px; min-height: 77px; padding: 12px 16px; border: 1px solid rgba(139,224,189,.32); border-radius: 13px; background: var(--green-soft); }
 .oa-break-even-result span { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .07em; }
