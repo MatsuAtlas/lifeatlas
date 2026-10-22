@@ -70,7 +70,8 @@ export default async function PublicSharePage({ params }: { params: Promise<{ id
             <div className="growth-card-title"><span>#{scenario.rank}</span><div><small>{label.country}</small><h3>{label.name}</h3></div><strong>{scenario.score}<small>/100</small></strong></div>
             <dl className="growth-metrics">
               <div><dt>{isJa ? "年収" : "Gross income"}</dt><dd>{formatCurrency(scenario.grossAnnual, scenario.currency, language)}</dd></div>
-              <div><dt>{isJa ? "年間手取り" : "Annual take-home"}</dt><dd>{formatCurrency(scenario.netAnnual, scenario.currency, language)}</dd></div>
+              <div><dt>{scenario.cashflowBasis === "household" ? (isJa ? "本人の年間手取り" : "Your annual take-home") : (isJa ? "年間手取り" : "Annual take-home")}</dt><dd>{formatCurrency(scenario.netAnnual, scenario.currency, language)}</dd></div>
+              {scenario.cashflowBasis === "household" && <div><dt>{isJa ? "世帯の年間手取り" : "Household annual take-home"}</dt><dd>{formatCurrency(scenario.householdNetAnnual ?? null, scenario.currency, language)}</dd></div>}
               <div><dt>{isJa ? "月間生活費" : "Monthly living cost"}</dt><dd>{formatCurrency(scenario.totalLivingCostMonthly, scenario.currency, language)}</dd></div>
               <div><dt>{isJa ? "年間貯蓄" : "Annual savings"}</dt><dd>{formatCurrency(scenario.annualSavings, scenario.currency, language)}</dd></div>
               <div><dt>{isJa ? "貯蓄率" : "Savings rate"}</dt><dd>{formatPercent(scenario.savingsRate)}</dd></div>

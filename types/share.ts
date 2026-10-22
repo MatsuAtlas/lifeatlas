@@ -17,6 +17,9 @@ export type PublicShareScenario = {
   calculationStatus: ScenarioResult["calculationStatus"];
   // 古いスナップショットには無いため任意項目です。
   expatTaxRegime?: ScenarioResult["assumptions"]["expatTaxRegime"];
+  // 収支の基準（夫婦は世帯）。2026.10-v2.3 より前のスナップショットには無いため任意項目です。
+  cashflowBasis?: ScenarioResult["cashflow"]["basis"];
+  householdNetAnnual?: number | null;
   strongestFactors: string[];
   riskFlags: string[];
 };

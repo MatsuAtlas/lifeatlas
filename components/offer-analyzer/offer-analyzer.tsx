@@ -139,6 +139,7 @@ const factorLabels: Record<string, { ja: string; en: string }> = {
 
 const riskLabels: Record<string, { ja: string; en: string }> = {
   "calculation-unavailable": { ja: "税・保険計算が未対応", en: "Tax calculation unavailable" },
+  "household-cashflow-unavailable": { ja: "世帯の収支を計算できない", en: "Household cash flow unavailable" },
   "negative-savings": { ja: "年間収支が赤字", en: "Negative annual savings" },
   "high-housing-burden": { ja: "住居費負担が高い", en: "High housing burden" },
   "work-visa-salary-below": { ja: "就労ビザの給与基準を下回る", en: "Below the work visa salary threshold" },
@@ -180,12 +181,22 @@ const copy = {
     setProfile: "プロフィールを設定",
     result: "決定結果",
     bestFit: "最適候補",
+    notRanked: "順位なし",
+    noEligibleWinner: "金額を計算できる候補がないため、最適候補は決められません。各候補の注記を確認してください。",
     score: "LifeAtlas Score",
     gross: "年収",
     grossMonthly: "月収（総額）",
     taxAnnual: "年間税額",
     insuranceAnnual: "年間社会保険",
     takeHome: "年間手取り",
+    ownTakeHome: "本人の年間手取り",
+    ownTakeHomeMonthly: "本人の月間手取り",
+    householdTakeHome: "世帯の年間手取り",
+    householdTakeHomeMonthly: "世帯の月間手取り",
+    householdSurplus: "世帯の月間余剰",
+    householdBasisNote: "残額・貯蓄・負担率・資産予測・スコアは、世帯の手取り（本人＋配偶者）から世帯の支出を引いて計算しています。本人の税・手取りは本人分の明細です。",
+    spouseIncomeUnknown: "配偶者の収入が未入力のため、世帯の残額・貯蓄・スコアは計算していません（収入がない場合は0を入力）。計算できる候補と同列には順位を付けません。",
+    householdModelUnsupported: "この都市は夫婦の世帯の手取り（共同課税など）の計算に未対応のため、世帯の残額・貯蓄・スコアは計算していません。計算できる候補と同列には順位を付けません。",
     takeHomeMonthly: "月間手取り",
     livingCost: "月間生活費",
     rent: "月額家賃",
@@ -257,6 +268,7 @@ const copy = {
     already: "すでに基準を満たしています",
     unreachable: "設定上限内では到達できません",
     calculationUnavailable: "この組み合わせは税・保険計算が未対応です",
+    householdBreakEvenUnavailable: "夫婦の世帯の収支を計算できない候補があるため、逆転給与を求められません",
     saveTitle: "分析を保存する",
     saveNote: "Freeは1件、Proは無制限にアカウント保存できます。Supabase未設定時だけ、この端末へ最大50件保存します。",
     saveAnalysis: "現在の分析を保存",
@@ -271,6 +283,7 @@ const copy = {
     cloudMode: "アカウント保存モード",
     saved: "分析を保存しました。",
     restored: "保存した条件を復元しました。",
+    recalculated: "保存時と計算方法が変わったため（{saved} → {current}）、現在の計算方法で再計算しています。",
     deleted: "保存した分析を削除しました。",
     invalidSavedAnalysis: "保存内容を確認できませんでした。",
     saveError: "保存履歴を処理できませんでした。",
@@ -350,12 +363,22 @@ const copy = {
     setProfile: "Set up profile",
     result: "Decision result",
     bestFit: "Best fit",
+    notRanked: "Not ranked",
+    noEligibleWinner: "No option can be calculated, so there is no best fit. Check the note on each option.",
     score: "LifeAtlas Score",
     gross: "Gross income",
     grossMonthly: "Gross monthly income",
     taxAnnual: "Annual tax",
     insuranceAnnual: "Annual social insurance",
     takeHome: "Annual take-home",
+    ownTakeHome: "Your annual take-home",
+    ownTakeHomeMonthly: "Your monthly take-home",
+    householdTakeHome: "Household annual take-home",
+    householdTakeHomeMonthly: "Household monthly take-home",
+    householdSurplus: "Household monthly surplus",
+    householdBasisNote: "Surplus, savings, burdens, projections and the score use household take-home (you plus your spouse) minus household spending. Your tax and take-home show your own share.",
+    spouseIncomeUnknown: "Your spouse's income is not entered, so household surplus, savings and the score are not calculated (enter 0 if they have no income). It is not ranked alongside options that can be calculated.",
+    householdModelUnsupported: "Household take-home for couples (joint taxation and similar) is not modelled for this city yet, so household surplus, savings and the score are not calculated. It is not ranked alongside options that can be calculated.",
     takeHomeMonthly: "Monthly take-home",
     livingCost: "Monthly living cost",
     rent: "Monthly rent",
@@ -427,6 +450,7 @@ const copy = {
     already: "This option already meets the target",
     unreachable: "The target is unreachable within the search limit",
     calculationUnavailable: "Tax and insurance calculations are unavailable for this option",
+    householdBreakEvenUnavailable: "Household cash flow cannot be calculated for one of these options, so no break-even salary is found",
     saveTitle: "Save this analysis",
     saveNote: "Free saves 1 analysis; Pro saves unlimited analyses. Only unconfigured environments use up to 50 on-device records.",
     saveAnalysis: "Save current analysis",
@@ -441,6 +465,7 @@ const copy = {
     cloudMode: "Account storage",
     saved: "Analysis saved.",
     restored: "Saved conditions restored.",
+    recalculated: "The calculation method has changed since this was saved ({saved} → {current}), so it is recalculated with the current method.",
     deleted: "Saved analysis deleted.",
     invalidSavedAnalysis: "This saved analysis could not be verified.",
     saveError: "Saved analyses could not be processed.",
@@ -515,6 +540,13 @@ function formatSigned(value: number | null, formatter: (amount: number) => strin
 
 function formatPercent(value: number | null) {
   return value === null ? "—" : `${value.toFixed(1)}%`;
+}
+
+// 保存した分析結果（SavedAnalyzerResult）に記録された計算バージョン。読めなければ null。
+function savedCalculationVersion(result: unknown): string | null {
+  const snapshot = typeof result === "object" && result !== null ? (result as { snapshot?: { results?: Array<{ assumptions?: { calculationVersion?: unknown } }> } }).snapshot : undefined;
+  const version = snapshot?.results?.[0]?.assumptions?.calculationVersion;
+  return typeof version === "string" ? version : null;
 }
 
 function optionalNumber(value: number | undefined) {
@@ -735,6 +767,9 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
     ? winnerResult.annualSavingsJpy - runnerUpResult.annualSavingsJpy
     : null;
   const breakEven = simulation.after.breakEven[0];
+  // 逆転給与を求められない理由が夫婦の世帯収支（配偶者の収入が空欄・世帯モデル未対応）なら、税の未対応とは別の文言にします。
+  const breakEvenHouseholdUnavailable = breakEven?.status === "calculation-unavailable"
+    && [breakEven.referenceScenarioId, breakEven.candidateScenarioId].some((id) => simulation.after.results.find((result) => result.scenarioId === id)?.unavailableReason === "household");
   const analyzerHistory = history.filter((record) => isSavedAnalyzerInput(record.input));
   const currentAnalysis: SavedAnalyzerInput = {
     kind: "offer-analyzer",
@@ -761,7 +796,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
   const currentAnalysisSignature = JSON.stringify(currentAnalysis);
   const visibleAIGeneration = aiGenerationLanguage === language && aiAnalysisSignature === currentAnalysisSignature ? aiGeneration : null;
 
-  const applySavedInput = useCallback((saved: SavedAnalyzerInput, maxScenarios = activeEntitlements.maxScenarios) => {
+  const applySavedInput = useCallback((saved: SavedAnalyzerInput, maxScenarios = activeEntitlements.maxScenarios, savedResult?: unknown) => {
     if (saved.scenarios.length > maxScenarios) {
       setSaveMessage(t.scenarioLimit);
       return;
@@ -780,14 +815,16 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
     setWhatIfReturnRatePercent(saved.whatIf.annualReturnRatePercent ?? null);
     setBreakEvenCandidateId(saved.breakEven.candidateScenarioId);
     setBreakEvenMetric(saved.breakEven.metric);
-    setSaveMessage(t.restored);
+    // 保存した結果の計算バージョンが今と違えば、再計算したことを黙らずに伝えます。
+    const savedVersion = savedCalculationVersion(savedResult);
+    setSaveMessage(savedVersion && savedVersion !== CALCULATION_VERSION ? `${t.restored} ${t.recalculated.replace("{saved}", savedVersion).replace("{current}", CALCULATION_VERSION)}` : t.restored);
     requestAnimationFrame(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }, [activeEntitlements.maxScenarios, t.restored, t.scenarioLimit]);
+  }, [activeEntitlements.maxScenarios, t.recalculated, t.restored, t.scenarioLimit]);
 
   useEffect(() => {
     const queued = consumeQueuedAnalyzerRestore();
     if (!queued || !isSavedAnalyzerInput(queued.input)) return;
-    const frame = requestAnimationFrame(() => applySavedInput(queued.input as SavedAnalyzerInput));
+    const frame = requestAnimationFrame(() => applySavedInput(queued.input as SavedAnalyzerInput, undefined, queued.result));
     return () => cancelAnimationFrame(frame);
   }, [applySavedInput]);
 
@@ -809,7 +846,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
       const maxScenarios = billingResponse.ok && typeof billingData?.entitlements?.maxScenarios === "number"
         ? billingData.entitlements.maxScenarios
         : FREE_ENTITLEMENTS.maxScenarios;
-      applySavedInput(record.input, maxScenarios);
+      applySavedInput(record.input, maxScenarios, record.result);
     }).catch(() => { if (active) setSaveMessage(t.saveError); });
     return () => { active = false; };
   }, [applySavedInput, initialRecordId, t.invalidSavedAnalysis, t.saveError]);
@@ -932,7 +969,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
       setSaveMessage(t.invalidSavedAnalysis);
       return;
     }
-    applySavedInput(record.input);
+    applySavedInput(record.input, undefined, record.result);
     setHistoryOpen(false);
   };
 
@@ -1063,17 +1100,21 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
     const confidenceLabel = result.dataConfidence.level === "high" ? t.dataHigh : result.dataConfidence.level === "medium" ? t.dataMedium : t.dataLow;
     const taxLabel = result.calculationStatus === "official-scenario" ? t.official : result.calculationStatus === "official-rate-estimate" ? t.estimate : t.taxUnavailable;
     const fireLabel = result.fire?.yearsToTarget === null || result.fire === null ? t.unavailable : `${result.fire.yearsToTarget} ${t.years}`;
+    // 夫婦は世帯の収支（世帯の手取り−世帯の支出）で計算し、本人の税・手取りとは分けて表示します。
+    const household = result.cashflow.basis === "household";
 
     return (
-      <article className={`oa-result-card ${score.rank === 1 ? "is-winner" : ""}`} key={score.scenarioId} data-calculation-status={result.calculationStatus}>
+      <article className={`oa-result-card ${score.rank === 1 && score.eligible ? "is-winner" : ""}`} key={score.scenarioId} data-calculation-status={result.calculationStatus} data-eligible={score.eligible}>
         <div className="oa-result-top">
-          <div className="oa-rank"><span>#{score.rank}</span>{score.rank === 1 && <strong>{t.bestFit}</strong>}</div>
+          {/* 計算できない候補は、計算できる候補と同列の順位を示しません。 */}
+          <div className="oa-rank"><span>{score.eligible ? `#${score.rank}` : t.notRanked}</span>{score.rank === 1 && score.eligible && <strong>{t.bestFit}</strong>}</div>
           <div className="oa-city-title"><small>{countryName(city, language)}</small><h3>{cityName(city, language)}</h3></div>
           <div className="oa-score"><strong>{score.score}</strong><span>/ 100<br />{t.score}</span></div>
         </div>
         <div className="oa-metrics">
           <div><span>{t.gross}</span><strong>{formatMoney(result.grossAnnual, result.currency, language)}</strong></div>
-          <div><span>{t.takeHome}</span><strong>{formatMoney(result.netAnnual, result.currency, language)}</strong></div>
+          <div><span>{household ? t.ownTakeHome : t.takeHome}</span><strong>{formatMoney(result.netAnnual, result.currency, language)}</strong></div>
+          {household && <div><span>{t.householdTakeHome}</span><strong>{formatMoney(result.cashflow.netAnnual, result.currency, language)}</strong></div>}
           <div><span>{t.livingCost}</span><strong>{formatMoney(result.totalLivingCostMonthly, result.currency, language)}</strong></div>
           <div><span>{t.savings}</span><strong>{formatMoney(result.annualSavings, result.currency, language)}</strong></div>
           <div><span>{t.savingsRate}</span><strong>{formatPercent(result.savingsRate)}</strong></div>
@@ -1081,6 +1122,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
           <div><span>{t.rentBurden}</span><strong>{formatPercent(result.rentBurden)}</strong></div>
           <div title={!activeEntitlements.canUseLongTermProjections ? t.longTermPro : undefined}><span>{t.fire}</span><strong>{activeEntitlements.canUseLongTermProjections ? fireLabel : "Pro"}</strong></div>
         </div>
+        {household && <p className="oa-expat-note" data-household-cashflow={result.cashflow.unavailable ?? "available"}>{result.cashflow.unavailable === "spouseIncomeUnknown" ? t.spouseIncomeUnknown : result.cashflow.unavailable === "householdModelUnsupported" ? t.householdModelUnsupported : t.householdBasisNote}</p>}
         {(() => {
           const familyEntered = (input.spouseAnnualSalary !== undefined && input.householdType === "couple") || (input.childrenAges?.length ?? 0) > 0;
           return city.taxSystem === "japan" ? familyEntered || (input.householdType === "single" && input.children > 0) : familyEntered;
@@ -1118,8 +1160,8 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                         ? (language === "ja" ? "一人親か、配偶者の給与が0の夫婦なら、1〜17歳の子ども1人につき月₫6,200,000の扶養控除を反映します。配偶者に所得がある場合は両親のどちらが申告するか選べるため使っていません。" : "Single parents, or couples whose spouse salary is 0, get the ₫6.2 million monthly dependant deduction for each child aged 1–17. With an earning spouse the parents choose who claims it, so it is not used.")
                         : city.taxSystem === "germany" || city.taxSystem === "france" || city.taxSystem === "switzerland" || result.householdTakeHome !== null
                           ? (city.taxSystem === "france" || city.taxSystem === "switzerland"
-                            ? (language === "ja" ? "配偶者の給与と子どもの年齢は、下の世帯の手取り（夫婦の共同申告）だけに使います。" : "Spouse salary and children's ages are used only for the household take-home below (joint filing).")
-                            : (language === "ja" ? "配偶者の給与は、下の世帯の手取り（夫婦合算）だけに使います。子どもの年齢はまだ使っていません。" : "Spouse salary is used only for the household take-home below (joint taxation). Children's ages are not used yet."))
+                            ? (language === "ja" ? "配偶者の給与と子どもの年齢は、下の世帯の手取り（夫婦の共同申告）の計算に使い、本人の手取りには使いません。" : "Spouse salary and children's ages are used for the household take-home below (joint filing), not for your own take-home.")
+                            : (language === "ja" ? "配偶者の給与は、下の世帯の手取り（夫婦合算）の計算に使い、本人の手取りには使いません。子どもの年齢はまだ使っていません。" : "Spouse salary is used for the household take-home below (joint taxation), not for your own take-home. Children's ages are not used yet."))
                           : (language === "ja" ? "配偶者の給与・子どもの年齢は、この都市の税計算にはまだ使っていません。" : "Spouse salary and children's ages are not yet used for this city's tax.")}</p> : null}
         {(() => {
           const counts = japanDisability[input.id];
@@ -1144,8 +1186,8 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
             usMarriedFilingJointly: { ja: ["夫婦合算申告（married filing jointly）", "子どもの税額控除（Child Tax Credit）は含めていません。医療保険料は本人の家族プランだけを差し引いています。"], en: ["married filing jointly", "The Child Tax Credit is not included; only your family health plan premium is deducted."] },
           }[household.basis];
           return <p className="oa-expat-note">{language === "ja"
-            ? `${copy.ja[0]}での世帯の手取りは、本人と配偶者の合計で年${joint}です（2人を単身として別々に課税した場合との差は${difference}）。夫婦の税をどちらの分とも決められないため、上の手取り・スコア・順位は本人の単身税率のままです。${copy.ja[1]}`
-            : `With ${copy.en[0]}, household take-home for you and your spouse is ${joint} a year (a difference of ${difference} from taxing you both as single). Because the joint tax cannot be split between you, the take-home, score and ranking above stay on your own single-rate tax. ${copy.en[1]}`}</p>;
+            ? `${copy.ja[0]}での世帯の手取りは、本人と配偶者の合計で年${joint}です（2人を単身として別々に課税した場合との差は${difference}）。世帯の残額・貯蓄・スコア・順位はこの世帯の手取りで計算し、本人の手取りは本人を単身として課税した明細です。${copy.ja[1]}`
+            : `With ${copy.en[0]}, household take-home for you and your spouse is ${joint} a year (a difference of ${difference} from taxing you both as single). Household surplus, savings, score and ranking use this household take-home; your own take-home is your share taxed as single. ${copy.en[1]}`}</p>;
         })()}
         {result.childAllowance && (() => {
           const allowance = result.childAllowance;
@@ -1193,10 +1235,11 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
             <div><span>{t.grossMonthly}</span><strong>{formatMoney(result.grossMonthly, result.currency, language)}</strong></div>
             <div><span>{t.taxAnnual}</span><strong>{formatMoney(result.taxAnnual, result.currency, language)}</strong></div>
             <div><span>{t.insuranceAnnual}</span><strong>{formatMoney(result.socialInsuranceAnnual, result.currency, language)}</strong></div>
-            <div><span>{t.takeHomeMonthly}</span><strong>{formatMoney(result.netMonthly, result.currency, language)}</strong></div>
+            <div><span>{household ? t.ownTakeHomeMonthly : t.takeHomeMonthly}</span><strong>{formatMoney(result.netMonthly, result.currency, language)}</strong></div>
+            {household && <div><span>{t.householdTakeHomeMonthly}</span><strong>{formatMoney(result.cashflow.netMonthly, result.currency, language)}</strong></div>}
             <div><span>{t.rent}</span><strong>{formatMoney(result.rentMonthly, result.currency, language)}</strong></div>
             <div><span>{t.otherSpending}</span><strong>{formatMoney(result.baselineSpendingMonthly, result.currency, language)}</strong></div>
-            <div><span>{t.monthlySurplus}</span><strong>{formatMoney(result.monthlySurplus, result.currency, language)}</strong></div>
+            <div><span>{household ? t.householdSurplus : t.monthlySurplus}</span><strong>{formatMoney(result.monthlySurplus, result.currency, language)}</strong></div>
             <div><span>{t.livingCostBurden}</span><strong>{formatPercent(result.livingCostBurden)}</strong></div>
             <div><span>{t.purchasingPower}</span><strong>{result.purchasingPowerIndex ?? "—"}</strong></div>
             <div><span>{t.wealth5}</span><strong>{activeEntitlements.canUseLongTermProjections ? formatMoney(result.projectedSavings5Years, result.currency, language) : "Pro"}</strong></div>
@@ -1264,7 +1307,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                   <label>{t.age}<input type="number" min="18" max="100" value={scenario.age} onChange={(event) => updateScenario(scenario.id, { age: Number(event.target.value) })} /></label>
                   <label>{t.household}<select value={scenario.householdType} onChange={(event) => updateScenario(scenario.id, { householdType: event.target.value as ScenarioHousehold })}><option value="single">{t.single}</option><option value="couple">{t.couple}</option></select></label>
                   <label>{t.children}<input type="number" min="0" max="10" value={scenario.children} onChange={(event) => { const children = Number(event.target.value); updateScenario(scenario.id, { children, childrenAges: scenario.childrenAges?.slice(0, Math.max(0, children)), childrenSalaries: scenario.childrenSalaries?.slice(0, Math.max(0, children)) }); }} /></label>
-                  {scenario.householdType === "couple" && <label>{language === "ja" ? "配偶者の給与年収（任意）" : "Spouse's annual salary (optional)"}<div className="input-with-unit"><input type="number" min="0" value={optionalNumber(scenario.spouseAnnualSalary)} placeholder={language === "ja" ? "なし・不明なら空欄" : "Leave blank if none or unknown"} onChange={(event) => updateScenario(scenario.id, { spouseAnnualSalary: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{scenario.salaryCurrency}</span></div></label>}
+                  {scenario.householdType === "couple" && <label>{language === "ja" ? "配偶者の給与年収（任意）" : "Spouse's annual salary (optional)"}<div className="input-with-unit"><input type="number" min="0" value={optionalNumber(scenario.spouseAnnualSalary)} placeholder={language === "ja" ? "収入なしは0、不明なら空欄" : "0 if no income, blank if unknown"} onChange={(event) => updateScenario(scenario.id, { spouseAnnualSalary: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{scenario.salaryCurrency}</span></div></label>}
                   {scenario.children > 0 && <label>{language === "ja" ? "子どもの年齢（12月31日時点・任意）" : "Children's ages on 31 December (optional)"}<input key={`${scenario.id}-${scenario.children}-${(scenario.childrenAges ?? []).join(",")}`} type="text" inputMode="numeric" defaultValue={(scenario.childrenAges ?? []).join(", ")} placeholder={language === "ja" ? "例：5, 12" : "e.g. 5, 12"} onBlur={(event) => {
                     // カンマ区切りの年齢を、人数分まで0〜30の整数として読み取ります。読めない値は使いません。
                     const ages = event.target.value.split(/[,、\s]+/).filter((part) => part !== "").map(Number).filter((age) => Number.isInteger(age) && age >= 0 && age <= 30).slice(0, scenario.children);
@@ -1301,7 +1344,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
         </section>
 
         <section id="result" className="oa-section oa-result-section">
-          <div className="oa-decision-banner"><div><p className="eyebrow">03 / DECISION</p><span>{t.bestFit}</span><h2>{cityName(winnerCity, language)}</h2><p>{savingsLead === null ? (language === "ja" ? "現在の優先軸とデータ信頼度を含めて最上位です。" : "It ranks first after your priorities and data confidence are applied.") : language === "ja" ? `2位より年間貯蓄が約${formatMoney(savingsLead, "JPY", language)}多い試算です。` : `Projected annual savings are about ${formatMoney(savingsLead, "JPY", language)} above the runner-up.`}</p></div><div className="oa-decision-score"><strong>{winnerScore.score}</strong><span>/ 100<br />{t.score}</span></div></div>
+          <div className="oa-decision-banner"><div><p className="eyebrow">03 / DECISION</p><span>{winnerScore.eligible ? t.bestFit : t.notRanked}</span><h2>{winnerScore.eligible ? cityName(winnerCity, language) : "—"}</h2><p>{!winnerScore.eligible ? t.noEligibleWinner : savingsLead === null ? (language === "ja" ? "現在の優先軸とデータ信頼度を含めて最上位です。" : "It ranks first after your priorities and data confidence are applied.") : language === "ja" ? `2位より年間貯蓄が約${formatMoney(savingsLead, "JPY", language)}多い試算です。` : `Projected annual savings are about ${formatMoney(savingsLead, "JPY", language)} above the runner-up.`}</p></div><div className="oa-decision-score"><strong>{winnerScore.eligible ? winnerScore.score : "—"}</strong><span>/ 100<br />{t.score}</span></div></div>
           <div className="oa-results-grid">{simulation.after.scores.map(renderResultCard)}</div>
           <p className="oa-fx-note">{exchangeRates && exchangeRates.status !== "fallback" && exchangeRates.observedOn ? t.fxLive(exchangeRates.observedOn) : t.fxFallback}</p>
         </section>
@@ -1331,7 +1374,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
 
         <section id="break-even" className="oa-section oa-break-even-section">
           <div className="oa-section-heading"><div><p className="eyebrow">05 / BREAK-EVEN</p><h2>{t.breakEven}</h2></div><p>{t.breakEvenNote}</p></div>
-          {activeEntitlements.canUseBreakEven ? <div className="oa-break-even-grid"><label>{t.candidate}<select value={activeBreakEvenCandidateId} onChange={(event) => setBreakEvenCandidateId(event.target.value)}>{candidateOptions.map((scenario) => <option value={scenario.id} key={scenario.id}>{cityName(cities[scenario.cityId], language)}</option>)}</select></label><label>{t.metric}<select value={breakEvenMetric} onChange={(event) => setBreakEvenMetric(event.target.value as BreakEvenMetric)}><option value="disposableIncome">{t.metricIncome}</option><option value="savingsRate">{t.metricSavings}</option><option value="lifeAtlasScore">{t.metricScore}</option></select></label><div className="oa-break-even-result"><span>{t.requiredSalary}</span><strong>{breakEven?.status === "matched" ? formatMoney(breakEven.requiredAnnualSalary, breakEven.salaryCurrency, language) : "—"}</strong><small>{breakEven?.status === "unreachable" ? t.unreachable : breakEven?.status === "calculation-unavailable" ? t.calculationUnavailable : `${cityName(winnerCity, language)} · ${breakEvenMetric === "disposableIncome" ? t.metricIncome : breakEvenMetric === "savingsRate" ? t.metricSavings : t.metricScore}`}</small></div></div> : <p className="oa-pro-note oa-pro-note-large">{t.proRequired} <Link href="/pricing">{t.upgrade} →</Link></p>}
+          {activeEntitlements.canUseBreakEven ? <div className="oa-break-even-grid"><label>{t.candidate}<select value={activeBreakEvenCandidateId} onChange={(event) => setBreakEvenCandidateId(event.target.value)}>{candidateOptions.map((scenario) => <option value={scenario.id} key={scenario.id}>{cityName(cities[scenario.cityId], language)}</option>)}</select></label><label>{t.metric}<select value={breakEvenMetric} onChange={(event) => setBreakEvenMetric(event.target.value as BreakEvenMetric)}><option value="disposableIncome">{t.metricIncome}</option><option value="savingsRate">{t.metricSavings}</option><option value="lifeAtlasScore">{t.metricScore}</option></select></label><div className="oa-break-even-result"><span>{t.requiredSalary}</span><strong>{breakEven?.status === "matched" ? formatMoney(breakEven.requiredAnnualSalary, breakEven.salaryCurrency, language) : "—"}</strong><small>{breakEven?.status === "unreachable" ? t.unreachable : breakEven?.status === "calculation-unavailable" ? (breakEvenHouseholdUnavailable ? t.householdBreakEvenUnavailable : t.calculationUnavailable) : `${cityName(winnerCity, language)} · ${breakEvenMetric === "disposableIncome" ? t.metricIncome : breakEvenMetric === "savingsRate" ? t.metricSavings : t.metricScore}`}</small></div></div> : <p className="oa-pro-note oa-pro-note-large">{t.proRequired} <Link href="/pricing">{t.upgrade} →</Link></p>}
         </section>
 
         <section id="save" className="oa-section oa-save-section">

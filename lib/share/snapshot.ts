@@ -54,6 +54,8 @@ export function createPublicShareSnapshot(input: SavedAnalyzerInput, language: S
         currency: result.currency,
         grossAnnual: result.grossAnnual,
         netAnnual: result.netAnnual,
+        cashflowBasis: result.cashflow.basis,
+        householdNetAnnual: result.cashflow.basis === "household" ? result.cashflow.netAnnual : null,
         totalLivingCostMonthly: result.totalLivingCostMonthly,
         annualSavings: result.annualSavings,
         savingsRate: result.savingsRate,

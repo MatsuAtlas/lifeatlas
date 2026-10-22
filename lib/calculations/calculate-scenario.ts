@@ -1,12 +1,12 @@
 import { cities } from "../../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../../data/currencies.ts";
 import type { AgeBand, HouseholdType } from "../../types/finance";
-import type { DataConfidence, ScenarioCalculationOptions, ScenarioInput, ScenarioResult } from "../../types/scenario";
+import type { DataConfidence, HouseholdTakeHome, ScenarioCalculationOptions, ScenarioCashflow, ScenarioInput, ScenarioResult } from "../../types/scenario";
 import { calculateCity, franceHouseholdTakeHome2026, germanyHouseholdTakeHome2026, usHouseholdTakeHome2026, zurichHouseholdTakeHome2026 } from "./legacy-engine.ts";
 import { japanChildAllowance } from "./child-allowance.ts";
 import { checkWorkVisaSalary } from "./work-visa.ts";
 
-export const CALCULATION_VERSION = "2026.10-v2.2";
+export const CALCULATION_VERSION = "2026.10-v2.3";
 
 function assertFiniteInRange(name: string, value: number, min: number, max: number) {
   if (!Number.isFinite(value) || value < min || value > max) {
@@ -142,14 +142,40 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
   };
   const totalLivingCostMonthly = rentMonthly + baselineSpendingMonthly;
   const totalLivingCostAnnual = totalLivingCostMonthly * 12;
+  // 本人の手取り（本人の税・社会保険の明細と一致）。
   const netMonthly = legacy.netMonthly;
   const netAnnual = netMonthly === null ? null : netMonthly * 12;
-  const monthlySurplus = netMonthly === null ? null : netMonthly - totalLivingCostMonthly;
+  // 夫婦合算・共同課税の既存モデルによる世帯の手取り（本人＋配偶者）。配偶者の給与が未入力なら計算しません（0は収入なし）。
+  const householdTakeHome: HouseholdTakeHome | null = family.spouseSalary === undefined || legacy.taxBreakdown === null ? null
+    : city.taxSystem === "germany" ? { basis: "germanySplitting", ...germanyHouseholdTakeHome2026(grossAnnual, family.spouseSalary, householdModel), currency: city.currency }
+      : city.taxSystem === "france" ? { basis: "franceQuotientFamilial", ...franceHouseholdTakeHome2026(grossAnnual, family.spouseSalary, input.childrenAges), currency: city.currency }
+        : city.taxSystem === "switzerland" ? { basis: "zurichJointAssessment", ...zurichHouseholdTakeHome2026(grossAnnual, family.spouseSalary, input.childrenAges), currency: city.currency }
+          : (() => {
+            const us = usHouseholdTakeHome2026(city, grossAnnual, family.spouseSalary);
+            return us ? { basis: "usMarriedFilingJointly" as const, ...us, currency: city.currency } : null;
+          })();
+  // 収支の基準：単身・一人親は本人の手取り、夫婦は世帯の手取り（jointNetAnnual は本人分を含むので本人の手取りを足しません）。
+  // 夫婦で配偶者の収入が未入力、または世帯モデルが未対応なら、残額などは計算不能（null）とし、本人の収入で代用しません。
+  const cashflowUnavailable: ScenarioCashflow["unavailable"] = input.householdType !== "couple" || netMonthly === null ? null
+    : input.spouseAnnualSalary === undefined ? "spouseIncomeUnknown"
+      : householdTakeHome === null ? "householdModelUnsupported" : null;
+  const cashflowNetMonthly = input.householdType !== "couple" ? netMonthly
+    : householdTakeHome === null ? null : householdTakeHome.jointNetAnnual / 12;
+  const cashflowNetAnnual = cashflowNetMonthly === null ? null : cashflowNetMonthly * 12;
+  const cashflow: ScenarioCashflow = {
+    basis: input.householdType === "couple" ? "household" : "individual",
+    householdModel: input.householdType === "couple" ? householdTakeHome?.basis ?? null : null,
+    netAnnual: cashflowNetAnnual,
+    netMonthly: cashflowNetMonthly,
+    netAnnualJpy: cashflowNetAnnual === null ? null : convertCurrency(cashflowNetAnnual, city.currency, "JPY", ratesToJpy),
+    unavailable: cashflowUnavailable,
+  };
+  const monthlySurplus = cashflowNetMonthly === null ? null : cashflowNetMonthly - totalLivingCostMonthly;
   const annualSavings = monthlySurplus === null ? null : monthlySurplus * 12;
-  const savingsRate = annualSavings === null || netAnnual === null || netAnnual <= 0 ? null : (annualSavings / netAnnual) * 100;
-  const rentBurden = netMonthly === null || netMonthly <= 0 ? null : (rentMonthly / netMonthly) * 100;
-  const livingCostBurden = netMonthly === null || netMonthly <= 0 ? null : (totalLivingCostMonthly / netMonthly) * 100;
-  const purchasingPowerIndex = netMonthly === null || totalLivingCostMonthly <= 0 ? null : Math.round((netMonthly / totalLivingCostMonthly) * 100);
+  const savingsRate = annualSavings === null || cashflowNetAnnual === null || cashflowNetAnnual <= 0 ? null : (annualSavings / cashflowNetAnnual) * 100;
+  const rentBurden = cashflowNetMonthly === null || cashflowNetMonthly <= 0 ? null : (rentMonthly / cashflowNetMonthly) * 100;
+  const livingCostBurden = cashflowNetMonthly === null || cashflowNetMonthly <= 0 ? null : (totalLivingCostMonthly / cashflowNetMonthly) * 100;
+  const purchasingPowerIndex = cashflowNetMonthly === null || totalLivingCostMonthly <= 0 ? null : Math.round((cashflowNetMonthly / totalLivingCostMonthly) * 100);
   const currentSavings = input.currentSavings ?? 0;
   const projectedSavings5Years = annualSavings === null ? null : projectSavings(currentSavings, annualSavings, 5, annualReturnRate);
   const projectedSavings10Years = annualSavings === null ? null : projectSavings(currentSavings, annualSavings, 10, annualReturnRate);
@@ -200,17 +226,11 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
     },
     dataConfidence: confidence,
     calculationStatus: legacy.taxCalculationStatus,
-    unavailableReason: legacy.calculationUnavailableReason,
+    unavailableReason: legacy.calculationUnavailableReason ?? (cashflowUnavailable === null ? null : "household"),
     // 給与基準は賞与を除いた基本給で判定します（各国の基準が基本給・保証給与のため）。
     workVisaSalary: checkWorkVisaSalary(city.countryCode, city.currency, convertCurrency(input.annualSalary, input.salaryCurrency, city.currency, ratesToJpy), convertCurrency(input.bonus ?? 0, input.salaryCurrency, city.currency, ratesToJpy), input.age),
-    householdTakeHome: family.spouseSalary === undefined || grossAnnual <= 0 || legacy.taxBreakdown === null ? null
-      : city.taxSystem === "germany" ? { basis: "germanySplitting", ...germanyHouseholdTakeHome2026(grossAnnual, family.spouseSalary, householdModel), currency: city.currency }
-        : city.taxSystem === "france" ? { basis: "franceQuotientFamilial", ...franceHouseholdTakeHome2026(grossAnnual, family.spouseSalary, input.childrenAges), currency: city.currency }
-          : city.taxSystem === "switzerland" ? { basis: "zurichJointAssessment", ...zurichHouseholdTakeHome2026(grossAnnual, family.spouseSalary, input.childrenAges), currency: city.currency }
-          : (() => {
-            const us = usHouseholdTakeHome2026(city, grossAnnual, family.spouseSalary);
-            return us ? { basis: "usMarriedFilingJointly" as const, ...us, currency: city.currency } : null;
-          })(),
+    householdTakeHome,
+    cashflow,
     childAllowance: city.taxSystem === "japan" ? japanChildAllowance(input.childrenAges?.slice(0, input.children)) : null,
     assumptions: {
       ageBand,
