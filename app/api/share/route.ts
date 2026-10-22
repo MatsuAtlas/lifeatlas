@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { entitlementsForTier } from "../../../lib/billing/entitlements";
 import { readBillingRecord } from "../../../lib/billing/subscription-server";
 import { isSavedAnalyzerInput } from "../../../lib/comparison-history";
+import { calculationOptionsFor, getExchangeRateSnapshot } from "../../../lib/data/exchange-rates";
 import { createPublicShareSnapshot } from "../../../lib/share/snapshot";
 import { savePublicShare } from "../../../lib/share/server";
 import { getCurrentUser, isSupabaseNotConfiguredError } from "../../../lib/supabase-server";
@@ -38,7 +39,10 @@ export async function POST(request: Request) {
     if (!entitlements.canShareResults) return NextResponse.json({ error: "公開共有リンクはProで利用できます。", upgradeRequired: true }, { status: 403 });
     if (body.analysis.scenarios.length > entitlements.maxScenarios) return NextResponse.json({ error: "共有できるシナリオ数を超えています。" }, { status: 400 });
 
-    const id = await savePublicShare(current.user.id, createPublicShareSnapshot(body.analysis, body.language));
+    // 画面・AI説明と同じ為替スナップショットとWhat-Ifの条件で計算します。
+    const exchangeRates = await getExchangeRateSnapshot();
+    const snapshot = createPublicShareSnapshot(body.analysis, body.language, calculationOptionsFor(exchangeRates), { whatIf: entitlements.canUseWhatIf });
+    const id = await savePublicShare(current.user.id, snapshot);
     return NextResponse.json({ id, path: `/share/${id}` }, { status: 201 });
   } catch (error) {
     if (error instanceof SyntaxError) return NextResponse.json({ error: "共有内容を確認できませんでした。" }, { status: 400 });

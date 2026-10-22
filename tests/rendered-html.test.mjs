@@ -287,7 +287,7 @@ test("exposes validated deterministic decision APIs without duplicating the calc
   assert.equal(calculation.status, 200);
   const calculationPayload = await calculation.json();
   assert.equal(calculationPayload.result.scenarioId, "api-tokyo");
-  assert.equal(calculationPayload.result.assumptions.calculationVersion, "2026.10-v2.2");
+  assert.equal(calculationPayload.result.assumptions.calculationVersion, "2026.10-v2.3");
 
   const comparison = await fetch(`${baseUrl}/api/compare`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scenarios: [tokyo, vancouver], priorities }) });
   assert.equal(comparison.status, 200);

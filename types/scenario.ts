@@ -78,12 +78,24 @@ export type ChildAllowance = {
   source: { name: string; url: string; period: string };
 };
 
-// 夫婦合算で課税する国の世帯の手取り（本人＋配偶者、年額・都市の通貨）。スコアと順位には使わない参考値です。
+// 夫婦合算で課税する国の世帯の手取り（本人＋配偶者、年額・都市の通貨）。夫婦世帯の収支（cashflow）の基準に使います。
 export type HouseholdTakeHome = {
   basis: "germanySplitting" | "franceQuotientFamilial" | "usMarriedFilingJointly" | "zurichJointAssessment";
   jointNetAnnual: number;
   separateNetAnnual: number;
   currency: CurrencyCode;
+};
+
+// 残額・貯蓄・負担率・購買力・資産予測・FIRE・財務スコアの基準にする手取り。
+// individual＝本人の手取り（単身・一人親）、household＝世帯の手取り（夫婦。既存の世帯モデルの jointNetAnnual）。
+// 夫婦で計算できない場合は netAnnual などを null とし、unavailable に理由を入れます。
+export type ScenarioCashflow = {
+  basis: "individual" | "household";
+  householdModel: HouseholdTakeHome["basis"] | null;
+  netAnnual: number | null;
+  netMonthly: number | null;
+  netAnnualJpy: number | null;
+  unavailable: "spouseIncomeUnknown" | "householdModelUnsupported" | null;
 };
 
 export type WorkVisaSalaryCheck = {
@@ -141,10 +153,12 @@ export type ScenarioResult = {
   fire: FireMetrics | null;
   dataConfidence: DataConfidence;
   calculationStatus: TaxCalculationStatus;
-  unavailableReason: "tax" | "salary" | null;
+  // household＝夫婦の世帯収支を計算できない（配偶者の収入が未入力、または世帯モデルが未対応。cashflow.unavailable を参照）。
+  unavailableReason: "tax" | "salary" | "household" | null;
   workVisaSalary: WorkVisaSalaryCheck | null;
   childAllowance: ChildAllowance | null;
   householdTakeHome: HouseholdTakeHome | null;
+  cashflow: ScenarioCashflow;
   assumptions: ScenarioAssumptions;
 };
 

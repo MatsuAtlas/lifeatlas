@@ -132,8 +132,13 @@ export function simulateWhatIf(input: WhatIfSimulationInput): WhatIfSimulationRe
       annualSavings: beforeResult.annualSavings === null || afterResult.annualSavings === null ? null : afterResult.annualSavings - beforeResult.annualSavings,
       savingsRate: beforeResult.savingsRate === null || afterResult.savingsRate === null ? null : afterResult.savingsRate - beforeResult.savingsRate,
       projectedSavings10Years: beforeResult.projectedSavings10Years === null || afterResult.projectedSavings10Years === null ? null : afterResult.projectedSavings10Years - beforeResult.projectedSavings10Years,
-      score: afterScore.score - beforeScore.score,
-      rankChange: beforeScore.rank - afterScore.rank,
+      // 順位の対象外（計算できない候補）との比較は、スコア・順位の変化として示しません。
+      score: beforeScore.eligible && afterScore.eligible ? afterScore.score - beforeScore.score : null,
+      rankChange: beforeScore.eligible && afterScore.eligible ? beforeScore.rank - afterScore.rank : null,
+      rankingChange: beforeScore.eligible === afterScore.eligible ? null
+        : afterScore.eligible
+          ? { direction: "becameRanked" as const, reason: beforeResult.unavailableReason }
+          : { direction: "becameUnranked" as const, reason: afterResult.unavailableReason },
     };
   });
 

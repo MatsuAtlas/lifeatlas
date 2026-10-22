@@ -57,13 +57,15 @@ export function solveMinimumThreshold(options: {
 }
 
 function metricValues(metric: BreakEvenInput["metric"], reference: ScenarioResult, candidate: ScenarioResult, priorities: UserPriorities) {
-  if (metric === "disposableIncome") return [reference.netAnnualJpy, candidate.netAnnualJpy] as const;
+  if (metric === "disposableIncome") return [reference.cashflow.netAnnualJpy, candidate.cashflow.netAnnualJpy] as const;
   if (metric === "savingsRate") return [reference.savingsRate, candidate.savingsRate] as const;
   const scores = scoreScenarios([reference, candidate], priorities);
-  return [
-    scores.find((score) => score.scenarioId === reference.scenarioId)?.score ?? null,
-    scores.find((score) => score.scenarioId === candidate.scenarioId)?.score ?? null,
-  ] as const;
+  // 計算できない候補（上限付きの参考スコア）とは逆転給与を求めません。
+  const eligibleScore = (scenarioId: string) => {
+    const score = scores.find((item) => item.scenarioId === scenarioId);
+    return score?.eligible ? score.score : null;
+  };
+  return [eligibleScore(reference.scenarioId), eligibleScore(candidate.scenarioId)] as const;
 }
 
 export function findBreakEvenSalary(input: BreakEvenInput): BreakEvenResult {

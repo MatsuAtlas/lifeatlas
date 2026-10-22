@@ -12,7 +12,9 @@ export type RecommendationScenario = {
   country: string;
   salary: { annual: number; currency: CurrencyCode };
   household: { type: "single" | "couple"; children: number; housing: string; lifestyle: string };
-  rank: number;
+  // 順位の対象外（計算できない候補）は null。ranked で区別します。
+  rank: number | null;
+  ranked: boolean;
   lifeAtlasScore: number;
   calculationStatus: TaxCalculationStatus;
   expatTaxRegime: ExpatTaxRegimeStatus;
@@ -20,6 +22,10 @@ export type RecommendationScenario = {
   financials: {
     grossAnnual: number;
     netAnnual: number | null;
+    // 収支の基準（individual＝本人、household＝世帯）と世帯の手取り。残額・貯蓄はこの基準で計算済みです。
+    cashflowBasis: "individual" | "household";
+    householdNetAnnual: number | null;
+    householdCashflowUnavailable: "spouseIncomeUnknown" | "householdModelUnsupported" | null;
     totalLivingCostMonthly: number;
     utilitiesBasis: "separate" | "includedInRent" | "customRentUnconfirmed" | "inCustomTotal";
     annualSavings: number | null;

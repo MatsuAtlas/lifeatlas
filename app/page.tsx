@@ -1235,6 +1235,8 @@ export default function Home() {
                 <option value="familyThreeChildren">{t.householdThreeChildren}</option>
               </select>
               <small>{language === "ja" ? "子どもの人数に応じて生活費を調整" : "Living costs adjust by number of children"}</small>
+              {/* ホームには配偶者の給与の入力がないため、収入は本人だけで比べます。夫婦の世帯収支はOffer Analyzerで比べます。 */}
+              <small className="household-basis-note" data-household-basis="individual">{language === "ja" ? "この比較の収入は本人だけです（生活費は世帯分）。配偶者の収入を含む世帯の収支は" : "Income here is yours only (living costs are for the household). To compare household cash flow including your spouse's income, use "}<Link href="/analyze" onClick={() => trackProductEvent("landing_to_analyzer", { placement: "household-note" })}>Offer Analyzer</Link>{language === "ja" ? "で比べられます。" : "."}</small>
             </label>
             <label>{t.housing}
               <select value={housing} onChange={(event) => setHousing(event.target.value as keyof typeof housingMultipliers)}>

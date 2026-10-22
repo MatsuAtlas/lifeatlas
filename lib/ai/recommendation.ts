@@ -27,6 +27,14 @@ export function normalizeFollowUpQuestion(value: unknown) {
 }
 
 // プランで利用できない結果（What-If・逆転給与・長期予測）はAIへ渡さず、AI経由でも開示しません。
+// 順位を付けられる候補がない（すべて計算できない）ため、AIの説明を作らない場合のエラー。
+export class RecommendationUnavailableError extends Error {
+  constructor() {
+    super("AI_NO_RANKABLE_SCENARIO");
+    this.name = "RecommendationUnavailableError";
+  }
+}
+
 export type RecommendationAccess = { whatIf: boolean; breakEven: boolean; longTermProjections: boolean };
 export const FULL_RECOMMENDATION_ACCESS: RecommendationAccess = { whatIf: true, breakEven: true, longTermProjections: true };
 
@@ -41,6 +49,8 @@ export function buildRecommendationInput(
   const changes: WhatIfChange[] = access.whatIf ? buildWhatIfChanges(analysis.whatIf, target) : [];
 
   const initial = simulateWhatIf({ scenarios: analysis.scenarios, changes, priorities: analysis.priorities, calculationOptions });
+  // 計算できる候補が1つもなければ、勝者を説明するAIの生成は行いません。
+  if (!initial.after.scores[0].eligible) throw new RecommendationUnavailableError();
   const winnerScenarioId = initial.after.scores[0].scenarioId;
   const requestedCandidate = analysis.breakEven.candidateScenarioId;
   const candidateScenarioId = requestedCandidate !== winnerScenarioId
@@ -73,7 +83,8 @@ export function buildRecommendationInput(
         country: language === "ja" ? city.country : city.englishCountry ?? city.country,
         salary: { annual: input.annualSalary + (input.bonus ?? 0), currency: input.salaryCurrency },
         household: { type: input.householdType, children: input.children, housing: input.housing, lifestyle: input.lifestyle },
-        rank: score.rank,
+        rank: score.eligible ? score.rank : null,
+        ranked: score.eligible,
         lifeAtlasScore: score.score,
         calculationStatus: result.calculationStatus,
         expatTaxRegime: result.assumptions.expatTaxRegime,
@@ -81,6 +92,9 @@ export function buildRecommendationInput(
         financials: {
           grossAnnual: result.grossAnnual,
           netAnnual: result.netAnnual,
+          cashflowBasis: result.cashflow.basis,
+          householdNetAnnual: result.cashflow.basis === "household" ? result.cashflow.netAnnual : null,
+          householdCashflowUnavailable: result.cashflow.unavailable,
           totalLivingCostMonthly: result.totalLivingCostMonthly,
           // 光熱費の扱い（別に計上／住居費に含む／未確認／手入力の総額に含む）。AIはこの値を説明に使うだけです。
           utilitiesBasis: result.costBreakdownMonthly.utilitiesBasis,

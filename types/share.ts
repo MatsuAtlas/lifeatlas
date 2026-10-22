@@ -17,6 +17,11 @@ export type PublicShareScenario = {
   calculationStatus: ScenarioResult["calculationStatus"];
   // 古いスナップショットには無いため任意項目です。
   expatTaxRegime?: ScenarioResult["assumptions"]["expatTaxRegime"];
+  // 収支の基準（夫婦は世帯）。2026.10-v2.3 より前のスナップショットには無いため任意項目です。
+  cashflowBasis?: ScenarioResult["cashflow"]["basis"];
+  // false＝計算できないため順位の対象外。古いスナップショットには無く、その場合は順位の対象です。
+  ranked?: boolean;
+  householdNetAnnual?: number | null;
   strongestFactors: string[];
   riskFlags: string[];
 };
@@ -27,7 +32,8 @@ export type PublicShareSnapshot = {
   language: SupportedLanguage;
   calculationVersion: string;
   calculatedAt: string;
-  winnerCityId: CityId;
+  // 計算できる候補が1つもなければ null（最適候補なし）。
+  winnerCityId: CityId | null;
   explanation: string;
   scenarios: PublicShareScenario[];
 };

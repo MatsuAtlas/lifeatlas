@@ -335,6 +335,8 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
 .oa-rank { display: grid; gap: 5px; }
 .oa-rank span { color: var(--green); font-family: Georgia, serif; font-size: 29px; }
 .oa-rank strong { color: var(--green); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+/* 順位の対象外は「順位なし」を小さく1行で示します。 */
+.oa-rank.is-unranked span { color: var(--faint); font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
 .oa-city-title small { color: var(--faint); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
 .oa-city-title h3 { margin: 4px 0 0; font-size: 26px; letter-spacing: -.05em; }
 .oa-score { display: flex; align-items: end; gap: 7px; }
@@ -371,6 +373,7 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
 .oa-impact-grid article > span { font-size: 12px; font-weight: 800; }
 .oa-impact-grid article > div { display: grid; gap: 4px; min-width: 0; }
 .oa-impact-grid strong { overflow-wrap: anywhere; font-size: 11px; }
+.oa-impact-grid .oa-ranking-change { grid-column: 1 / -1; margin: 0; color: var(--faint); font-size: 11px; line-height: 1.5; }
 .oa-break-even-grid { display: grid; grid-template-columns: .85fr .85fr 1.3fr; align-items: end; gap: 14px; }
 .oa-break-even-result { display: grid; gap: 6px; min-height: 77px; padding: 12px 16px; border: 1px solid rgba(139,224,189,.32); border-radius: 13px; background: var(--green-soft); }
 .oa-break-even-result span { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .07em; }
@@ -570,6 +573,9 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
 .growth-card.is-winner { border-color: rgba(139,224,189,.4); background: linear-gradient(145deg, rgba(30,80,67,.45), var(--panel)); }
 .growth-card-title { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 13px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
 .growth-card-title > span { color: var(--green); font-family: Georgia, serif; font-size: 25px; }
+/* 順位の対象外は「順位なし」を小さく1行で示し、都市名と重ねない。 */
+.growth-card-title.is-unranked { grid-template-columns: auto 1fr auto; }
+.growth-card-title.is-unranked > span { color: var(--faint); font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
 .growth-card-title div { display: grid; gap: 4px; }
 .growth-card-title div small { color: var(--faint); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
 .growth-card-title h3 { margin: 0; font-size: 24px; letter-spacing: -.045em; }
@@ -635,6 +641,7 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
   .growth-card, .growth-panel { padding: 20px 16px; }
   .growth-metrics { grid-template-columns: 1fr 1fr; }
   .growth-card-title { grid-template-columns: 40px 1fr; }
+  .growth-card-title.is-unranked { grid-template-columns: auto 1fr; }
   .growth-card-title > strong { grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid var(--line); }
   .growth-detail-list div { grid-template-columns: 1fr; gap: 7px; }
   .growth-detail-list dd { text-align: left; }

@@ -45,7 +45,8 @@ function validateInputs(results: ScenarioResult[], priorities: UserPriorities) {
 function financialMetrics(result: ScenarioResult, savingsValues: number[], netValues: number[]) {
   const savingsRate = result.savingsRate === null ? 0 : clamp(((result.savingsRate + 20) / 70) * 100);
   const annualSavings = relativeScore(result.annualSavingsJpy, savingsValues);
-  const disposableIncome = relativeScore(result.netAnnualJpy, netValues);
+  // 可処分所得は収支の基準（単身＝本人、夫婦＝世帯）の手取りで比べます。
+  const disposableIncome = relativeScore(result.cashflow.netAnnualJpy, netValues);
   const purchasingPower = result.purchasingPowerIndex === null ? 0 : clamp(((result.purchasingPowerIndex - 50) / 250) * 100);
   const housingAffordability = result.rentBurden === null ? 0 : clamp(100 - result.rentBurden * 1.5);
   const fireTrajectory = result.fire?.yearsToTarget === null || result.fire?.yearsToTarget === undefined
@@ -77,7 +78,7 @@ function lifestyleMetrics(result: ScenarioResult) {
 export function scoreScenarios(results: ScenarioResult[], priorities: UserPriorities = DEFAULT_PRIORITIES): ScenarioScore[] {
   validateInputs(results, priorities);
   const savingsValues = results.flatMap((result) => result.annualSavingsJpy === null ? [] : [result.annualSavingsJpy]);
-  const netValues = results.flatMap((result) => result.netAnnualJpy === null ? [] : [result.netAnnualJpy]);
+  const netValues = results.flatMap((result) => result.cashflow.netAnnualJpy === null ? [] : [result.cashflow.netAnnualJpy]);
 
   const scored = results.map((result): ScenarioScore => {
     const financial = financialMetrics(result, savingsValues, netValues);
@@ -116,7 +117,8 @@ export function scoreScenarios(results: ScenarioResult[], priorities: UserPriori
       confidence: confidenceScore * LIFE_ATLAS_SCORE_WEIGHTS.confidence,
     };
     const rawScore = contributions.financial + contributions.lifestyle + contributions.preference + contributions.confidence;
-    const eligible = result.calculationStatus !== "unavailable" && result.netAnnual !== null;
+    // 税・保険または夫婦の世帯収支が計算できない候補は、計算できる候補と同列に順位を付けません。
+    const eligible = result.calculationStatus !== "unavailable" && result.netAnnual !== null && result.cashflow.netAnnual !== null;
     const score = roundScore(eligible ? rawScore : Math.min(35, rawScore * 0.5));
     const factorScores = [
       ["savings-rate", financial.savingsRate],
@@ -134,7 +136,7 @@ export function scoreScenarios(results: ScenarioResult[], priorities: UserPriori
     const strongestFactors = [...factorScores].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3).map(([name]) => name);
     const weakestFactors = [...factorScores].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).slice(0, 3).map(([name]) => name);
     const riskFlags = [
-      ...(!eligible ? ["calculation-unavailable"] : []),
+      ...(!eligible ? [result.unavailableReason === "household" ? "household-cashflow-unavailable" : "calculation-unavailable"] : []),
       ...(result.annualSavings !== null && result.annualSavings < 0 ? ["negative-savings"] : []),
       ...(result.rentBurden !== null && result.rentBurden > 40 ? ["high-housing-burden"] : []),
       ...(result.workVisaSalary?.status === "below" ? ["work-visa-salary-below"] : []),

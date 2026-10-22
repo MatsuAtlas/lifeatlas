@@ -49,7 +49,7 @@ export default async function PublicSharePage({ params }: { params: Promise<{ id
   if (!record) notFound();
   const language = record.language;
   const isJa = language === "ja";
-  const winner = localizedCity(cities[record.snapshot.winnerCityId], language);
+  const winner = record.snapshot.winnerCityId ? localizedCity(cities[record.snapshot.winnerCityId], language) : null;
 
   return (
     <main className="growth-page" lang={language}>
@@ -59,18 +59,21 @@ export default async function PublicSharePage({ params }: { params: Promise<{ id
         <p className="eyebrow">PUBLIC DECISION SNAPSHOT</p>
         <h1>{record.title}</h1>
         <p>{record.snapshot.explanation}</p>
-        <div className="growth-winner"><span>{isJa ? "最適候補" : "Best fit"}</span><strong>{winner.name}</strong></div>
+        <div className="growth-winner"><span>{isJa ? "最適候補" : "Best fit"}</span><strong>{winner ? winner.name : (isJa ? "なし（計算できる候補がありません）" : "None (no option can be calculated)")}</strong></div>
       </section>
       <section className="growth-section">
-        <div className="growth-section-heading"><div><p className="eyebrow">RANKING</p><h2>{isJa ? "比較結果" : "Comparison result"}</h2></div><p>{isJa ? "氏名、メール、年齢、世帯、カスタム支出は公開していません。" : "Names, email, age, household and custom spending are not included."}</p></div>
+        <div className="growth-section-heading"><div><p className="eyebrow">RANKING</p><h2>{isJa ? "比較結果" : "Comparison result"}</h2></div><p>{isJa ? "氏名、メール、年齢、配偶者の給与額、カスタム支出は公開していません。都市・年収・本人の年間手取りと計算結果を公開しています。夫婦の比較では世帯（本人＋配偶者）の年間手取りも公開しており、そこから配偶者の収入を推測できる場合があります。" : "Names, email, age, your spouse's salary and custom spending are not included. Cities, gross income, your annual take-home and the results are shown; for couples, household (you plus your spouse) annual take-home is also shown, from which your spouse's income may be inferred."}</p></div>
         <div className="growth-card-grid">{record.snapshot.scenarios.map((scenario) => {
           const city = cities[scenario.cityId];
           const label = localizedCity(city, language);
-          return <article className={scenario.rank === 1 ? "growth-card is-winner" : "growth-card"} key={scenario.cityId}>
-            <div className="growth-card-title"><span>#{scenario.rank}</span><div><small>{label.country}</small><h3>{label.name}</h3></div><strong>{scenario.score}<small>/100</small></strong></div>
+          // 計算できない候補（ranked: false）には順位を表示しません。
+          const ranked = scenario.ranked !== false;
+          return <article className={ranked && scenario.rank === 1 ? "growth-card is-winner" : "growth-card"} key={scenario.cityId}>
+            <div className={ranked ? "growth-card-title" : "growth-card-title is-unranked"}><span>{ranked ? `#${scenario.rank}` : (isJa ? "順位なし" : "Not ranked")}</span><div><small>{label.country}</small><h3>{label.name}</h3></div><strong>{scenario.score}<small>/100</small></strong></div>
             <dl className="growth-metrics">
               <div><dt>{isJa ? "年収" : "Gross income"}</dt><dd>{formatCurrency(scenario.grossAnnual, scenario.currency, language)}</dd></div>
-              <div><dt>{isJa ? "年間手取り" : "Annual take-home"}</dt><dd>{formatCurrency(scenario.netAnnual, scenario.currency, language)}</dd></div>
+              <div><dt>{scenario.cashflowBasis === "household" ? (isJa ? "本人の年間手取り" : "Your annual take-home") : (isJa ? "年間手取り" : "Annual take-home")}</dt><dd>{formatCurrency(scenario.netAnnual, scenario.currency, language)}</dd></div>
+              {scenario.cashflowBasis === "household" && <div><dt>{isJa ? "世帯の年間手取り" : "Household annual take-home"}</dt><dd>{formatCurrency(scenario.householdNetAnnual ?? null, scenario.currency, language)}</dd></div>}
               <div><dt>{isJa ? "月間生活費" : "Monthly living cost"}</dt><dd>{formatCurrency(scenario.totalLivingCostMonthly, scenario.currency, language)}</dd></div>
               <div><dt>{isJa ? "年間貯蓄" : "Annual savings"}</dt><dd>{formatCurrency(scenario.annualSavings, scenario.currency, language)}</dd></div>
               <div><dt>{isJa ? "貯蓄率" : "Savings rate"}</dt><dd>{formatPercent(scenario.savingsRate)}</dd></div>
