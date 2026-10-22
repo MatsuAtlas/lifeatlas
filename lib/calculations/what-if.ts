@@ -8,6 +8,11 @@ import { DEFAULT_PRIORITIES, scoreScenarios } from "../scoring/life-atlas-score.
 import { findBreakEvenSalary } from "./break-even.ts";
 import { calculateScenario } from "./calculate-scenario.ts";
 
+// 条件変更で家賃を置き換えるときは、元の家賃と同じ光熱費の扱い（込み／別／未確認）を引き継ぎます。
+function currentRentIncludesUtilities(scenario: ScenarioInput) {
+  return scenario.customRent === undefined ? cities[scenario.cityId].rentIncludesUtilities : scenario.customRentIncludesUtilities;
+}
+
 function assertPercent(name: string, percent: number, allowZeroResult = true) {
   const minimum = allowZeroResult ? -100 : -99.999999;
   if (!Number.isFinite(percent) || percent < minimum || percent > 1_000) {
@@ -65,12 +70,12 @@ function applyTargetedChange(
   if (change.type === "rentPercent") {
     assertPercent("rentPercent", change.percent);
     const currentResult = calculateScenario(current, calculationOptions);
-    scenarios[index] = { ...current, customRent: currentResult.rentMonthly * (1 + change.percent / 100) };
+    scenarios[index] = { ...current, customRent: currentResult.rentMonthly * (1 + change.percent / 100), customRentIncludesUtilities: currentRentIncludesUtilities(current) };
   }
   if (change.type === "household") scenarios[index] = { ...current, householdType: change.householdType };
   // 子どもの人数を減らす場合は、年齢の入力も人数分に切り詰めます。
   if (change.type === "children") scenarios[index] = { ...current, children: change.value, childrenAges: current.childrenAges?.slice(0, change.value), childrenSalaries: current.childrenSalaries?.slice(0, change.value) };
-  if (change.type === "customRent") scenarios[index] = { ...current, customRent: change.value ?? undefined };
+  if (change.type === "customRent") scenarios[index] = { ...current, customRent: change.value ?? undefined, customRentIncludesUtilities: change.value === null ? undefined : currentRentIncludesUtilities(current) };
   if (change.type === "customMonthlySpending") scenarios[index] = { ...current, customMonthlySpending: change.value ?? undefined };
   if (change.type === "customSavingsTarget") scenarios[index] = { ...current, customSavingsTarget: change.value ?? undefined };
   if (change.type === "retirementAge") scenarios[index] = { ...current, retirementAge: change.value };

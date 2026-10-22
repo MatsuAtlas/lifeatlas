@@ -21,7 +21,7 @@ export default async function MethodologyPage({ searchParams }: { searchParams: 
     intro: "LifeAtlas reruns one deterministic engine whenever an input changes. The same calculation contract powers comparison, Offer Analyzer, saved results and AI context.",
     sections: [
       ["1. Gross to net", "Salary and bonus are converted into the destination currency, then the supported tax and payroll-insurance model is applied. If a tax system is unsupported, take-home and savings remain unavailable rather than being guessed."],
-      ["2. Monthly living cost", "Rent uses the selected housing type or an explicit custom value. Other spending uses the household, children and lifestyle assumptions or a custom monthly amount."],
+      ["2. Monthly living cost", "Rent uses the selected housing type or an explicit custom value. Other spending uses the household, children and lifestyle assumptions or a custom monthly amount. Where the rent statistic already includes utilities (the HUD Fair Market Rents used for US cities), utilities are not added again; a custom rent follows whether you say it includes utilities, and an unstated one counts them separately. Internet is always counted separately, and a custom monthly spending total is used as entered."],
       ["3. Savings and purchasing power", "Monthly surplus = monthly take-home − rent − other monthly spending. Annual savings is twelve times that surplus. Purchasing power compares take-home with the same scenario's total living cost."],
       ["4. Long-term and FIRE", "Five- and ten-year wealth projections use the stated starting balance and return assumption. The simple FIRE target is 25× annual living cost; it is a planning reference, not investment advice."],
       ["5. Newcomer tax regimes", "Where a city has a modelled regime for people moving from abroad (the Dutch 30% ruling, Korea's 19% flat rate, Spain's special regime, Portugal's IFICI), it applies only if you choose it, and only when it lowers tax. Eligibility itself is your declaration; where official sources do not settle a case, regular tax is shown."],
@@ -43,7 +43,7 @@ export default async function MethodologyPage({ searchParams }: { searchParams: 
     intro: "LifeAtlasは入力が変わるたびに、同じ決定論的な計算エンジンを再実行します。通常比較、Offer Analyzer、保存結果、AIへの構造化入力は同じ計算契約を使います。",
     sections: [
       ["1. 総支給から手取り", "給与と賞与を目的地通貨へ換算し、対応済みの税金・社会保険モデルを適用します。税制度が未対応なら、推測せず手取りと貯蓄を未計算にします。"],
-      ["2. 毎月の生活費", "家賃は住居タイプまたは明示入力を使います。その他支出は世帯・子ども・生活スタイルの条件、または入力した月額を使います。"],
+      ["2. 毎月の生活費", "家賃は住居タイプまたは明示入力を使います。その他支出は世帯・子ども・生活スタイルの条件、または入力した月額を使います。家賃の統計が光熱費込みの都市（米国都市で使うHUDの標準家賃）では光熱費を重ねて足しません。手入力した家賃は、光熱費込みか別かの指定に従い、指定がなければ別に計上します。インターネットは常に別に計上し、入力した生活費の総額はそのまま使います。"],
       ["3. 貯蓄と購買力", "月間余剰＝月間手取り−家賃−その他月間支出。年間貯蓄はその12か月分です。購買力は同じ条件の手取りと総生活費の比率から求めます。"],
       ["4. 長期資産とFIRE", "5年・10年後の資産は開始資産と明示した運用利回りで試算します。FIRE目標は年間生活費の25倍という簡易目安で、投資助言ではありません。"],
       ["5. 移住者向けの税の特例", "移住者向けの特例を実装した都市（オランダの30%ルール、韓国の単一税率19%、スペインの特別制度、ポルトガルのIFICI）では、本人が選んだ場合だけ、通常より税が少ないときに使います。条件を満たすかは本人の申告で、公式資料で決まらない場合は通常の税で示します。"],

@@ -38,6 +38,8 @@ export type City = {
     medical: number;
     leisure: number;
   };
+  // 家賃（costs.rent）が光熱費込みの統計か。true の場合、costs.utilities は参考値として残し、生活費には足しません。
+  rentIncludesUtilities: boolean;
   jobs: Record<string, number>;
   scores: {
     livability: number;

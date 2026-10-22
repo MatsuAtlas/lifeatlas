@@ -82,6 +82,8 @@ export function buildRecommendationInput(
           grossAnnual: result.grossAnnual,
           netAnnual: result.netAnnual,
           totalLivingCostMonthly: result.totalLivingCostMonthly,
+          // 光熱費の扱い（別に計上／住居費に含む／未確認／手入力の総額に含む）。AIはこの値を説明に使うだけです。
+          utilitiesBasis: result.costBreakdownMonthly.utilitiesBasis,
           annualSavings: result.annualSavings,
           savingsRate: result.savingsRate,
           projectedSavings5Years: access.longTermProjections ? result.projectedSavings5Years : null,

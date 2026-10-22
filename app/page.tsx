@@ -285,6 +285,7 @@ const translations = {
     rent: "家賃",
     food: "食費",
     utilities: "光熱費",
+    utilitiesInRent: "住居費に含む",
     internet: "通信費",
     transport: "交通費",
     medical: "医療費",
@@ -515,6 +516,7 @@ const translations = {
     rent: "Rent",
     food: "Food",
     utilities: "Utilities",
+    utilitiesInRent: "Included in housing",
     internet: "Internet",
     transport: "Transport",
     medical: "Medical",
@@ -1073,14 +1075,16 @@ export default function Home() {
     setAgeBand("under40");
   };
 
-  const categoryRows = [
+  // 内訳は共通エンジンの値をそのまま使い、合計が生活費の総額と一致するようにします。
+  const utilitiesCell = (result: typeof results.origin) => result.utilitiesIncludedInRent ? t.utilitiesInRent : result.livingCostBreakdown.utilities;
+  const categoryRows: Array<[string, number | string, number | string]> = [
     [t.rent, results.origin.rent, results.destination.rent],
-    [t.food, origin.costs.food * householdMultipliers[household] * lifestyleMultipliers[lifestyle], destination.costs.food * householdMultipliers[household] * lifestyleMultipliers[lifestyle]],
-    [t.utilities, origin.costs.utilities * lifestyleMultipliers[lifestyle], destination.costs.utilities * lifestyleMultipliers[lifestyle]],
-    [t.internet, origin.costs.internet, destination.costs.internet],
-    [t.transport, origin.costs.transport * householdMultipliers[household], destination.costs.transport * householdMultipliers[household]],
-    [t.medical, origin.costs.medical * householdMultipliers[household], destination.costs.medical * householdMultipliers[household]],
-    [t.leisure, origin.costs.leisure * lifestyleMultipliers[lifestyle], destination.costs.leisure * lifestyleMultipliers[lifestyle]],
+    [t.food, results.origin.livingCostBreakdown.food, results.destination.livingCostBreakdown.food],
+    [t.utilities, utilitiesCell(results.origin), utilitiesCell(results.destination)],
+    [t.internet, results.origin.livingCostBreakdown.internet, results.destination.livingCostBreakdown.internet],
+    [t.transport, results.origin.livingCostBreakdown.transport, results.destination.livingCostBreakdown.transport],
+    [t.medical, results.origin.livingCostBreakdown.medical, results.destination.livingCostBreakdown.medical],
+    [t.leisure, results.origin.livingCostBreakdown.leisure, results.destination.livingCostBreakdown.leisure],
   ];
   const citySourceLinks = [...new Map([...origin.dataSources, ...destination.dataSources].map((source) => [source.url, source])).values()];
 
@@ -1392,10 +1396,13 @@ export default function Home() {
             <div className="legend"><span><i className="legend-origin" /> {displayCityName(origin)}</span><span><i className="legend-destination" /> {displayCityName(destination)}</span></div>
             <div className="cost-rows">
               {categoryRows.map(([label, originValue, destinationValue]) => {
-                const originValueYen = Number(originValue) * origin.fxToJpy;
-                const destinationValueYen = Number(destinationValue) * destination.fxToJpy;
+                // 「住居費に含む」の行は金額0として棒を描き、金額の代わりに文言を示します。
+                const amount = (value: number | string) => typeof value === "number" ? value : 0;
+                const cellText = (value: number | string, city: typeof origin) => typeof value === "number" ? dualMoney(value, city.currency, city.fxToJpy) : value;
+                const originValueYen = amount(originValue) * origin.fxToJpy;
+                const destinationValueYen = amount(destinationValue) * destination.fxToJpy;
                 const max = Math.max(originValueYen, destinationValueYen);
-                return <div className="cost-row" key={label as string}><div className="cost-label"><span>{label}</span><small>{dualMoney(Number(originValue), origin.currency, origin.fxToJpy)} / {dualMoney(Number(destinationValue), destination.currency, destination.fxToJpy)}</small></div><div className="bars"><span className="bar bar-origin" style={{ width: `${Math.max(8, (originValueYen / max) * 100)}%` }} /><span className="bar bar-destination" style={{ width: `${Math.max(8, (destinationValueYen / max) * 100)}%` }} /></div></div>;
+                return <div className="cost-row" key={label as string}><div className="cost-label"><span>{label}</span><small>{cellText(originValue, origin)} / {cellText(destinationValue, destination)}</small></div><div className="bars"><span className="bar bar-origin" style={{ width: `${Math.max(8, (originValueYen / max) * 100)}%` }} /><span className="bar bar-destination" style={{ width: `${Math.max(8, (destinationValueYen / max) * 100)}%` }} /></div></div>;
               })}
             </div>
             <p className="panel-footnote">{t.yenFootnote}</p>

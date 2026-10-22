@@ -24,6 +24,9 @@ export type ScenarioInput = {
   housing: HousingType;
   lifestyle: LifestyleType;
   customRent?: number;
+  // 手入力した家賃に光熱費が含まれるか（customRent がある場合だけ使う）。true＝込み、false＝別。
+  // 指定のない過去の保存データは「未確認」とし、従来どおり光熱費を別に計上します。
+  customRentIncludesUtilities?: boolean;
   customMonthlySpending?: number;
   customSavingsTarget?: number;
   currentSavings?: number;
@@ -118,6 +121,9 @@ export type ScenarioResult = {
     healthcare: number | null;
     leisure: number | null;
     customOther: number;
+    // 光熱費の扱い：separate＝別に計上、includedInRent＝住居費に含む（utilities は 0）、
+    // customRentUnconfirmed＝手入力の家賃で込みか別か未指定（別に計上）、inCustomTotal＝手入力の生活費の総額に含む。
+    utilitiesBasis: "separate" | "includedInRent" | "customRentUnconfirmed" | "inCustomTotal";
   };
   totalLivingCostMonthly: number;
   totalLivingCostAnnual: number;

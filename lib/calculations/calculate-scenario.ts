@@ -2,11 +2,11 @@ import { cities } from "../../data/cities.ts";
 import { convertCurrency, FALLBACK_FX_TO_JPY } from "../../data/currencies.ts";
 import type { AgeBand, HouseholdType } from "../../types/finance";
 import type { DataConfidence, ScenarioCalculationOptions, ScenarioInput, ScenarioResult } from "../../types/scenario";
-import { calculateCity, franceHouseholdTakeHome2026, germanyHouseholdTakeHome2026, householdMultipliers, lifestyleMultipliers, usHouseholdTakeHome2026, zurichHouseholdTakeHome2026 } from "./legacy-engine.ts";
+import { calculateCity, franceHouseholdTakeHome2026, germanyHouseholdTakeHome2026, usHouseholdTakeHome2026, zurichHouseholdTakeHome2026 } from "./legacy-engine.ts";
 import { japanChildAllowance } from "./child-allowance.ts";
 import { checkWorkVisaSalary } from "./work-visa.ts";
 
-export const CALCULATION_VERSION = "2026.08-v2.1";
+export const CALCULATION_VERSION = "2026.10-v2.2";
 
 function assertFiniteInRange(name: string, value: number, min: number, max: number) {
   if (!Number.isFinite(value) || value < min || value > max) {
@@ -113,19 +113,21 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
     childrenSalaries: input.childrenSalaries?.map((salary) => convertCurrency(salary, input.salaryCurrency, city.currency, ratesToJpy)),
     disability: options.japanDisability,
   };
-  const legacy = calculateCity(city, grossAnnual, householdModel, input.housing, input.lifestyle, ageBand, { expatTaxRegime: input.expatTaxRegime === true, family });
+  // 家賃を手入力した場合は本人の指定（込み／別）に従い、未指定なら従来どおり光熱費を別に計上します。
+  const utilitiesIncludedInRent = input.customRent === undefined ? city.rentIncludesUtilities : input.customRentIncludesUtilities === true;
+  const legacy = calculateCity(city, grossAnnual, householdModel, input.housing, input.lifestyle, ageBand, { expatTaxRegime: input.expatTaxRegime === true, family, utilitiesIncludedInRent });
   const rentMonthly = input.customRent ?? legacy.rent;
   const baselineSpendingMonthly = input.customMonthlySpending ?? legacy.livingCosts;
-  const spendingMultiplier = householdMultipliers[householdModel] * lifestyleMultipliers[input.lifestyle];
   const costBreakdownMonthly = input.customMonthlySpending === undefined ? {
     source: "city-baseline" as const,
-    food: city.costs.food * spendingMultiplier,
-    utilities: city.costs.utilities * spendingMultiplier,
-    internet: city.costs.internet * spendingMultiplier,
-    transportation: city.costs.transport * spendingMultiplier,
-    healthcare: city.costs.medical * spendingMultiplier,
-    leisure: city.costs.leisure * spendingMultiplier,
+    food: legacy.livingCostBreakdown.food,
+    utilities: legacy.livingCostBreakdown.utilities,
+    internet: legacy.livingCostBreakdown.internet,
+    transportation: legacy.livingCostBreakdown.transport,
+    healthcare: legacy.livingCostBreakdown.medical,
+    leisure: legacy.livingCostBreakdown.leisure,
     customOther: 0,
+    utilitiesBasis: utilitiesIncludedInRent ? "includedInRent" as const : input.customRent !== undefined && input.customRentIncludesUtilities === undefined ? "customRentUnconfirmed" as const : "separate" as const,
   } : {
     source: "custom-total" as const,
     food: null,
@@ -135,6 +137,8 @@ export function calculateScenario(input: ScenarioInput, options: ScenarioCalcula
     healthcare: null,
     leisure: null,
     customOther: input.customMonthlySpending,
+    // 手入力の生活費の総額から光熱費を自動で差し引きません。
+    utilitiesBasis: "inCustomTotal" as const,
   };
   const totalLivingCostMonthly = rentMonthly + baselineSpendingMonthly;
   const totalLivingCostAnnual = totalLivingCostMonthly * 12;

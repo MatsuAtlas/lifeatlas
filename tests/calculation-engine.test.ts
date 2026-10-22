@@ -35,6 +35,7 @@ function city(overrides: Partial<CalculationCity>): CalculationCity {
       medical: 5_000,
       leisure: 20_000,
     },
+    rentIncludesUtilities: false,
     scores: { livability: 85, business: 80, nomad: 70, family: 78, safety: 90 },
     dataSources: [],
     ...overrides,

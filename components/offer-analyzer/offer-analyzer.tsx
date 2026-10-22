@@ -8,7 +8,7 @@ import { DEFAULT_PRIORITIES } from "../../lib/scoring/life-atlas-score";
 import { localizedCity, localizedUpdatedAt } from "../../lib/cities/localization";
 import { trackProductEvent, trackProductEventOnce } from "../../lib/analytics/client";
 import { buildWhatIfChanges, simulateWhatIf } from "../../lib/calculations/what-if";
-import { calculateScenario } from "../../lib/calculations/calculate-scenario";
+import { CALCULATION_VERSION, calculateScenario } from "../../lib/calculations/calculate-scenario";
 import { calculationOptionsFor, isExchangeRateSnapshot, type ExchangeRateSnapshot } from "../../lib/data/exchange-rates";
 import { isUserProfile } from "../../lib/user-profile";
 import { validateAIRecommendation } from "../../lib/ai/recommendation";
@@ -203,6 +203,12 @@ const copy = {
     costBreakdown: "月間生活費の内訳",
     food: "食費",
     utilities: "光熱費",
+    utilitiesInRent: "住居費に含む",
+    utilitiesUnconfirmed: "（家賃が光熱費込みか未確認のため別に計上）",
+    customRentUtilities: "家賃の光熱費",
+    customRentUtilitiesUnset: "未確認（別に計上）",
+    customRentUtilitiesIncluded: "込み（別に足さない）",
+    customRentUtilitiesSeparate: "別（生活費に計上）",
     internet: "通信費",
     transportation: "交通費",
     healthcare: "医療費目安",
@@ -367,6 +373,12 @@ const copy = {
     costBreakdown: "Monthly living-cost breakdown",
     food: "Food",
     utilities: "Utilities",
+    utilitiesInRent: "Included in housing",
+    utilitiesUnconfirmed: " (not confirmed whether your rent includes utilities, so counted separately)",
+    customRentUtilities: "Utilities in this rent",
+    customRentUtilitiesUnset: "Not confirmed (counted separately)",
+    customRentUtilitiesIncluded: "Included (not added)",
+    customRentUtilitiesSeparate: "Not included (added to spending)",
     internet: "Internet",
     transportation: "Transportation",
     healthcare: "Healthcare estimate",
@@ -1195,12 +1207,12 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
               [t.customOther, result.costBreakdownMonthly.customOther],
             ] : [
               [t.food, result.costBreakdownMonthly.food],
-              [t.utilities, result.costBreakdownMonthly.utilities],
+              [t.utilities, result.costBreakdownMonthly.utilitiesBasis === "includedInRent" ? t.utilitiesInRent : result.costBreakdownMonthly.utilities],
               [t.internet, result.costBreakdownMonthly.internet],
               [t.transportation, result.costBreakdownMonthly.transportation],
               [t.healthcare, result.costBreakdownMonthly.healthcare],
               [t.leisure, result.costBreakdownMonthly.leisure],
-            ]).map(([label, value]) => <div key={String(label)}><span>{label}</span><strong>{formatMoney(value as number | null, result.currency, language)}</strong></div>)}
+            ]).map(([label, value]) => <div key={String(label)}><span>{label}{label === t.utilities && result.costBreakdownMonthly.utilitiesBasis === "customRentUnconfirmed" ? t.utilitiesUnconfirmed : ""}</span><strong>{typeof value === "string" ? value : formatMoney(value as number | null, result.currency, language)}</strong></div>)}
           </div>
         </details>
         <div className="oa-factors">
@@ -1265,7 +1277,8 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
                   }} /><span>{scenario.salaryCurrency}</span></div></label>}
                   <label>{t.housing}<select value={scenario.housing} onChange={(event) => updateScenario(scenario.id, { housing: event.target.value as HousingType })}><option value="shared">{language === "ja" ? "シェア" : "Shared"}</option><option value="studio">{language === "ja" ? "ワンルーム" : "Studio"}</option><option value="onebed">{language === "ja" ? "1ベッド" : "1 bedroom"}</option><option value="condo">{language === "ja" ? "コンドミニアム" : "Condo"}</option><option value="twobed">{language === "ja" ? "2ベッド" : "2 bedrooms"}</option><option value="house">{language === "ja" ? "戸建て" : "House"}</option></select></label>
                   <label>{t.lifestyle}<select value={scenario.lifestyle} onChange={(event) => updateScenario(scenario.id, { lifestyle: event.target.value as LifestyleType })}><option value="lean">{language === "ja" ? "節約" : "Lean"}</option><option value="balanced">{language === "ja" ? "標準" : "Balanced"}</option><option value="comfortable">{language === "ja" ? "ゆとり" : "Comfortable"}</option></select></label>
-                  <label>{t.customRent}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customRent)} placeholder={language === "ja" ? "Proでカスタム設定" : "Custom with Pro"} onChange={(event) => updateScenario(scenario.id, { customRent: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
+                  <label>{t.customRent}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customRent)} placeholder={language === "ja" ? "Proでカスタム設定" : "Custom with Pro"} onChange={(event) => updateScenario(scenario.id, event.target.value === "" ? { customRent: undefined, customRentIncludesUtilities: undefined } : { customRent: Number(event.target.value) })} /><span>{city.currency}</span></div></label>
+                  {scenario.customRent !== undefined && <label>{t.customRentUtilities}<select value={scenario.customRentIncludesUtilities === undefined ? "" : scenario.customRentIncludesUtilities ? "included" : "separate"} disabled={!activeEntitlements.canUseCustomAssumptions} onChange={(event) => updateScenario(scenario.id, { customRentIncludesUtilities: event.target.value === "" ? undefined : event.target.value === "included" })}><option value="">{t.customRentUtilitiesUnset}</option><option value="included">{t.customRentUtilitiesIncluded}</option><option value="separate">{t.customRentUtilitiesSeparate}</option></select></label>}
                   <label>{t.customSpending}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customMonthlySpending)} placeholder={language === "ja" ? "Proでカスタム設定" : "Custom with Pro"} onChange={(event) => updateScenario(scenario.id, { customMonthlySpending: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
                   <label>{t.savingsTarget}<div className="input-with-unit"><input type="number" min="0" disabled={!activeEntitlements.canUseCustomAssumptions} value={optionalNumber(scenario.customSavingsTarget)} placeholder={language === "ja" ? "Proで設定" : "Set with Pro"} onChange={(event) => updateScenario(scenario.id, { customSavingsTarget: event.target.value === "" ? undefined : Number(event.target.value) })} /><span>{city.currency}</span></div></label>
                   {city.taxSystem === "japan" && ([["general", "障害者控除：障害者の人数（保存しません）", "Disability deduction: people with a disability (not saved)"], ["special", "特別障害者の人数", "People with a severe disability"], ["cohabitingSpecial", "同居特別障害者の人数（配偶者・扶養親族）", "Severely disabled spouse or dependants living with you"]] as const).map(([key, ja, en]) => <label key={key}>{language === "ja" ? ja : en}<input type="number" min="0" max="20" value={japanDisability[scenario.id]?.[key] || ""} placeholder="0" onChange={(event) => {
@@ -1380,7 +1393,7 @@ export function OfferAnalyzer({ initialRecordId }: { initialRecordId?: string } 
         </section>
 
         <StandardDisclaimer language={language} />
-        <footer className="site-footer"><div className="footer-brand"><span className="brand-mark">✦</span><strong>Life Atlas</strong><p>The AI decision engine for where to live, work, and build wealth.</p></div><div className="footer-meta"><span>CALCULATION 2026.08-v2.1</span><Link href="/">{t.back}</Link></div></footer>
+        <footer className="site-footer"><div className="footer-brand"><span className="brand-mark">✦</span><strong>Life Atlas</strong><p>The AI decision engine for where to live, work, and build wealth.</p></div><div className="footer-meta"><span>CALCULATION {CALCULATION_VERSION}</span><Link href="/">{t.back}</Link></div></footer>
       </div>
     </main>
   );
