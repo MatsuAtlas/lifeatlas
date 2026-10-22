@@ -1504,7 +1504,7 @@ function estimateTaxBreakdown(city: City, grossAnnual: number, ageBand: AgeBand,
   return { ...emptyTaxBreakdown(), incomeTaxMonthly: incomeTax / 12, medicareLevyMonthly: medicareLevy / 12, totalTaxMonthly: (incomeTax + medicareLevy) / 12, totalDeductionsMonthly: (incomeTax + medicareLevy) / 12, employerSuperMonthly: grossAnnual * city.insurance.employerSuperRate / 12 };
 }
 
-export function calculateCity<TCity extends City>(city: TCity, grossAnnual: number | null, household: keyof typeof householdMultipliers, housing: keyof typeof housingMultipliers, lifestyle: keyof typeof lifestyleMultipliers, ageBand: AgeBand, options: { expatTaxRegime?: boolean; family?: Omit<JapanFamily, "singleParent"> } = {}): LegacyCityResult<TCity> {
+export function calculateCity<TCity extends City>(city: TCity, grossAnnual: number | null, household: keyof typeof householdMultipliers, housing: keyof typeof housingMultipliers, lifestyle: keyof typeof lifestyleMultipliers, ageBand: AgeBand, options: { expatTaxRegime?: boolean; family?: Omit<JapanFamily, "singleParent">; utilitiesIncludedInRent?: boolean } = {}): LegacyCityResult<TCity> {
   const householdMultiplier = householdMultipliers[household];
   const housingMultiplier = housingMultipliers[housing];
   const lifestyleMultiplier = lifestyleMultipliers[lifestyle];
@@ -1515,7 +1515,18 @@ export function calculateCity<TCity extends City>(city: TCity, grossAnnual: numb
   const calculationStatus = grossAnnual !== null && taxBreakdown === null ? "unavailable" : taxCalculationStatus(city);
   const calculationUnavailableReason = grossAnnual === null ? "salary" : calculationStatus === "unavailable" ? "tax" : null;
   const rent = city.costs.rent * housingMultiplier;
-  const livingCosts = (city.costs.food + city.costs.utilities + city.costs.internet + city.costs.transport + city.costs.medical + city.costs.leisure) * householdMultiplier * lifestyleMultiplier;
+  // 家賃が光熱費込み（都市の統計、または本人が指定した家賃）なら光熱費を別に足しません。インターネットは常に別に計上します。
+  const utilitiesIncludedInRent = options.utilitiesIncludedInRent ?? city.rentIncludesUtilities;
+  const spendingMultiplier = householdMultiplier * lifestyleMultiplier;
+  const livingCostBreakdown = {
+    food: city.costs.food * spendingMultiplier,
+    utilities: utilitiesIncludedInRent ? 0 : city.costs.utilities * spendingMultiplier,
+    internet: city.costs.internet * spendingMultiplier,
+    transport: city.costs.transport * spendingMultiplier,
+    medical: city.costs.medical * spendingMultiplier,
+    leisure: city.costs.leisure * spendingMultiplier,
+  };
+  const livingCosts = livingCostBreakdown.food + livingCostBreakdown.utilities + livingCostBreakdown.internet + livingCostBreakdown.transport + livingCostBreakdown.medical + livingCostBreakdown.leisure;
   const totalMonthlyCosts = rent + livingCosts;
   const costIndex = Math.round((totalMonthlyCosts / (city.averageAnnualIncome / 12)) * 1000) / 10;
   const taxMonthly = taxBreakdown?.totalDeductionsMonthly ?? null;
@@ -1536,6 +1547,8 @@ export function calculateCity<TCity extends City>(city: TCity, grossAnnual: numb
     netMonthly,
     rent,
     livingCosts,
+    livingCostBreakdown,
+    utilitiesIncludedInRent,
     totalMonthlyCosts,
     monthlyRemaining,
     annualSavings,

@@ -60,6 +60,8 @@ export type CalculationCity = {
     medical: number;
     leisure: number;
   };
+  // 家賃が光熱費込みの統計なら true（光熱費を別に足さない）。
+  rentIncludesUtilities: boolean;
   scores: {
     livability: number;
     business: number;
@@ -68,6 +70,17 @@ export type CalculationCity = {
     safety: number;
   };
   dataSources: Array<{ item: string; source: string }>;
+};
+
+// 家賃以外の月の生活費の内訳（世帯・生活スタイルの倍率を掛けた後）。合計は livingCosts と一致します。
+// utilitiesIncludedInRent が true のとき、光熱費は住居費に含まれるため utilities は 0 です。
+export type LivingCostBreakdown = {
+  food: number;
+  utilities: number;
+  internet: number;
+  transport: number;
+  medical: number;
+  leisure: number;
 };
 
 export type ExpatTaxRegimeStatus = "off" | "applied" | "notEligible" | "notBeneficial" | "unverified" | "notModeled";
@@ -80,6 +93,8 @@ export type LegacyCityResult<TCity extends CalculationCity> = {
   netMonthly: number | null;
   rent: number;
   livingCosts: number;
+  livingCostBreakdown: LivingCostBreakdown;
+  utilitiesIncludedInRent: boolean;
   totalMonthlyCosts: number;
   monthlyRemaining: number | null;
   annualSavings: number | null;

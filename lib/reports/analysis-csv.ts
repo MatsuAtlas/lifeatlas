@@ -5,6 +5,13 @@ import type { WhatIfSnapshot } from "../../types/what-if.ts";
 
 type ReportLanguage = "ja" | "en";
 
+const utilitiesBasisLabels = {
+  separate: { ja: "別に計上", en: "Counted separately" },
+  includedInRent: { ja: "住居費に含む", en: "Included in housing" },
+  customRentUnconfirmed: { ja: "未確認（別に計上）", en: "Not confirmed (counted separately)" },
+  inCustomTotal: { ja: "生活費の総額に含む", en: "Within custom spending total" },
+} as const;
+
 function csvCell(value: string | number | null | undefined) {
   const text = value === null || value === undefined ? "" : String(value);
   return `"${text.replaceAll('"', '""')}"`;
@@ -12,9 +19,9 @@ function csvCell(value: string | number | null | undefined) {
 
 export function buildAnalysisCsv(language: ReportLanguage, analysis: SavedAnalyzerInput, snapshot: WhatIfSnapshot) {
   const labels = language === "ja" ? [
-    "順位", "都市", "国", "通貨", "年間総収入", "月間総収入", "年間税額", "年間社会保険", "年間手取り", "月間手取り", "月額家賃", "食費", "光熱費", "通信費", "交通費", "医療費目安", "その他生活費", "カスタム支出合計", "家賃以外の月額支出", "月間生活費", "月間余剰", "年間貯蓄", "貯蓄率", "家賃負担率", "生活費負担率", "購買力指数", "5年後資産", "10年後資産", "FIREまでの年数", "LifeAtlas Score", "データ信頼度", "計算状態", "都市データ更新日",
+    "順位", "都市", "国", "通貨", "年間総収入", "月間総収入", "年間税額", "年間社会保険", "年間手取り", "月間手取り", "月額家賃", "食費", "光熱費", "光熱費の扱い", "通信費", "交通費", "医療費目安", "その他生活費", "カスタム支出合計", "家賃以外の月額支出", "月間生活費", "月間余剰", "年間貯蓄", "貯蓄率", "家賃負担率", "生活費負担率", "購買力指数", "5年後資産", "10年後資産", "FIREまでの年数", "LifeAtlas Score", "データ信頼度", "計算状態", "都市データ更新日",
   ] : [
-    "Rank", "City", "Country", "Currency", "Gross annual income", "Gross monthly income", "Annual tax", "Annual social insurance", "Net annual income", "Net monthly income", "Monthly rent", "Food", "Utilities", "Internet", "Transportation", "Healthcare estimate", "Other living costs", "Custom spending total", "Other monthly spending", "Monthly living cost", "Monthly surplus", "Annual savings", "Savings rate", "Rent burden", "Living-cost burden", "Purchasing power index", "Projected wealth in 5 years", "Projected wealth in 10 years", "Years to FIRE", "LifeAtlas Score", "Data confidence", "Calculation status", "City data updated",
+    "Rank", "City", "Country", "Currency", "Gross annual income", "Gross monthly income", "Annual tax", "Annual social insurance", "Net annual income", "Net monthly income", "Monthly rent", "Food", "Utilities", "Utilities basis", "Internet", "Transportation", "Healthcare estimate", "Other living costs", "Custom spending total", "Other monthly spending", "Monthly living cost", "Monthly surplus", "Annual savings", "Savings rate", "Rent burden", "Living-cost burden", "Purchasing power index", "Projected wealth in 5 years", "Projected wealth in 10 years", "Years to FIRE", "LifeAtlas Score", "Data confidence", "Calculation status", "City data updated",
   ];
   const scoreById = new Map(snapshot.scores.map((score) => [score.scenarioId, score]));
   const rows = snapshot.results.map((result) => {
@@ -35,6 +42,7 @@ export function buildAnalysisCsv(language: ReportLanguage, analysis: SavedAnalyz
       result.rentMonthly,
       result.costBreakdownMonthly.food,
       result.costBreakdownMonthly.utilities,
+      utilitiesBasisLabels[result.costBreakdownMonthly.utilitiesBasis][language],
       result.costBreakdownMonthly.internet,
       result.costBreakdownMonthly.transportation,
       result.costBreakdownMonthly.healthcare,

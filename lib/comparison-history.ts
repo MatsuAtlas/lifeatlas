@@ -42,6 +42,7 @@ export function isScenarioInput(value: unknown): value is ScenarioInput {
     && typeof value.lifestyle === "string"
     && lifestyleTypes.has(value.lifestyle)
     && isOptionalFiniteInRange(value.customRent, 0, 1_000_000_000_000)
+    && (value.customRentIncludesUtilities === undefined || typeof value.customRentIncludesUtilities === "boolean")
     && isOptionalFiniteInRange(value.customMonthlySpending, 0, 1_000_000_000_000)
     && isOptionalFiniteInRange(value.customSavingsTarget, 0, 10_000_000_000_000)
     && isOptionalFiniteInRange(value.currentSavings, 0, 10_000_000_000_000)

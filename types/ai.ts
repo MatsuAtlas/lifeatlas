@@ -21,6 +21,7 @@ export type RecommendationScenario = {
     grossAnnual: number;
     netAnnual: number | null;
     totalLivingCostMonthly: number;
+    utilitiesBasis: "separate" | "includedInRent" | "customRentUnconfirmed" | "inCustomTotal";
     annualSavings: number | null;
     savingsRate: number | null;
     projectedSavings5Years: number | null;

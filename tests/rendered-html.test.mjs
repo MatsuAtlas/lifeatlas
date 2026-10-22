@@ -75,6 +75,9 @@ test("renders the account and comparison history interface", async () => {
   assert.match(html, /登録後はSupabase（オンライン保存サービス）に保存されます/);
   assert.doesNotMatch(html, /Supabase未設定時の確認用として、この端末にのみ保存します/);
   assert.match(html, /現在のデータ範囲/);
+  // 生活費の内訳の棒に、計算できない幅（NaN・Infinity）を渡さない。
+  assert.match(html, /class="bar bar-origin"/);
+  assert.doesNotMatch(html, /width:\s*(NaN|Infinity|-Infinity)/);
   assert.match(html, /都市人口の基準値/);
   assert.match(html, /目的地での働き方・給与条件/);
   assert.match(html, /現地就職：公式給与ベンチマーク/);
@@ -284,7 +287,7 @@ test("exposes validated deterministic decision APIs without duplicating the calc
   assert.equal(calculation.status, 200);
   const calculationPayload = await calculation.json();
   assert.equal(calculationPayload.result.scenarioId, "api-tokyo");
-  assert.equal(calculationPayload.result.assumptions.calculationVersion, "2026.08-v2.1");
+  assert.equal(calculationPayload.result.assumptions.calculationVersion, "2026.10-v2.2");
 
   const comparison = await fetch(`${baseUrl}/api/compare`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scenarios: [tokyo, vancouver], priorities }) });
   assert.equal(comparison.status, 200);
