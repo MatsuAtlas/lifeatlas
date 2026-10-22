@@ -202,7 +202,7 @@ label small { color: var(--faint); font-size: 10px; font-weight: 400; }
 .legend-origin { background: var(--blue); }.legend-destination { background: var(--green); }
 .cost-rows { display: grid; gap: 17px; }
 .cost-label { display: flex; justify-content: space-between; margin-bottom: 7px; color: var(--muted); font-size: 11px; }.cost-label small { color: var(--faint); font-size: 10px; }
-.bars { display: grid; gap: 5px; }.bar { display: block; height: 7px; min-width: 8px; border-radius: 999px; }.bar-origin { background: var(--blue); }.bar-destination { background: var(--green); }
+.bars { display: grid; gap: 5px; }.bar { display: block; height: 7px; min-width: 8px; border-radius: 999px; }.bar-origin { background: var(--blue); }.bar-destination { background: var(--green); }.bar.is-empty { min-width: 0; visibility: hidden; }
 .panel-footnote { margin: 22px 0 0; color: var(--faint); font-size: 10px; line-height: 1.7; }
 .sparkle { color: var(--green); font-size: 22px; }
 .asset-compare { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; margin-top: 28px; text-align: center; }.asset-compare div { display: flex; flex-direction: column; gap: 6px; }.asset-compare span, .asset-compare small { color: var(--muted); font-size: 11px; }.asset-compare strong { color: var(--green); font-size: 22px; letter-spacing: -.05em; }.asset-divider { color: var(--faint); font-size: 11px; }

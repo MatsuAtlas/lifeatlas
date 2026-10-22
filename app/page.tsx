@@ -7,6 +7,7 @@ import { FALLBACK_FX_TO_JPY } from "../data/currencies";
 import { trackProductEvent } from "../lib/analytics/client";
 import { localizedSourceItem, localizedSourceLevel, localizedSourceName, localizedSourcePeriod, localizedTimezone } from "../lib/cities/localization";
 import { isComparisonRecord, isSavedAnalyzerInput, LOCAL_HISTORY_LIMIT, localHistoryId, queueAnalyzerRestore, readLocalHistory, writeLocalHistory } from "../lib/comparison-history";
+import { costBarWidthPercent } from "../lib/formatters";
 import type { City, CityId, CurrencyCode, DataSource } from "../types/city";
 import type { ComparisonRecord as HistoryRecord } from "../types/comparison";
 import type { AgeBand, LegacyCityResult, TaxCalculationStatus } from "../types/finance";
@@ -1396,13 +1397,17 @@ export default function Home() {
             <div className="legend"><span><i className="legend-origin" /> {displayCityName(origin)}</span><span><i className="legend-destination" /> {displayCityName(destination)}</span></div>
             <div className="cost-rows">
               {categoryRows.map(([label, originValue, destinationValue]) => {
-                // 「住居費に含む」の行は金額0として棒を描き、金額の代わりに文言を示します。
+                // 「住居費に含む」の行は金額0として扱い、金額の代わりに文言を示します。
                 const amount = (value: number | string) => typeof value === "number" ? value : 0;
                 const cellText = (value: number | string, city: typeof origin) => typeof value === "number" ? dualMoney(value, city.currency, city.fxToJpy) : value;
                 const originValueYen = amount(originValue) * origin.fxToJpy;
                 const destinationValueYen = amount(destinationValue) * destination.fxToJpy;
                 const max = Math.max(originValueYen, destinationValueYen);
-                return <div className="cost-row" key={label as string}><div className="cost-label"><span>{label}</span><small>{cellText(originValue, origin)} / {cellText(destinationValue, destination)}</small></div><div className="bars"><span className="bar bar-origin" style={{ width: `${Math.max(8, (originValueYen / max) * 100)}%` }} /><span className="bar bar-destination" style={{ width: `${Math.max(8, (destinationValueYen / max) * 100)}%` }} /></div></div>;
+                return <div className="cost-row" key={label as string}><div className="cost-label"><span>{label}</span><small>{cellText(originValue, origin)} / {cellText(destinationValue, destination)}</small></div><div className="bars">{([["bar-origin", originValueYen], ["bar-destination", destinationValueYen]] as const).map(([className, valueYen]) => {
+                  const width = costBarWidthPercent(valueYen, max);
+                  // 金額0の棒は描かず、行の位置だけを保ちます（最小幅も適用しません）。
+                  return <span key={className} className={`bar ${className}${width === null ? " is-empty" : ""}`} style={{ width: width === null ? 0 : `${width}%` }} aria-hidden="true" />;
+                })}</div></div>;
               })}
             </div>
             <p className="panel-footnote">{t.yenFootnote}</p>

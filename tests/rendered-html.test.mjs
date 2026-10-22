@@ -75,6 +75,9 @@ test("renders the account and comparison history interface", async () => {
   assert.match(html, /登録後はSupabase（オンライン保存サービス）に保存されます/);
   assert.doesNotMatch(html, /Supabase未設定時の確認用として、この端末にのみ保存します/);
   assert.match(html, /現在のデータ範囲/);
+  // 生活費の内訳の棒に、計算できない幅（NaN・Infinity）を渡さない。
+  assert.match(html, /class="bar bar-origin"/);
+  assert.doesNotMatch(html, /width:\s*(NaN|Infinity|-Infinity)/);
   assert.match(html, /都市人口の基準値/);
   assert.match(html, /目的地での働き方・給与条件/);
   assert.match(html, /現地就職：公式給与ベンチマーク/);
